@@ -19,6 +19,8 @@ class Profile(db.Model):
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+    lists = db.relationship("VideoList", back_populates="profile", lazy="dynamic")
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
