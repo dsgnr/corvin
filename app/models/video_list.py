@@ -24,6 +24,9 @@ class VideoList(db.Model):
     )
 
     profile = db.relationship("Profile", back_populates="lists")
+    videos = db.relationship(
+        "Video", back_populates="video_list", lazy="dynamic", cascade="all, delete-orphan"
+    )
 
     def to_dict(self, include_videos: bool = False) -> dict:
         data = {
