@@ -1,6 +1,7 @@
 import logging
 
 from flask import Flask
+from flask_cors import CORS
 
 from app.core.logging import setup_logging, get_logger
 from app.extensions import db, migrate, scheduler
@@ -16,6 +17,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.url_map.strict_slashes = False
     _configure_app(app, config)
 
+    CORS(app)
     db.init_app(app)
     migrate.init_app(app, db)
 
