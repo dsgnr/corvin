@@ -38,6 +38,28 @@ def get_video(video_id: int):
     return jsonify(video.to_dict())
 
 
+@bp.get("/list/<int:list_id>")
+def get_videos_by_list(list_id: int):
+    """Get all videos for a specific list."""
+    from app.models import VideoList
+
+    video_list = VideoList.query.get(list_id)
+    if not video_list:
+        raise NotFoundError("VideoList", list_id)
+
+    downloaded = request.args.get("downloaded")
+    limit = request.args.get("limit", 100, type=int)
+    offset = request.args.get("offset", 0, type=int)
+
+    query = Video.query.filter_by(list_id=list_id)
+
+    if downloaded is not None:
+        query = query.filter_by(downloaded=downloaded.lower() == "true")
+
+    videos = query.order_by(Video.created_at.desc()).offset(offset).limit(limit).all()
+    return jsonify([v.to_dict() for v in videos])
+
+
 @bp.post("/<int:video_id>/retry")
 def retry_video(video_id: int):
     """Mark a video for retry."""
