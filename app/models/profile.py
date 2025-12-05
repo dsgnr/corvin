@@ -13,6 +13,7 @@ class Profile(db.Model):
     sponsorblock_remove: str = db.Column(db.String(200), default="")
     embed_metadata: bool = db.Column(db.Boolean, default=True)
     embed_thumbnail: bool = db.Column(db.Boolean, default=False)
+    exclude_shorts: bool = db.Column(db.Boolean, default=False)
     extra_args: str = db.Column(db.Text, default="{}")
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at: datetime = db.Column(
@@ -28,6 +29,7 @@ class Profile(db.Model):
             "sponsorblock_remove": self.sponsorblock_remove,
             "embed_metadata": self.embed_metadata,
             "embed_thumbnail": self.embed_thumbnail,
+            "exclude_shorts": self.exclude_shorts,
             "extra_args": self.extra_args,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

@@ -56,10 +56,16 @@ def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
     from app.services import HistoryService
 
     new_count = 0
+    exclude_shorts = video_list.profile.exclude_shorts
 
     for video_data in videos_data:
         if _video_exists(video_data["video_id"], video_list.id):
             continue
+
+        # Skip shorts if profile has exclude_shorts enabled
+        if exclude_shorts:
+            if "shorts" in video_data.get("url"):
+                continue
 
         video = Video(
             video_id=video_data["video_id"],

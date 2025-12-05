@@ -26,7 +26,8 @@ def create_profile():
         name=name,
         sponsorblock_remove=data.get("sponsorblock_remove", ""),
         embed_metadata=data.get("embed_metadata", True),
-        embed_thumbnail=data.get("embed_thumbnail", True),
+        embed_thumbnail=data.get("embed_thumbnail", False),
+        exclude_shorts=data.get("exclude_shorts", False),
         extra_args=data.get("extra_args", "{}"),
     )
 
@@ -77,6 +78,7 @@ def update_profile(profile_id: int):
         "sponsorblock_remove",
         "embed_metadata",
         "embed_thumbnail",
+        "exclude_shorts",
         "extra_args",
     ]
     for field in updatable_fields:
