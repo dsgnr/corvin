@@ -27,7 +27,7 @@ def _execute_sync(list_id: int) -> dict:
     logger.info("Syncing list %d: %s", list_id, video_list.name)
 
     from_date = (
-        datetime.combine(video_list.from_date, datetime.min.time())
+        datetime.strptime(video_list.from_date, "%Y%m%d")
         if video_list.from_date
         else None
     )

@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime
 
 from app.extensions import db
 
@@ -15,7 +15,7 @@ class VideoList(db.Model):
     profile_id: int = db.Column(
         db.Integer, db.ForeignKey("profiles.id"), nullable=False
     )
-    from_date: date | None = db.Column(db.Date, nullable=True)
+    from_date: str | None = db.Column(db.String(8), nullable=True)  # YYYYMMDD format
     enabled: bool = db.Column(db.Boolean, default=True)
     last_synced: datetime | None = db.Column(db.DateTime, nullable=True)
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
@@ -35,7 +35,7 @@ class VideoList(db.Model):
             "url": self.url,
             "list_type": self.list_type,
             "profile_id": self.profile_id,
-            "from_date": self.from_date.isoformat() if self.from_date else None,
+            "from_date": self.from_date,
             "enabled": self.enabled,
             "last_synced": self.last_synced.isoformat() if self.last_synced else None,
             "created_at": self.created_at.isoformat(),

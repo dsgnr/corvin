@@ -58,14 +58,20 @@ def _validate_create_data(data: dict) -> None:
         raise ConflictError("List with this URL already exists")
 
 
-def _parse_from_date(date_str: str | None):
-    """Parse from_date string to date object."""
+def _parse_from_date(date_str: str | None) -> str | None:
+    """Validate and return from_date in YYYYMMDD format."""
     if not date_str:
         return None
+    # Remove any dashes if ISO format was provided
+    clean = date_str.replace("-", "")
+    if len(clean) != 8 or not clean.isdigit():
+        raise ValidationError("Invalid from_date format (use YYYYMMDD)")
+    # Validate it's a real date
     try:
-        return datetime.fromisoformat(date_str).date()
+        datetime.strptime(clean, "%Y%m%d")
     except ValueError:
-        raise ValidationError("Invalid from_date format (use ISO format)")
+        raise ValidationError("Invalid from_date (not a valid date)")
+    return clean
 
 
 @bp.get("/")
