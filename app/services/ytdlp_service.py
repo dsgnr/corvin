@@ -34,7 +34,12 @@ class YtDlpService:
             logger.warning("No info returned for URL: %s", url)
             return []
 
-        entries = info.get("entries", [info])
+        entries = [
+            item
+            for a in info.get("entries", [])
+            for item in a.get("entries", [])
+        ]
+
         videos = cls._parse_entries(entries, from_date)
 
         logger.info("Found %d videos from %s", len(videos), url)
