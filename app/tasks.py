@@ -255,7 +255,7 @@ def enqueue_tasks_bulk(
 
 def schedule_syncs(list_ids: list[int] | None = None) -> dict:
     """
-    Queue sync tasks for specified lists or all enabled lists.
+    Queue sync tasks for specified lists or all enabled lists that are due.
     Returns dict with queued/skipped counts.
     """
     from app.models import VideoList
@@ -268,9 +268,9 @@ def schedule_syncs(list_ids: list[int] | None = None) -> dict:
         ).all()
         ids_to_queue = [vl.id for vl in lists]
     else:
-        # All enabled lists
+        # All enabled lists that are due for sync based on their frequency
         lists = VideoList.query.filter_by(enabled=True).all()
-        ids_to_queue = [vl.id for vl in lists]
+        ids_to_queue = [vl.id for vl in lists if vl.is_due_for_sync()]
 
     if not ids_to_queue:
         return {"queued": 0, "skipped": 0, "tasks": []}
@@ -278,6 +278,11 @@ def schedule_syncs(list_ids: list[int] | None = None) -> dict:
     result = enqueue_tasks_bulk(TaskType.SYNC.value, ids_to_queue)
     logger.info("Scheduled %d list syncs", result["queued"])
     return result
+
+
+def schedule_all_syncs() -> dict:
+    """Queue sync tasks for all enabled lists that are due (called by scheduler)."""
+    return schedule_syncs()
 
 
 def schedule_downloads(video_ids: list[int] | None = None) -> dict:

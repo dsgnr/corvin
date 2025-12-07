@@ -27,6 +27,7 @@ def create_list():
         list_type=data.get("list_type", "channel"),
         profile_id=data["profile_id"],
         from_date=from_date,
+        sync_frequency=data.get("sync_frequency", "daily"),
         enabled=data.get("enabled", True),
     )
 
@@ -133,7 +134,7 @@ def _apply_list_updates(video_list: VideoList, data: dict) -> None:
     if "from_date" in data:
         video_list.from_date = _parse_from_date(data["from_date"])
 
-    simple_fields = ["name", "list_type", "enabled"]
+    simple_fields = ["name", "list_type", "sync_frequency", "enabled"]
     for field in simple_fields:
         if field in data:
             setattr(video_list, field, data[field])

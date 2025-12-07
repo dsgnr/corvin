@@ -1,6 +1,13 @@
 from datetime import datetime
+from enum import Enum
 
 from app.extensions import db
+
+
+class SyncFrequency(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
 
 
 class VideoList(db.Model):
@@ -16,6 +23,7 @@ class VideoList(db.Model):
         db.Integer, db.ForeignKey("profiles.id"), nullable=False
     )
     from_date: str | None = db.Column(db.String(8), nullable=True)  # YYYYMMDD format
+    sync_frequency: str = db.Column(db.String(10), default=SyncFrequency.DAILY.value)
     enabled: bool = db.Column(db.Boolean, default=True)
     last_synced: datetime | None = db.Column(db.DateTime, nullable=True)
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
@@ -28,6 +36,25 @@ class VideoList(db.Model):
         "Video", back_populates="video_list", lazy="dynamic", cascade="all, delete-orphan"
     )
 
+    def is_due_for_sync(self) -> bool:
+        """Check if this list is due for a sync based on frequency."""
+        if not self.last_synced:
+            return True
+
+        from datetime import timedelta
+
+        now = datetime.utcnow()
+        elapsed = now - self.last_synced
+
+        if self.sync_frequency == SyncFrequency.DAILY.value:
+            return elapsed >= timedelta(days=1)
+        if self.sync_frequency == SyncFrequency.WEEKLY.value:
+            return elapsed >= timedelta(weeks=1)
+        if self.sync_frequency == SyncFrequency.MONTHLY.value:
+            return elapsed >= timedelta(days=30)
+
+        return True
+
     def to_dict(self, include_videos: bool = False) -> dict:
         data = {
             "id": self.id,
@@ -36,6 +63,7 @@ class VideoList(db.Model):
             "list_type": self.list_type,
             "profile_id": self.profile_id,
             "from_date": self.from_date,
+            "sync_frequency": self.sync_frequency,
             "enabled": self.enabled,
             "last_synced": self.last_synced.isoformat() if self.last_synced else None,
             "created_at": self.created_at.isoformat(),
