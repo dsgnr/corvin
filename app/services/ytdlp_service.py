@@ -101,6 +101,7 @@ class YtDlpService:
             "duration": entry.get("duration"),
             "upload_date": upload_date,
             "thumbnail": entry.get("thumbnail"),
+            "description": entry.get("description"),
         }
 
     @staticmethod
