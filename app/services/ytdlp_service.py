@@ -36,7 +36,26 @@ class YtDlpService:
             return []
 
         entries = info.get("entries", [])
-        videos = cls._parse_entries(entries, from_date)
+        # There are two ways in which we'll receive entries from yt-dlp.
+        # Sometimes the `entries` key will contain the list of videos.
+        # Othertimes, perhaps newer channels(?), we'll contain two playlist types (videos/shorts). In these playlist types, there'll be a nested `entries` key.
+        # It seems the cleanest way to determine this is by the presence (or lack) of an `entries` key.
+
+        # If the list contains nested entry groups (items with an 'entries' key),
+        # flatten and return all of their entries; otherwise, return the list as-is
+
+        # If none of the items have an 'entries' key, return as-is
+        if not any("entries" in entry for entry in entries):
+            results = entries
+        else:
+            # Flatten all nested entries
+            results = []
+            for entry in entries:
+                if "entries" in entry:
+                    results.extend(entry["entries"])
+
+
+        videos = cls._parse_entries(results, from_date)
 
         logger.info("Found %d videos from %s", len(videos), url)
         return videos
