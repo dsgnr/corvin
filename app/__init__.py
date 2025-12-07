@@ -87,7 +87,7 @@ def _init_worker(app: Flask) -> None:
 
 def _setup_scheduler(app: Flask) -> None:
     """Set up periodic task scheduling for syncs and downloads."""
-    from app.tasks import schedule_all_syncs, schedule_pending_downloads
+    from app.tasks import schedule_all_syncs, schedule_downloads
 
     def run_in_context(func):
         def wrapper():
@@ -104,7 +104,7 @@ def _setup_scheduler(app: Flask) -> None:
         replace_existing=True,
     )
     scheduler.add_job(
-        func=run_in_context(schedule_pending_downloads),
+        func=run_in_context(schedule_downloads),
         trigger="interval",
         minutes=5,
         id="download_videos",
