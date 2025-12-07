@@ -33,7 +33,10 @@ class Task(db.Model):
     started_at: datetime | None = db.Column(db.DateTime, nullable=True)
     completed_at: datetime | None = db.Column(db.DateTime, nullable=True)
 
-    __table_args__ = (db.Index("ix_tasks_status_type", "status", "task_type"),)
+    __table_args__ = (
+        db.Index("ix_tasks_status_type", "status", "task_type"),
+        db.Index("ix_tasks_pending_lookup", "task_type", "entity_id", "status"),
+    )
 
     def to_dict(self) -> dict:
         return {

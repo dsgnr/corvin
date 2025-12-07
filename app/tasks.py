@@ -176,7 +176,7 @@ def _mark_download_failure(video, error: str) -> dict:
 
 
 def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
-    """Create a new task in the database if not already queued."""
+    """Create a new task in the database if not already queued or running."""
     from app.extensions import db
     from app.models.task import Task, TaskStatus
 
@@ -203,38 +203,110 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
     return task
 
 
-def schedule_all_syncs() -> int:
-    """Queue sync tasks for all enabled lists."""
+def enqueue_tasks_bulk(
+    task_type: str, entity_ids: list[int], max_retries: int = 3
+) -> dict:
+    """
+    Bulk enqueue multiple tasks, skipping duplicates.
+    Returns dict with 'queued' count, 'skipped' count, and 'tasks' list.
+    """
+    from app.extensions import db
+    from app.models.task import Task, TaskStatus
+
+    # Find existing pending/running tasks for these entities
+    existing = (
+        Task.query.filter_by(task_type=task_type)
+        .filter(Task.entity_id.in_(entity_ids))
+        .filter(Task.status.in_([TaskStatus.PENDING.value, TaskStatus.RUNNING.value]))
+        .all()
+    )
+    existing_ids = {t.entity_id for t in existing}
+
+    # Filter out duplicates
+    new_ids = [eid for eid in entity_ids if eid not in existing_ids]
+
+    tasks = []
+    for entity_id in new_ids:
+        task = Task(
+            task_type=task_type,
+            entity_id=entity_id,
+            status=TaskStatus.PENDING.value,
+            max_retries=max_retries,
+        )
+        db.session.add(task)
+        tasks.append(task)
+
+    if tasks:
+        db.session.commit()
+
+    logger.info(
+        "Bulk enqueued %d %s tasks (%d skipped as duplicates)",
+        len(tasks),
+        task_type,
+        len(existing_ids),
+    )
+
+    return {
+        "queued": len(tasks),
+        "skipped": len(entity_ids) - len(new_ids),
+        "tasks": tasks,
+    }
+
+
+def schedule_syncs(list_ids: list[int] | None = None) -> dict:
+    """
+    Queue sync tasks for specified lists or all enabled lists.
+    Returns dict with queued/skipped counts.
+    """
     from app.models import VideoList
     from app.models.task import TaskType
 
-    lists = VideoList.query.filter_by(enabled=True).all()
-    queued = 0
+    if list_ids:
+        # Validate list IDs exist and are enabled
+        lists = VideoList.query.filter(
+            VideoList.id.in_(list_ids), VideoList.enabled == True
+        ).all()
+        ids_to_queue = [vl.id for vl in lists]
+    else:
+        # All enabled lists
+        lists = VideoList.query.filter_by(enabled=True).all()
+        ids_to_queue = [vl.id for vl in lists]
 
-    for video_list in lists:
-        if enqueue_task(TaskType.SYNC.value, video_list.id):
-            queued += 1
+    if not ids_to_queue:
+        return {"queued": 0, "skipped": 0, "tasks": []}
 
-    logger.info("Scheduled %d list syncs", queued)
-    return queued
+    result = enqueue_tasks_bulk(TaskType.SYNC.value, ids_to_queue)
+    logger.info("Scheduled %d list syncs", result["queued"])
+    return result
 
 
-def schedule_pending_downloads() -> int:
-    """Queue download tasks for pending videos."""
+def schedule_downloads(video_ids: list[int] | None = None) -> dict:
+    """
+    Queue download tasks for specified videos or all pending videos.
+    Returns dict with queued/skipped counts.
+    """
     from app.models import Video
     from app.models.task import TaskType
 
-    videos = (
-        Video.query.filter_by(downloaded=False)
-        .filter((Video.error_message.is_(None)) | (Video.retry_count > 0))
-        .limit(50)
-        .all()
-    )
+    if video_ids:
+        # Validate video IDs exist and are not downloaded
+        videos = Video.query.filter(
+            Video.id.in_(video_ids), Video.downloaded == False
+        ).all()
+        ids_to_queue = [v.id for v in videos]
+    else:
+        # All pending videos (not downloaded, no error or has retries)
+        videos = (
+            Video.query.filter_by(downloaded=False)
+            .filter((Video.error_message.is_(None)) | (Video.retry_count > 0))
+            .limit(100)
+            .all()
+        )
+        ids_to_queue = [v.id for v in videos]
 
-    queued = 0
-    for video in videos:
-        if enqueue_task(TaskType.DOWNLOAD.value, video.id):
-            queued += 1
+    if not ids_to_queue:
+        return {"queued": 0, "skipped": 0, "tasks": []}
 
-    logger.info("Scheduled %d video downloads", queued)
-    return queued
+    result = enqueue_tasks_bulk(TaskType.DOWNLOAD.value, ids_to_queue)
+    logger.info("Scheduled %d video downloads", result["queued"])
+    return result

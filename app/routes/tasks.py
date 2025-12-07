@@ -5,7 +5,7 @@ from app.core.exceptions import NotFoundError, ValidationError, ConflictError
 from app.core.logging import get_logger
 from app.models.task import Task, TaskStatus, TaskType
 from app.task_queue import get_worker
-from app.tasks import enqueue_task, schedule_all_syncs, schedule_pending_downloads
+from app.tasks import enqueue_task, schedule_syncs, schedule_downloads
 
 logger = get_logger("routes.tasks")
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
@@ -76,12 +76,29 @@ def trigger_list_sync(list_id: int):
     return jsonify(task.to_dict()), 202
 
 
+@bp.post("/sync/lists")
+def trigger_lists_sync():
+    """Trigger sync for multiple lists by ID."""
+    data = request.get_json() or {}
+    list_ids = data.get("list_ids", [])
+
+    if not list_ids:
+        raise ValidationError("list_ids is required")
+
+    if not isinstance(list_ids, list):
+        raise ValidationError("list_ids must be an array")
+
+    result = schedule_syncs(list_ids)
+    logger.info("Triggered sync for %d lists: %d queued", len(list_ids), result["queued"])
+    return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
+
+
 @bp.post("/sync/all")
 def trigger_all_syncs():
     """Trigger sync for all enabled lists."""
-    queued = schedule_all_syncs()
-    logger.info("Triggered sync for all lists: %d queued", queued)
-    return jsonify({"queued": queued}), 202
+    result = schedule_syncs()
+    logger.info("Triggered sync for all lists: %d queued", result["queued"])
+    return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
 
 @bp.post("/download/video/<int:video_id>")
@@ -96,12 +113,29 @@ def trigger_video_download(video_id: int):
     return jsonify(task.to_dict()), 202
 
 
+@bp.post("/download/videos")
+def trigger_videos_download():
+    """Trigger download for multiple videos by ID."""
+    data = request.get_json() or {}
+    video_ids = data.get("video_ids", [])
+
+    if not video_ids:
+        raise ValidationError("video_ids is required")
+
+    if not isinstance(video_ids, list):
+        raise ValidationError("video_ids must be an array")
+
+    result = schedule_downloads(video_ids)
+    logger.info("Triggered download for %d videos: %d queued", len(video_ids), result["queued"])
+    return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
+
+
 @bp.post("/download/pending")
 def trigger_pending_downloads():
     """Trigger download for all pending videos."""
-    queued = schedule_pending_downloads()
-    logger.info("Triggered pending downloads: %d queued", queued)
-    return jsonify({"queued": queued}), 202
+    result = schedule_downloads()
+    logger.info("Triggered pending downloads: %d queued", result["queued"])
+    return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
 
 @bp.post("/<int:task_id>/retry")
