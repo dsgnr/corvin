@@ -16,6 +16,12 @@ class TaskType(str, Enum):
     DOWNLOAD = "download"
 
 
+class TaskLogLevel(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 class Task(db.Model):
     """Background task persisted to database."""
 
@@ -33,13 +39,30 @@ class Task(db.Model):
     started_at: datetime | None = db.Column(db.DateTime, nullable=True)
     completed_at: datetime | None = db.Column(db.DateTime, nullable=True)
 
+    logs = db.relationship(
+        "TaskLog", back_populates="task", lazy="dynamic", cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         db.Index("ix_tasks_status_type", "status", "task_type"),
         db.Index("ix_tasks_pending_lookup", "task_type", "entity_id", "status"),
     )
 
-    def to_dict(self) -> dict:
-        return {
+    def add_log(
+        self, message: str, level: str = TaskLogLevel.INFO.value, attempt: int | None = None
+    ) -> "TaskLog":
+        """Add a log entry to this task."""
+        log = TaskLog(
+            task_id=self.id,
+            attempt=attempt if attempt is not None else self.retry_count + 1,
+            level=level,
+            message=message,
+        )
+        db.session.add(log)
+        return log
+
+    def to_dict(self, include_logs: bool = False) -> dict:
+        data = {
             "id": self.id,
             "task_type": self.task_type,
             "entity_id": self.entity_id,
@@ -51,4 +74,33 @@ class Task(db.Model):
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+        if include_logs:
+            data["logs"] = [log.to_dict() for log in self.logs.order_by(TaskLog.created_at.asc())]
+        return data
+
+
+class TaskLog(db.Model):
+    """Log entry for a task attempt."""
+
+    __tablename__ = "task_logs"
+
+    id: int = db.Column(db.Integer, primary_key=True)
+    task_id: int = db.Column(db.Integer, db.ForeignKey("tasks.id"), nullable=False)
+    attempt: int = db.Column(db.Integer, nullable=False)
+    level: str = db.Column(db.String(10), default=TaskLogLevel.INFO.value)
+    message: str = db.Column(db.Text, nullable=False)
+    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+
+    task = db.relationship("Task", back_populates="logs")
+
+    __table_args__ = (db.Index("ix_task_logs_task_id", "task_id"),)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "attempt": self.attempt,
+            "level": self.level,
+            "message": self.message,
+            "created_at": self.created_at.isoformat(),
         }

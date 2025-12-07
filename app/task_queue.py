@@ -145,7 +145,7 @@ class TaskWorker:
     def _run_task_handler(self, task_id: int, task_type: str) -> None:
         """Run the task handler and update task status."""
         from app.extensions import db
-        from app.models.task import Task, TaskStatus
+        from app.models.task import Task, TaskStatus, TaskLogLevel
 
         task = Task.query.get(task_id)
         if not task:
@@ -157,39 +157,55 @@ class TaskWorker:
             self._fail_task(task, f"No handler for task type: {task_type}")
             return
 
+        attempt = task.retry_count + 1
+        task.add_log(f"Starting attempt {attempt}", TaskLogLevel.INFO.value, attempt)
+        db.session.commit()
+
         try:
             result = handler(self.app, task.entity_id)
             task.status = TaskStatus.COMPLETED.value
             task.result = json.dumps(result) if result else None
             task.completed_at = datetime.utcnow()
+            task.add_log(
+                f"Completed successfully: {json.dumps(result) if result else 'OK'}",
+                TaskLogLevel.INFO.value,
+                attempt,
+            )
             db.session.commit()
             logger.info("Task %d completed successfully", task_id)
 
         except Exception as e:
-            self._handle_task_failure(task, e)
+            self._handle_task_failure(task, e, attempt)
 
     def _fail_task(self, task, error_message: str) -> None:
         """Mark a task as failed."""
         from app.extensions import db
-        from app.models.task import TaskStatus
+        from app.models.task import TaskStatus, TaskLogLevel
 
         task.status = TaskStatus.FAILED.value
         task.error = error_message
         task.completed_at = datetime.utcnow()
+        task.add_log(f"Failed: {error_message}", TaskLogLevel.ERROR.value)
         db.session.commit()
         logger.error("Task %d failed: %s", task.id, error_message)
 
-    def _handle_task_failure(self, task, exception: Exception) -> None:
+    def _handle_task_failure(self, task, exception: Exception, attempt: int) -> None:
         """Handle task failure with retry logic."""
         from app.extensions import db
-        from app.models.task import TaskStatus
+        from app.models.task import TaskStatus, TaskLogLevel
 
-        task.error = str(exception)
+        error_msg = str(exception)
+        task.error = error_msg
         task.retry_count += 1
 
         if task.retry_count < task.max_retries:
             task.status = TaskStatus.PENDING.value
             task.started_at = None
+            task.add_log(
+                f"Failed (attempt {attempt}/{task.max_retries}): {error_msg}. Will retry.",
+                TaskLogLevel.WARNING.value,
+                attempt,
+            )
             logger.warning(
                 "Task %d failed (attempt %d/%d), will retry: %s",
                 task.id,
@@ -200,6 +216,11 @@ class TaskWorker:
         else:
             task.status = TaskStatus.FAILED.value
             task.completed_at = datetime.utcnow()
+            task.add_log(
+                f"Failed permanently after {attempt} attempts: {error_msg}",
+                TaskLogLevel.ERROR.value,
+                attempt,
+            )
             logger.error(
                 "Task %d failed permanently after %d attempts: %s",
                 task.id,

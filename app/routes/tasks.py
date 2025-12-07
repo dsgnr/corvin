@@ -32,11 +32,25 @@ def list_tasks():
 
 @bp.get("/<int:task_id>")
 def get_task(task_id: int):
-    """Get a task by ID."""
+    """Get a task by ID with optional logs."""
     task = Task.query.get(task_id)
     if not task:
         raise NotFoundError("Task", task_id)
-    return jsonify(task.to_dict())
+    include_logs = request.args.get("include_logs", "true").lower() == "true"
+    return jsonify(task.to_dict(include_logs=include_logs))
+
+
+@bp.get("/<int:task_id>/logs")
+def get_task_logs(task_id: int):
+    """Get logs for a specific task."""
+    from app.models.task import TaskLog
+
+    task = Task.query.get(task_id)
+    if not task:
+        raise NotFoundError("Task", task_id)
+
+    logs = task.logs.order_by(TaskLog.created_at.asc()).all()
+    return jsonify([log.to_dict() for log in logs])
 
 
 @bp.get("/stats")
