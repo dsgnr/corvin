@@ -4,10 +4,52 @@ from app.extensions import db
 from app.core.exceptions import ValidationError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.models import Profile, HistoryAction
+from app.models.profile import SponsorBlockBehavior, SPONSORBLOCK_CATEGORIES
 from app.services import HistoryService
 
 logger = get_logger("routes.profiles")
 bp = Blueprint("profiles", __name__, url_prefix="/api/profiles")
+
+
+def _validate_sponsorblock_categories(categories_str: str) -> None:
+    """Validate SponsorBlock categories."""
+    if not categories_str:
+        return
+    categories = [c.strip() for c in categories_str.split(",") if c.strip()]
+    invalid = [c for c in categories if c not in SPONSORBLOCK_CATEGORIES]
+    if invalid:
+        raise ValidationError(
+            f"Invalid SponsorBlock categories: {invalid}. "
+            f"Valid categories: {SPONSORBLOCK_CATEGORIES}"
+        )
+
+
+def _validate_sponsorblock_behavior(behavior: str) -> None:
+    """Validate SponsorBlock behavior."""
+    if behavior and behavior not in SponsorBlockBehavior.ALL:
+        raise ValidationError(
+            f"Invalid SponsorBlock behavior: {behavior}. "
+            f"Valid options: {SponsorBlockBehavior.ALL}"
+        )
+
+
+@bp.get("/sponsorblock-options")
+def get_sponsorblock_options():
+    """Get available SponsorBlock behaviors and categories."""
+    return jsonify({
+        "behaviors": SponsorBlockBehavior.ALL,
+        "categories": SPONSORBLOCK_CATEGORIES,
+        "category_labels": {
+            "sponsor": "Sponsor",
+            "intro": "Intro/Intermission",
+            "outro": "Outro/Credits",
+            "selfpromo": "Unpaid/Self Promotion",
+            "preview": "Preview/Recap",
+            "interaction": "Interaction Reminder (Subscribe)",
+            "music_offtopic": "Music: Non-Music Section",
+            "filler": "Tangents/Jokes",
+        }
+    })
 
 
 @bp.post("/")
@@ -22,13 +64,28 @@ def create_profile():
     if Profile.query.filter_by(name=name).first():
         raise ConflictError(f"Profile '{name}' already exists")
 
+    # Validate SponsorBlock options
+    _validate_sponsorblock_behavior(data.get("sponsorblock_behavior", ""))
+    _validate_sponsorblock_categories(data.get("sponsorblock_categories", ""))
+
     profile = Profile(
         name=name,
-        sponsorblock_remove=data.get("sponsorblock_remove", ""),
         embed_metadata=data.get("embed_metadata", True),
         embed_thumbnail=data.get("embed_thumbnail", False),
         exclude_shorts=data.get("exclude_shorts", False),
         extra_args=data.get("extra_args", "{}"),
+        # Subtitle options
+        download_subtitles=data.get("download_subtitles", False),
+        embed_subtitles=data.get("embed_subtitles", False),
+        auto_generated_subtitles=data.get("auto_generated_subtitles", False),
+        subtitle_languages=data.get("subtitle_languages", "en"),
+        # Audio track language
+        audio_track_language=data.get("audio_track_language", ""),
+        # Output template
+        output_template=data.get("output_template", "%(uploader)s/%(title)s.%(ext)s"),
+        # SponsorBlock options
+        sponsorblock_behavior=data.get("sponsorblock_behavior", SponsorBlockBehavior.DISABLED),
+        sponsorblock_categories=data.get("sponsorblock_categories", ""),
     )
 
     db.session.add(profile)
@@ -74,12 +131,29 @@ def update_profile(profile_id: int):
             raise ConflictError(f"Profile '{data['name']}' already exists")
         profile.name = data["name"]
 
+    # Validate SponsorBlock options if provided
+    if "sponsorblock_behavior" in data:
+        _validate_sponsorblock_behavior(data["sponsorblock_behavior"])
+    if "sponsorblock_categories" in data:
+        _validate_sponsorblock_categories(data["sponsorblock_categories"])
+
     updatable_fields = [
-        "sponsorblock_remove",
         "embed_metadata",
         "embed_thumbnail",
         "exclude_shorts",
         "extra_args",
+        # Subtitle options
+        "download_subtitles",
+        "embed_subtitles",
+        "auto_generated_subtitles",
+        "subtitle_languages",
+        # Audio track language
+        "audio_track_language",
+        # Output template
+        "output_template",
+        # SponsorBlock options
+        "sponsorblock_behavior",
+        "sponsorblock_categories",
     ]
     for field in updatable_fields:
         if field in data:

@@ -121,7 +121,9 @@ class YtDlpService:
         output_dir = output_dir or cls.DEFAULT_OUTPUT_DIR
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        output_template = str(output_dir / "%(uploader)s/%(title)s.%(ext)s")
+        # Use profile's output template or default
+        template = profile.output_template or "%(uploader)s/%(title)s.%(ext)s"
+        output_template = str(output_dir / template)
         ydl_opts = cls._build_download_opts(profile, output_template)
 
         logger.info("Downloading video: %s", video.title)
