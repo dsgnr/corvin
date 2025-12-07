@@ -96,3 +96,27 @@ def update_profile(profile_id: int):
 
     logger.info("Updated profile: %s", profile.name)
     return jsonify(profile.to_dict())
+
+
+@bp.delete("/<int:profile_id>")
+def delete_profile(profile_id: int):
+    """Delete a profile."""
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        raise NotFoundError("Profile", profile_id)
+
+    if profile.lists.count() > 0:
+        raise ConflictError(
+            f"Cannot delete profile '{profile.name}' - it has {profile.lists.count()} associated list(s)"
+        )
+
+    profile_name = profile.name
+    db.session.delete(profile)
+    db.session.commit()
+
+    HistoryService.log(
+        HistoryAction.PROFILE_DELETED, "profile", profile_id, {"name": profile_name}
+    )
+
+    logger.info("Deleted profile: %s", profile_name)
+    return "", 204

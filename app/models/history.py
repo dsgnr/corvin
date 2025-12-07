@@ -7,8 +7,10 @@ from app.extensions import db
 class HistoryAction(str, Enum):
     PROFILE_CREATED = "profile_created"
     PROFILE_UPDATED = "profile_updated"
+    PROFILE_DELETED = "profile_deleted"
     LIST_CREATED = "list_created"
     LIST_UPDATED = "list_updated"
+    LIST_DELETED = "list_deleted"
     LIST_SYNCED = "list_synced"
     VIDEO_DISCOVERED = "video_discovered"
     VIDEO_DOWNLOAD_STARTED = "video_download_started"

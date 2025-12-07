@@ -138,3 +138,27 @@ def _apply_list_updates(video_list: VideoList, data: dict) -> None:
     for field in simple_fields:
         if field in data:
             setattr(video_list, field, data[field])
+
+
+@bp.delete("/<int:list_id>")
+def delete_list(list_id: int):
+    """Delete a video list and its associated videos."""
+    video_list = VideoList.query.get(list_id)
+    if not video_list:
+        raise NotFoundError("VideoList", list_id)
+
+    list_name = video_list.name
+    video_count = video_list.videos.count()
+
+    db.session.delete(video_list)
+    db.session.commit()
+
+    HistoryService.log(
+        HistoryAction.LIST_DELETED,
+        "list",
+        list_id,
+        {"name": list_name, "videos_deleted": video_count},
+    )
+
+    logger.info("Deleted list: %s (with %d videos)", list_name, video_count)
+    return "", 204
