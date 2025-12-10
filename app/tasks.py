@@ -32,7 +32,12 @@ def _execute_sync(list_id: int) -> dict:
         else None
     )
 
-    videos_data = YtDlpService.extract_info(video_list.url, from_date)
+    # Build the URL, appending /videos for channels if exclude_shorts is enabled
+    url = video_list.url
+    if video_list.profile.exclude_shorts and video_list.list_type == "channel":
+        url = _append_videos_path(url)
+
+    videos_data = YtDlpService.extract_info(url, from_date)
     new_count = _store_discovered_videos(video_list, videos_data)
 
     video_list.last_synced = datetime.utcnow()
@@ -47,6 +52,14 @@ def _execute_sync(list_id: int) -> dict:
 
     logger.info("List %d synced: %d new videos", list_id, new_count)
     return {"new_videos": new_count, "total_found": len(videos_data)}
+
+
+def _append_videos_path(url: str) -> str:
+    """Append /videos to a YouTube channel URL to exclude shorts."""
+    url = url.rstrip("/")
+    if "/videos" not in url and "/shorts" not in url and "/streams" not in url:
+        return f"{url}/videos"
+    return url
 
 
 def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
