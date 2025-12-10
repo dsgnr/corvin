@@ -203,22 +203,24 @@ function VideoRow({ video, downloading, onDownload }: {
 
   return (
     <div className="p-4 flex items-center gap-4">
-      {video.thumbnail && (
-        <img
-          src={video.thumbnail}
-          alt=""
-          className="w-24 h-14 object-cover rounded bg-[var(--border)]"
-        />
-      )}
+      <Link href={`/videos/${video.id}`} className="shrink-0">
+        {video.thumbnail ? (
+          <img
+            src={video.thumbnail}
+            alt=""
+            className="w-24 h-14 object-cover rounded bg-[var(--border)] hover:opacity-80 transition-opacity"
+          />
+        ) : (
+          <div className="w-24 h-14 rounded bg-[var(--border)]" />
+        )}
+      </Link>
       <div className="flex-1 min-w-0">
-        <a
-          href={video.url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href={`/videos/${video.id}`}
           className="font-medium text-sm hover:text-[var(--accent)] transition-colors line-clamp-1"
         >
           {video.title}
-        </a>
+        </Link>
         <div className="flex items-center gap-3 mt-1 text-xs text-[var(--muted)]">
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
@@ -239,7 +241,7 @@ function VideoRow({ video, downloading, onDownload }: {
         )}
         {!video.downloaded && (
           <button
-            onClick={onDownload}
+            onClick={(e) => { e.preventDefault(); onDownload() }}
             disabled={downloading}
             className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
             title="Download"
