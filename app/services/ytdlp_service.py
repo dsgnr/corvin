@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -8,78 +9,132 @@ from app.models import Profile, Video
 
 logger = get_logger("ytdlp")
 
+MAX_METADATA_WORKERS = 5 # experimental amount
+
 
 class YtDlpService:
     DEFAULT_OUTPUT_DIR = Path("downloads")
 
     @classmethod
     def extract_info(cls, url: str, from_date: datetime | None = None) -> list[dict]:
-        """Extract video information from a URL (channel/playlist)."""
+        """Extract video information from a URL (channel/playlist) using parallel fetching."""
         logger.info("Extracting info from: %s", url)
 
+        # Fast flat extraction to get video IDs
+        video_urls = cls._extract_flat_playlist(url)
+        if not video_urls:
+            return []
+
+        logger.info("Found %d videos, fetching metadata in parallel...", len(video_urls))
+
+        # Fetch full metadata in parallel using the urls from above
+        videos = cls._fetch_metadata_parallel(video_urls, from_date)
+
+        logger.info("Extracted %d videos from %s", len(videos), url)
+        return videos
+
+    @classmethod
+    def _extract_flat_playlist(cls, url: str) -> list[str]:
+        """Extract video URLs from a playlist/channel without full metadata."""
         ydl_opts = {
-            "quiet": False,
-            "extract_flat": False,
-            "ignoreerrors": True,
+            "extract_flat": True,
+            "quiet": True,
             "no_warnings": True,
+            "ignoreerrors": True,
         }
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
-            logger.error("Failed to extract info from %s: %s", url, e)
+            logger.error("Failed to extract flat playlist from %s: %s", url, e)
             raise
 
         if not info:
             logger.warning("No info returned for URL: %s", url)
             return []
 
-        entries = info.get("entries", [])
+        # My understanding...
         # There are two ways in which we'll receive entries from yt-dlp.
         # Sometimes the `entries` key will contain the list of videos.
-        # Othertimes, perhaps newer channels(?), we'll contain two playlist types (videos/shorts). In these playlist types, there'll be a nested `entries` key.
+        # Othertimes, perhaps newer channels(?), we'll contain two playlist types (videos/shorts). 
+        # In these playlist types, there'll be a nested `entries` key.
         # It seems the cleanest way to determine this is by the presence (or lack) of an `entries` key.
-
         # If the list contains nested entry groups (items with an 'entries' key),
         # flatten and return all of their entries; otherwise, return the list as-is
-
         # If none of the items have an 'entries' key, return as-is
-        if not any("entries" in entry for entry in entries):
-            results = entries
-        else:
-            # Flatten all nested entries
-            results = []
+        entries = info.get("entries", [])
+
+        # Handle nested entries (videos/shorts playlists)
+        if any(entry and "entries" in entry for entry in entries if entry):
+            flattened = []
             for entry in entries:
-                if "entries" in entry:
-                    results.extend(entry["entries"])
+                if entry and "entries" in entry:
+                    flattened.extend(entry["entries"])
+            entries = flattened
 
-
-        videos = cls._parse_entries(results, from_date)
-
-        logger.info("Found %d videos from %s", len(videos), url)
-        return videos
-
-    @classmethod
-    def _parse_entries(cls, entries: list, from_date: datetime | None) -> list[dict]:
-        """Parse video entries from yt-dlp response."""
-        videos = []
-
+        # Build video URLs from IDs
+        video_urls = []
         for entry in entries:
             if not entry:
                 continue
+            video_id = entry.get("id")
+            if video_id:
+                video_urls.append(f"https://www.youtube.com/watch?v={video_id}")
 
-            video = cls._parse_single_entry(entry)
-            if not video:
-                continue
+        return video_urls
 
-            if from_date and video.get("upload_date"):
-                if video["upload_date"] < from_date:
-                    continue
+    @classmethod
+    def _fetch_metadata_parallel(
+        cls, video_urls: list[str], from_date: datetime | None
+    ) -> list[dict]:
+        """Fetch full metadata for videos in parallel."""
+        from_date_str = from_date.strftime("%Y%m%d") if from_date else None
+        results = []
 
-            videos.append(video)
+        with ThreadPoolExecutor(max_workers=MAX_METADATA_WORKERS) as executor:
+            futures = {
+                executor.submit(cls._fetch_single_video, url, from_date_str): url
+                for url in video_urls
+            }
 
-        return videos
+            for future in as_completed(futures):
+                try:
+                    video = future.result()
+                    if video:
+                        results.append(video)
+                except Exception as e:
+                    url = futures[future]
+                    logger.warning("Failed to fetch metadata for %s: %s", url, e)
+
+        return results
+
+    @classmethod
+    def _fetch_single_video(cls, url: str, from_date_str: str | None) -> dict | None:
+        """Fetch full metadata for a single video, filtering by date if specified."""
+        ydl_opts = {
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+            if not info:
+                return None
+
+            # Filter by date if specified
+            upload_date = info.get("upload_date")
+            if from_date_str and upload_date and upload_date < from_date_str:
+                return None
+
+            return cls._parse_single_entry(info)
+
+        except Exception as e:
+            logger.debug("Error fetching %s: %s", url, e)
+            return None
 
     @classmethod
     def _parse_single_entry(cls, entry: dict) -> dict | None:
@@ -122,7 +177,6 @@ class YtDlpService:
         output_dir = output_dir or cls.DEFAULT_OUTPUT_DIR
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use profile's output template or default
         template = profile.output_template or "%(uploader)s/%(title)s.%(ext)s"
         output_template = str(output_dir / template)
         ydl_opts = cls._build_download_opts(profile, output_template)
