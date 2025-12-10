@@ -1,6 +1,6 @@
 services:
   api:
-    build: .
+    build: ./backend
     ports:
       - "5000:5000"
     volumes:
