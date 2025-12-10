@@ -1,0 +1,153 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { api, HistoryEntry } from '@/lib/api'
+import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2 } from 'lucide-react'
+import { clsx } from 'clsx'
+
+const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  profile_created: Plus,
+  profile_updated: Edit2,
+  profile_deleted: Trash2,
+  list_created: Plus,
+  list_updated: Edit2,
+  list_deleted: Trash2,
+  list_synced: RefreshCw,
+  video_discovered: Film,
+  video_download_started: Download,
+  video_download_completed: Download,
+  video_download_failed: Download,
+  video_retry: RefreshCw,
+}
+
+const entityIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  profile: FolderCog,
+  list: ListVideo,
+  video: Film,
+}
+
+export default function HistoryPage() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<string>('all')
+
+  const fetchData = async () => {
+    try {
+      const data = await api.getHistory({ limit: 200 })
+      setEntries(data)
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const filteredEntries = entries.filter(e => {
+    if (filter === 'all') return true
+    return e.entity_type === filter
+  })
+
+  const formatAction = (action: string) => {
+    return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  }
+
+  const parseDetails = (details: string): Record<string, unknown> => {
+    try {
+      return JSON.parse(details)
+    } catch {
+      return {}
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">History</h1>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        {['all', 'profile', 'list', 'video'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={clsx(
+              'px-3 py-1.5 text-sm rounded-md transition-colors',
+              filter === f
+                ? 'bg-[var(--accent)] text-white'
+                : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+            )}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Entries */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="divide-y divide-[var(--border)] max-h-[600px] overflow-y-auto">
+          {filteredEntries.length === 0 ? (
+            <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
+          ) : (
+            filteredEntries.map(entry => {
+              const ActionIcon = actionIcons[entry.action] || RefreshCw
+              const EntityIcon = entityIcons[entry.entity_type] || Film
+              const details = parseDetails(entry.details)
+              const isError = entry.action.includes('failed')
+              const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
+
+              return (
+                <div key={entry.id} className="p-4 flex items-start gap-3">
+                  <div className={clsx(
+                    'p-2 rounded-md',
+                    isError && 'bg-[var(--error)]/10',
+                    isSuccess && 'bg-[var(--success)]/10',
+                    !isError && !isSuccess && 'bg-[var(--border)]'
+                  )}>
+                    <ActionIcon size={16} className={clsx(
+                      isError && 'text-[var(--error)]',
+                      isSuccess && 'text-[var(--success)]',
+                      !isError && !isSuccess && 'text-[var(--muted)]'
+                    )} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{formatAction(entry.action)}</span>
+                      <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
+                        <EntityIcon size={12} />
+                        {entry.entity_type}
+                        {entry.entity_id && ` #${entry.entity_id}`}
+                      </span>
+                    </div>
+                    {Object.keys(details).length > 0 && (
+                      <p className="text-xs text-[var(--muted)] mt-1">
+                        {'name' in details && <span>{String(details.name)}</span>}
+                        {'title' in details && <span>{String(details.title)}</span>}
+                        {'url' in details && <span className="truncate block">{String(details.url)}</span>}
+                      </p>
+                    )}
+                    <p className="text-xs text-[var(--muted)] mt-1">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
