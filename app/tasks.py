@@ -83,6 +83,7 @@ def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
         video = Video(
             video_id=video_data["video_id"],
             title=video_data["title"],
+            description=video_data["description"],
             url=video_data["url"],
             duration=video_data.get("duration"),
             upload_date=video_data.get("upload_date"),
