@@ -1,5 +1,5 @@
 services:
-  app:
+  api:
     build: .
     ports:
       - "5000:5000"
@@ -8,4 +8,14 @@ services:
       - ./downloads:/downloads
     environment:
       - FLASK_ENV=production
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    depends_on:
+      - api
     restart: unless-stopped
