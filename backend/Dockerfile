@@ -22,12 +22,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/app/.venv/lib/python3.13/site-packages"
 
-RUN apk add --no-cache ffmpeg curl
-
-# Install Deno
-RUN curl -fsSL https://deno.land/install.sh | sh
-ENV DENO_INSTALL="/root/.deno"
-ENV PATH="${DENO_INSTALL}/bin:${PATH}"
+RUN apk add --no-cache ffmpeg deno
 
 WORKDIR /app
 
