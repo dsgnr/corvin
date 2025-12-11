@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { api, VideoList, Video } from '@/lib/api'
 import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink } from 'lucide-react'
 import { clsx } from 'clsx'
+import { Pagination } from '@/components/Pagination'
+
+const PAGE_SIZE = 20
 
 export default function ListDetailPage() {
   const params = useParams()
@@ -16,6 +19,7 @@ export default function ListDetailPage() {
   const [syncing, setSyncing] = useState(false)
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const fetchData = async () => {
     try {
@@ -63,12 +67,26 @@ export default function ListDetailPage() {
     }
   }
 
-  const filteredVideos = videos.filter(v => {
-    if (filter === 'pending') return !v.downloaded && !v.error_message
-    if (filter === 'downloaded') return v.downloaded
-    if (filter === 'failed') return !!v.error_message
-    return true
-  })
+  const filteredVideos = videos
+    .filter(v => {
+      if (filter === 'pending') return !v.downloaded && !v.error_message
+      if (filter === 'downloaded') return v.downloaded
+      if (filter === 'failed') return !!v.error_message
+      return true
+    })
+    .sort((a, b) => {
+      const dateA = a.upload_date ? new Date(a.upload_date).getTime() : 0
+      const dateB = b.upload_date ? new Date(b.upload_date).getTime() : 0
+      return dateB - dateA
+    })
+
+  const totalPages = Math.ceil(filteredVideos.length / PAGE_SIZE)
+  const paginatedVideos = filteredVideos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   const stats = {
     total: videos.length,
@@ -170,11 +188,11 @@ export default function ListDetailPage() {
         <div className="p-4 border-b border-[var(--border)]">
           <h2 className="font-medium">Videos ({filteredVideos.length})</h2>
         </div>
-        <div className="divide-y divide-[var(--border)] max-h-[600px] overflow-y-auto">
-          {filteredVideos.length === 0 ? (
+        <div className="divide-y divide-[var(--border)]">
+          {paginatedVideos.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No videos found</p>
           ) : (
-            filteredVideos.map(video => (
+            paginatedVideos.map(video => (
               <VideoRow
                 key={video.id}
                 video={video}
@@ -184,6 +202,7 @@ export default function ListDetailPage() {
             ))
           )}
         </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
     </div>
   )

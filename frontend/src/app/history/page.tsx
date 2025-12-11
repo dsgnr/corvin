@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { api, HistoryEntry } from '@/lib/api'
 import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { Pagination } from '@/components/Pagination'
+
+const PAGE_SIZE = 20
 
 const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   profile_created: Plus,
@@ -30,6 +33,7 @@ export default function HistoryPage() {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const fetchData = async () => {
     try {
@@ -50,6 +54,14 @@ export default function HistoryPage() {
     if (filter === 'all') return true
     return e.entity_type === filter
   })
+
+  const totalPages = Math.ceil(filteredEntries.length / PAGE_SIZE)
+  const paginatedEntries = filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   const formatAction = (action: string) => {
     return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -97,11 +109,11 @@ export default function HistoryPage() {
 
       {/* Entries */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="divide-y divide-[var(--border)] max-h-[600px] overflow-y-auto">
-          {filteredEntries.length === 0 ? (
+        <div className="divide-y divide-[var(--border)]">
+          {paginatedEntries.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
           ) : (
-            filteredEntries.map(entry => {
+            paginatedEntries.map(entry => {
               const ActionIcon = actionIcons[entry.action] || RefreshCw
               const EntityIcon = entityIcons[entry.entity_type] || Film
               const details = parseDetails(entry.details)
@@ -147,6 +159,7 @@ export default function HistoryPage() {
             })
           )}
         </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
     </div>
   )

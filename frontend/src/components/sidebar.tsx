@@ -30,12 +30,13 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside
-      className={clsx(
-        'flex flex-col h-screen bg-[var(--card)] border-r border-[var(--border)] transition-all duration-300',
-        collapsed ? 'w-16' : 'w-56'
-      )}
-    >
+    <>
+      <aside
+        className={clsx(
+          'fixed top-0 left-0 flex flex-col h-screen bg-[var(--card)] border-r border-[var(--border)] transition-all duration-300 z-10',
+          collapsed ? 'w-16' : 'w-56'
+        )}
+      >
       <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
         {!collapsed && (
           <span className="text-lg font-semibold tracking-tight">Corvin</span>
@@ -76,6 +77,9 @@ export function Sidebar() {
           <p className="text-xs text-[var(--prose-color)]">v{packageJson.version}</p>
         )}
       </div>
-    </aside>
+      </aside>
+      {/* Spacer to push content */}
+      <div className={clsx('shrink-0 transition-all duration-300', collapsed ? 'w-16' : 'w-56')} />
+    </>
   )
 }
