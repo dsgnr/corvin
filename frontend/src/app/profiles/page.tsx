@@ -243,17 +243,41 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.embed_metadata} onChange={e => setForm({ ...form, embed_metadata: e.target.checked })} />
+      <div className="flex flex-wrap gap-6">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.embed_metadata}
+            onClick={() => setForm({ ...form, embed_metadata: !form.embed_metadata })}
+            className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_metadata ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_metadata ? 'translate-x-4' : ''}`} />
+          </button>
           <span className="text-sm">Embed metadata</span>
         </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.embed_thumbnail} onChange={e => setForm({ ...form, embed_thumbnail: e.target.checked })} />
+        <label className="flex items-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.embed_thumbnail}
+            onClick={() => setForm({ ...form, embed_thumbnail: !form.embed_thumbnail })}
+            className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_thumbnail ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_thumbnail ? 'translate-x-4' : ''}`} />
+          </button>
           <span className="text-sm">Embed thumbnail</span>
         </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.exclude_shorts} onChange={e => setForm({ ...form, exclude_shorts: e.target.checked })} />
+        <label className="flex items-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.exclude_shorts}
+            onClick={() => setForm({ ...form, exclude_shorts: !form.exclude_shorts })}
+            className={`relative w-9 h-5 rounded-full transition-colors ${form.exclude_shorts ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.exclude_shorts ? 'translate-x-4' : ''}`} />
+          </button>
           <span className="text-sm">Exclude shorts</span>
         </label>
       </div>
@@ -262,16 +286,40 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col gap-2">
             <p className="text-sm text-[var(--muted)]">Subtitles</p>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.download_subtitles} onChange={e => setForm({ ...form, download_subtitles: e.target.checked })} />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.download_subtitles}
+                onClick={() => setForm({ ...form, download_subtitles: !form.download_subtitles })}
+                className={`relative w-9 h-5 rounded-full transition-colors ${form.download_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.download_subtitles ? 'translate-x-4' : ''}`} />
+              </button>
               <span className="text-sm">Download</span>
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.embed_subtitles} onChange={e => setForm({ ...form, embed_subtitles: e.target.checked })} />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.embed_subtitles}
+                onClick={() => setForm({ ...form, embed_subtitles: !form.embed_subtitles })}
+                className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_subtitles ? 'translate-x-4' : ''}`} />
+              </button>
               <span className="text-sm">Embed</span>
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.auto_generated_subtitles} onChange={e => setForm({ ...form, auto_generated_subtitles: e.target.checked })} />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.auto_generated_subtitles}
+                onClick={() => setForm({ ...form, auto_generated_subtitles: !form.auto_generated_subtitles })}
+                className={`relative w-9 h-5 rounded-full transition-colors ${form.auto_generated_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.auto_generated_subtitles ? 'translate-x-4' : ''}`} />
+              </button>
               <span className="text-sm">Auto-generated</span>
             </label>
           </div>
