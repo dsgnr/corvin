@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, Profile, SponsorBlockOptions } from '@/lib/api'
-import { Plus, Trash2, Edit2, Loader2, Copy, X, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, Copy, X, Check } from 'lucide-react'
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -201,7 +201,6 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
     extra_args: profile?.extra_args || '{}',
   })
   const [saving, setSaving] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -259,87 +258,76 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
         </label>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-      >
-        {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        Advanced options
-      </button>
-
-      {showAdvanced && (
-        <div className="space-y-4 pt-2 border-t border-[var(--border)]">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-[var(--muted)]">Subtitles</p>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.download_subtitles} onChange={e => setForm({ ...form, download_subtitles: e.target.checked })} />
-                <span className="text-sm">Download</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.embed_subtitles} onChange={e => setForm({ ...form, embed_subtitles: e.target.checked })} />
-                <span className="text-sm">Embed</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.auto_generated_subtitles} onChange={e => setForm({ ...form, auto_generated_subtitles: e.target.checked })} />
-                <span className="text-sm">Auto-generated</span>
-              </label>
-            </div>
-            <div>
-              <label className="block text-sm text-[var(--muted)] mb-1">Subtitle Languages</label>
-              <input
-                type="text"
-                value={form.subtitle_languages}
-                onChange={e => setForm({ ...form, subtitle_languages: e.target.value })}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
-                placeholder="en,es,fr"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[var(--muted)] mb-1">Audio Language</label>
-              <input
-                type="text"
-                value={form.audio_track_language}
-                onChange={e => setForm({ ...form, audio_track_language: e.target.value })}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
-                placeholder="en"
-              />
-            </div>
+      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-[var(--muted)]">Subtitles</p>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.download_subtitles} onChange={e => setForm({ ...form, download_subtitles: e.target.checked })} />
+              <span className="text-sm">Download</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.embed_subtitles} onChange={e => setForm({ ...form, embed_subtitles: e.target.checked })} />
+              <span className="text-sm">Embed</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.auto_generated_subtitles} onChange={e => setForm({ ...form, auto_generated_subtitles: e.target.checked })} />
+              <span className="text-sm">Auto-generated</span>
+            </label>
           </div>
-
           <div>
-            <label className="block text-sm text-[var(--muted)] mb-1">SponsorBlock</label>
-            <select
-              value={form.sponsorblock_behavior}
-              onChange={e => setForm({ ...form, sponsorblock_behavior: e.target.value })}
-              className="w-full md:w-auto px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
-            >
-              <option value="disabled">Disabled</option>
-              <option value="delete">Remove segments</option>
-              <option value="mark_chapter">Mark as chapters</option>
-            </select>
-            {form.sponsorblock_behavior !== 'disabled' && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {sponsorBlockOpts.categories.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleCategory(cat)}
-                    className={`text-xs px-2 py-1 rounded transition-colors ${
-                      selectedCategories.includes(cat)
-                        ? 'bg-[var(--accent)] text-white'
-                        : 'bg-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                    }`}
-                  >
-                    {sponsorBlockOpts.category_labels[cat] || cat}
-                  </button>
-                ))}
-              </div>
-            )}
+            <label className="block text-sm text-[var(--muted)] mb-1">Subtitle Languages</label>
+            <input
+              type="text"
+              value={form.subtitle_languages}
+              onChange={e => setForm({ ...form, subtitle_languages: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+              placeholder="en,es,fr"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-[var(--muted)] mb-1">Audio Language</label>
+            <input
+              type="text"
+              value={form.audio_track_language}
+              onChange={e => setForm({ ...form, audio_track_language: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+              placeholder="en"
+            />
           </div>
         </div>
-      )}
+
+        <div>
+          <label className="block text-sm text-[var(--muted)] mb-1">SponsorBlock</label>
+          <select
+            value={form.sponsorblock_behavior}
+            onChange={e => setForm({ ...form, sponsorblock_behavior: e.target.value })}
+            className="w-full md:w-auto px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+          >
+            <option value="disabled">Disabled</option>
+            <option value="delete">Remove segments</option>
+            <option value="mark_chapter">Mark as chapters</option>
+          </select>
+          {form.sponsorblock_behavior !== 'disabled' && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {sponsorBlockOpts.categories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    selectedCategories.includes(cat)
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'bg-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {sponsorBlockOpts.category_labels[cat] || cat}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <button
