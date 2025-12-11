@@ -86,41 +86,104 @@ class Profile(db.Model):
 
     def to_yt_dlp_opts(self) -> dict:
         """Convert profile settings to yt-dlp options dict."""
+        # Default options
         opts = {
-            "writethumbnail": self.embed_thumbnail,
-            "embedmetadata": self.embed_metadata,
+            "paths": {"temp": '/tmp'},
+            "fragment_retries": 10,
+            "retries": 10,
+            "nopart": True,
         }
+        postprocessors = []
+
+        # Metadata postprocessors
+        if self.embed_metadata:
+            postprocessors.append({
+                "key": "FFmpegMetadata",
+                "add_chapters": True,
+                "add_infojson": "if_exists",
+                "add_metadata": True,
+            })
+
+        # Thumbnail embedding
+        if self.embed_thumbnail:
+            opts["writethumbnail"] = True
+            postprocessors.append({
+                "key": "FFmpegThumbnailsConvertor",
+                "format": "jpg",
+                "when": "before_dl",
+            })
+            postprocessors.append({
+                "key": "EmbedThumbnail",
+                "already_have_thumbnail": True,
+            })
 
         # Subtitle options
-        if self.download_subtitles:
+        if self.download_subtitles or self.embed_subtitles:
             opts["writesubtitles"] = True
+            opts["subtitlesformat"] = "srt"
             if self.subtitle_languages:
-                opts["subtitleslangs"] = self.subtitle_languages.split(",")
+                opts["subtitleslangs"] = [lang.strip() for lang in self.subtitle_languages.split(",")]
+
+        if self.download_subtitles:
+            postprocessors.append({
+                "key": "FFmpegSubtitlesConvertor",
+                "format": "srt",
+                "when": "before_dl",
+            })
 
         if self.auto_generated_subtitles:
             opts["writeautomaticsub"] = True
+            opts["subtitlesformat"] = "srt"
 
         if self.embed_subtitles:
-            opts["embedsubtitles"] = True
-            # Ensure postprocessor for embedding subtitles
-            opts.setdefault("postprocessors", [])
-            opts["postprocessors"].append({
+            postprocessors.append({
                 "key": "FFmpegEmbedSubtitle",
+                "already_have_subtitle": True,
             })
 
         # Audio track language preference
         if self.audio_track_language:
             opts["audio_multistreams"] = True
-            # Format selection for preferred audio language
             opts["format_sort"] = [f"lang:{self.audio_track_language}"]
 
         # SponsorBlock options
         if self.sponsorblock_behavior != SponsorBlockBehavior.DISABLED and self.sponsorblock_categories:
             categories = [c.strip() for c in self.sponsorblock_categories.split(",") if c.strip()]
             if categories:
-                if self.sponsorblock_behavior == SponsorBlockBehavior.DELETE:
-                    opts["sponsorblock_remove"] = categories
-                elif self.sponsorblock_behavior == SponsorBlockBehavior.MARK_CHAPTER:
-                    opts["sponsorblock_mark"] = categories
+                categories_set = set(categories)
+
+                postprocessors.append({
+                    "key": "SponsorBlock",
+                    "api": "https://sponsor.ajay.app",
+                    "categories": categories_set,
+                    "when": "after_filter",
+                })
+
+                remove_segments = categories_set if self.sponsorblock_behavior == SponsorBlockBehavior.DELETE else set()
+                postprocessors.append({
+                    "key": "ModifyChapters",
+                    "force_keyframes": False,
+                    "remove_chapters_patterns": [],
+                    "remove_ranges": [],
+                    "remove_sponsor_segments": remove_segments,
+                    "sponsorblock_chapter_title": "[SponsorBlock]: %(category_names)l",
+                })
+
+                if self.sponsorblock_behavior == SponsorBlockBehavior.MARK_CHAPTER:
+                    postprocessors.append({
+                        "key": "FFmpegMetadata",
+                        "add_chapters": True,
+                        "add_infojson": None,
+                        "add_metadata": False,
+                    })
+
+        # FFmpegConcat for multi-video playlists (always add if we have any postprocessors)
+        if postprocessors:
+            postprocessors.append({
+                "key": "FFmpegConcat",
+                "only_multi_video": True,
+                "when": "playlist",
+            })
+            opts["postprocessors"] = postprocessors
 
         return opts
