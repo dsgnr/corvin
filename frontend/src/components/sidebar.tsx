@@ -42,7 +42,7 @@ export function Sidebar() {
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+          className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--prose-color)] hover:text-[var(--foreground)] transition-colors"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -60,7 +60,7 @@ export function Sidebar() {
                 'flex items-center gap-3 px-3 py-2 rounded-md transition-colors',
                 isActive
                   ? 'bg-[var(--accent)] text-white'
-                  : 'text-[var(--muted)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
+                  : 'text-[var(--prose-color)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
               )}
               title={collapsed ? label : undefined}
             >
@@ -73,7 +73,7 @@ export function Sidebar() {
 
       <div className="p-4 border-t border-[var(--border)]">
         {!collapsed && (
-          <p className="text-xs text-[var(--muted)]">v{packageJson.version}</p>
+          <p className="text-xs text-[var(--prose-color)]">v{packageJson.version}</p>
         )}
       </div>
     </aside>

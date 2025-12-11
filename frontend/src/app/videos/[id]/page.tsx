@@ -201,7 +201,7 @@ export default function VideoDetailPage() {
           {video.download_path && (
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
               <h2 className="font-medium mb-2">Download Path</h2>
-              <p className="text-sm font-mono text-[var(--muted)] break-all">{video.download_path}</p>
+              <p className="text-sm font-mono text-[var(--prose-color)] break-all">{video.download_path}</p>
             </div>
           )}
 
@@ -215,7 +215,7 @@ export default function VideoDetailPage() {
           {video.description && (
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
               <h2 className="font-medium mb-2">Description</h2>
-              <p className="text-sm text-[var(--muted)] whitespace-pre-wrap">
+              <p className="text-sm text-[var(--prose-color)] whitespace-pre-wrap">
                 {video.description}
               </p>
             </div>

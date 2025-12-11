@@ -87,7 +87,7 @@ export default function HistoryPage() {
               'px-3 py-1.5 text-sm rounded-md transition-colors',
               filter === f
                 ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                : 'bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)] border border-[var(--border)]'
             )}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
