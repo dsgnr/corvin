@@ -135,7 +135,7 @@ export default function Dashboard() {
                   <TaskStatusIcon status={task.status} />
                   <div>
                     <p className="text-sm font-medium">
-                      {task.task_type === 'sync' ? 'Sync' : 'Download'} #{task.entity_id}
+                      {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name}
                     </p>
                     <p className="text-xs text-[var(--muted)]">
                       {new Date(task.created_at).toLocaleString()}

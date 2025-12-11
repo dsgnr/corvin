@@ -2,7 +2,8 @@ from datetime import datetime
 from enum import Enum
 
 from app.extensions import db
-
+from app.models.video_list import VideoList
+from app.models.video import Video
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
@@ -66,6 +67,7 @@ class Task(db.Model):
             "id": self.id,
             "task_type": self.task_type,
             "entity_id": self.entity_id,
+            "entity_name": self._get_entity_name(),
             "status": self.status,
             "result": self.result,
             "error": self.error,
@@ -78,6 +80,16 @@ class Task(db.Model):
         if include_logs:
             data["logs"] = [log.to_dict() for log in self.logs.order_by(TaskLog.created_at.asc())]
         return data
+
+    def _get_entity_name(self) -> str | None:
+        """Get the name/title of the related entity."""
+        if self.task_type == TaskType.SYNC.value:
+            video_list = VideoList.query.get(self.entity_id)
+            return video_list.name
+        if self.task_type == TaskType.DOWNLOAD.value:
+            video = Video.query.get(self.entity_id)
+            return video.title
+        return None
 
 
 class TaskLog(db.Model):
