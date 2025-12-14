@@ -4,7 +4,7 @@ from app.extensions import db
 from app.core.exceptions import ValidationError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.models import Profile, HistoryAction
-from app.models.profile import SponsorBlockBehavior, SPONSORBLOCK_CATEGORIES
+from app.models.profile import SponsorBlockBehavior, SPONSORBLOCK_CATEGORIES, OUTPUT_FORMATS
 from app.services import HistoryService
 
 logger = get_logger("routes.profiles")
@@ -49,6 +49,7 @@ def get_profile_options():
             "audio_track_language": Profile.audio_track_language.default.arg,
             "sponsorblock_behavior": Profile.sponsorblock_behavior.default.arg,
             "sponsorblock_categories": Profile.sponsorblock_categories.default.arg,
+            "output_format": Profile.output_format.default.arg,
             "extra_args": Profile.extra_args.default.arg,
         },
         "sponsorblock": {
@@ -65,6 +66,7 @@ def get_profile_options():
                 "filler": "Tangents/Jokes",
             },
         },
+        "output_formats": OUTPUT_FORMATS,
     })
 
 
@@ -98,6 +100,7 @@ def create_profile():
         "subtitle_languages",
         "audio_track_language",
         "output_template",
+        "output_format",
         "sponsorblock_behavior",
         "sponsorblock_categories",
     ]
@@ -168,6 +171,8 @@ def update_profile(profile_id: int):
         "audio_track_language",
         # Output template
         "output_template",
+        # Output format
+        "output_format",
         # SponsorBlock options
         "sponsorblock_behavior",
         "sponsorblock_categories",

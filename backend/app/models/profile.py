@@ -24,6 +24,9 @@ SPONSORBLOCK_CATEGORIES = [
     "filler",            # Tangents/Jokes
 ]
 
+# Supported output formats for remuxing
+OUTPUT_FORMATS = ["3gp", "aac", "flv", "m4a", "mp3", "mp4", "ogg", "wav", "webm"]
+
 
 class Profile(db.Model):
     """yt-dlp download profile with quality and format settings."""
@@ -53,6 +56,9 @@ class Profile(db.Model):
     sponsorblock_behavior: str = db.Column(db.String(20), default=SponsorBlockBehavior.DISABLED)
     sponsorblock_categories: str = db.Column(db.String(500), default="")
 
+    # Output format for remuxing
+    output_format: str = db.Column(db.String(20), default="mp4")
+
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at: datetime = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -80,17 +86,25 @@ class Profile(db.Model):
             # SponsorBlock options
             "sponsorblock_behavior": self.sponsorblock_behavior,
             "sponsorblock_categories": self.sponsorblock_categories,
+            # Output format
+            "output_format": self.output_format,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
 
     def to_yt_dlp_opts(self) -> dict:
         """Convert profile settings to yt-dlp options dict."""
+        # Determine output format (default to mp4)
+        output_fmt = self.output_format if self.output_format in OUTPUT_FORMATS else "mp4"
+
         # Default options
         opts = {
             "paths": {"temp": '/tmp'},
             "fragment_retries": 10,
             "retries": 10,
+            "final_ext": output_fmt,
+            "merge_output_format": output_fmt,
+            "format_sort": ["vcodec:h264", "lang", "quality", "res", "fps", "hdr:12", "acodec:aac"],
         }
         postprocessors = []
 
@@ -140,10 +154,10 @@ class Profile(db.Model):
                 "already_have_subtitle": True,
             })
 
-        # Audio track language preference
+        # Audio track language preference (prepend to format_sort)
         if self.audio_track_language:
             opts["audio_multistreams"] = True
-            opts["format_sort"] = [f"lang:{self.audio_track_language}"]
+            opts["format_sort"] = [f"lang:{self.audio_track_language}"] + opts["format_sort"]
 
         # SponsorBlock options
         if self.sponsorblock_behavior != SponsorBlockBehavior.DISABLED and self.sponsorblock_categories:
@@ -176,13 +190,18 @@ class Profile(db.Model):
                         "add_metadata": False,
                     })
 
-        # FFmpegConcat for multi-video playlists (always add if we have any postprocessors)
-        if postprocessors:
-            postprocessors.append({
-                "key": "FFmpegConcat",
-                "only_multi_video": True,
-                "when": "playlist",
-            })
-            opts["postprocessors"] = postprocessors
+        # Output format remuxing
+        postprocessors.append({
+            "key": "FFmpegVideoRemuxer",
+            "preferedformat": output_fmt,
+        })
+
+        # FFmpegConcat for multi-video playlists
+        postprocessors.append({
+            "key": "FFmpegConcat",
+            "only_multi_video": True,
+            "when": "playlist",
+        })
+        opts["postprocessors"] = postprocessors
 
         return opts

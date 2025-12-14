@@ -90,6 +90,7 @@ export default function ProfilesPage() {
           <ProfileForm
             defaults={profileOptions.defaults}
             sponsorBlockOpts={profileOptions.sponsorblock}
+            outputFormats={profileOptions.output_formats}
             onSave={(data) => handleSave(data)}
             onCancel={() => setEditingId(null)}
           />
@@ -107,6 +108,7 @@ export default function ProfilesPage() {
                 profile={profile}
                 defaults={profileOptions.defaults}
                 sponsorBlockOpts={profileOptions.sponsorblock}
+                outputFormats={profileOptions.output_formats}
                 onSave={(data) => handleSave(data, profile.id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -181,16 +183,18 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   )
 }
 
-function ProfileForm({ profile, defaults, sponsorBlockOpts, onSave, onCancel }: {
+function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSave, onCancel }: {
   profile?: Profile
   defaults: ProfileOptions['defaults']
   sponsorBlockOpts: ProfileOptions['sponsorblock']
+  outputFormats: string[]
   onSave: (data: Partial<Profile>) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState({
     name: profile?.name || '',
     output_template: profile?.output_template || defaults.output_template,
+    output_format: profile?.output_format || defaults.output_format,
     embed_metadata: profile?.embed_metadata ?? defaults.embed_metadata,
     embed_thumbnail: profile?.embed_thumbnail ?? defaults.embed_thumbnail,
     exclude_shorts: profile?.exclude_shorts ?? defaults.exclude_shorts,
@@ -244,6 +248,21 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, onSave, onCancel }: 
           onChange={e => setForm({ ...form, output_template: e.target.value })}
           className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] font-mono text-sm"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Output Format</label>
+        <p className="text-xs text-[var(--muted)] mb-2">Remux video to a specific container format (leave empty to keep original)</p>
+        <select
+          value={form.output_format}
+          onChange={e => setForm({ ...form, output_format: e.target.value })}
+          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+        >
+          <option value="">Keep original</option>
+          {outputFormats.map((fmt: string) => (
+            <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
+          ))}
+        </select>
       </div>
 
       <div className="space-y-4 pt-4 border-t border-[var(--border)]">
