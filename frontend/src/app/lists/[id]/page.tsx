@@ -256,7 +256,7 @@ function VideoRow({ video, downloading, onDownload }: {
         ) : video.error_message ? (
           <XCircle size={18} className="text-[var(--error)]" />
         ) : (
-          <Clock size={18} className="text-[var(--muted)]" />
+          <Clock size={18} className="text-[var(--warning)]" />
         )}
         {!video.downloaded && (
           <button
