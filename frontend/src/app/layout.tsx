@@ -7,13 +7,27 @@ export const metadata: Metadata = {
   description: 'Video download manager',
 }
 
+const sidebarScript = `
+(function() {
+  try {
+    var collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (collapsed) {
+      document.documentElement.classList.add('sidebar-collapsed');
+    }
+  } catch (e) {}
+})();
+`
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: sidebarScript }} />
+      </head>
       <body className="antialiased">
         <div className="flex min-h-screen">
           <Sidebar />

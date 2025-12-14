@@ -12,6 +12,11 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
+  --sidebar-width: 14rem;
+}
+
+html.sidebar-collapsed {
+  --sidebar-width: 3rem;
 }
 
 * {
