@@ -6,6 +6,19 @@ import Link from 'next/link'
 import { api, Video } from '@/lib/api'
 import { ArrowLeft, Download, ExternalLink, CheckCircle, XCircle, Clock, Loader2, RotateCcw } from 'lucide-react'
 
+function linkifyDescription(text: string): string {
+  // Escape HTML entities first
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
+  // Convert URLs to clickable links
+  const urlRegex = /(https?:\/\/[^\s<]+)/g
+  return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+}
+
 export default function VideoDetailPage() {
   const params = useParams()
   const videoId = Number(params.id)
@@ -215,9 +228,10 @@ export default function VideoDetailPage() {
           {video.description && (
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
               <h2 className="font-medium mb-2">Description</h2>
-              <p className="text-sm text-[var(--prose-color)] whitespace-pre-wrap">
-                {video.description}
-              </p>
+              <div
+                className="text-sm text-[var(--prose-color)] whitespace-pre-wrap break-words [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:hover:opacity-80"
+                dangerouslySetInnerHTML={{ __html: linkifyDescription(video.description) }}
+              />
             </div>
           )}
         </div>
