@@ -221,143 +221,117 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
 
   return (
     <form onSubmit={handleSubmit} className="bg-[var(--card)] rounded-lg border border-[var(--accent)] p-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-[var(--muted)] mb-1">Name</label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--muted)] mb-1">Output Template</label>
-          <input
-            type="text"
-            value={form.output_template}
-            onChange={e => setForm({ ...form, output_template: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] font-mono text-sm"
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Name</label>
+        <input
+          type="text"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+          required
+        />
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.embed_metadata}
-            onClick={() => setForm({ ...form, embed_metadata: !form.embed_metadata })}
-            className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_metadata ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_metadata ? 'translate-x-4' : ''}`} />
-          </button>
-          <span className="text-sm">Embed metadata</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.embed_thumbnail}
-            onClick={() => setForm({ ...form, embed_thumbnail: !form.embed_thumbnail })}
-            className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_thumbnail ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_thumbnail ? 'translate-x-4' : ''}`} />
-          </button>
-          <span className="text-sm">Embed thumbnail</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.exclude_shorts}
-            onClick={() => setForm({ ...form, exclude_shorts: !form.exclude_shorts })}
-            className={`relative w-9 h-5 rounded-full transition-colors ${form.exclude_shorts ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.exclude_shorts ? 'translate-x-4' : ''}`} />
-          </button>
-          <span className="text-sm">Exclude shorts</span>
-        </label>
+      <div>
+        <label className="block text-sm font-medium mb-1">Output Template</label>
+        <p className="text-xs text-[var(--muted)] mb-2">yt-dlp output path template. Use variables like %(uploader)s, %(title)s, %(ext)s</p>
+        <input
+          type="text"
+          value={form.output_template}
+          onChange={e => setForm({ ...form, output_template: e.target.value })}
+          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] font-mono text-sm"
+        />
       </div>
 
       <div className="space-y-4 pt-4 border-t border-[var(--border)]">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-[var(--muted)]">Subtitles</p>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={form.download_subtitles}
-                onClick={() => setForm({ ...form, download_subtitles: !form.download_subtitles })}
-                className={`relative w-9 h-5 rounded-full transition-colors ${form.download_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.download_subtitles ? 'translate-x-4' : ''}`} />
-              </button>
-              <span className="text-sm">Download</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={form.embed_subtitles}
-                onClick={() => setForm({ ...form, embed_subtitles: !form.embed_subtitles })}
-                className={`relative w-9 h-5 rounded-full transition-colors ${form.embed_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.embed_subtitles ? 'translate-x-4' : ''}`} />
-              </button>
-              <span className="text-sm">Embed</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={form.auto_generated_subtitles}
-                onClick={() => setForm({ ...form, auto_generated_subtitles: !form.auto_generated_subtitles })}
-                className={`relative w-9 h-5 rounded-full transition-colors ${form.auto_generated_subtitles ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${form.auto_generated_subtitles ? 'translate-x-4' : ''}`} />
-              </button>
-              <span className="text-sm">Auto-generated</span>
-            </label>
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--muted)] mb-1">Subtitle Languages</label>
-            <input
-              type="text"
-              value={form.subtitle_languages}
-              onChange={e => setForm({ ...form, subtitle_languages: e.target.value })}
-              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
-              placeholder="en,es,fr"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--muted)] mb-1">Audio Language</label>
-            <input
-              type="text"
-              value={form.audio_track_language}
-              onChange={e => setForm({ ...form, audio_track_language: e.target.value })}
-              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
-              placeholder="en"
-            />
-          </div>
-        </div>
+        <ToggleOption
+          label="Embed metadata"
+          description="Write video info (title, description, upload date) into the file"
+          checked={form.embed_metadata}
+          onChange={() => setForm({ ...form, embed_metadata: !form.embed_metadata })}
+        />
+
+        <ToggleOption
+          label="Embed thumbnail"
+          description="Download and embed the video thumbnail as cover art"
+          checked={form.embed_thumbnail}
+          onChange={() => setForm({ ...form, embed_thumbnail: !form.embed_thumbnail })}
+        />
+
+        <ToggleOption
+          label="Exclude shorts"
+          description="Skip YouTube Shorts when syncing channels"
+          checked={form.exclude_shorts}
+          onChange={() => setForm({ ...form, exclude_shorts: !form.exclude_shorts })}
+        />
+      </div>
+
+      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+        <p className="text-sm font-medium">Subtitles</p>
+
+        <ToggleOption
+          label="Download subtitles"
+          description="Save subtitle files alongside the video"
+          checked={form.download_subtitles}
+          onChange={() => setForm({ ...form, download_subtitles: !form.download_subtitles })}
+        />
+
+        <ToggleOption
+          label="Embed subtitles"
+          description="Embed subtitles directly into the video file"
+          checked={form.embed_subtitles}
+          onChange={() => setForm({ ...form, embed_subtitles: !form.embed_subtitles })}
+        />
+
+        <ToggleOption
+          label="Auto-generated subtitles"
+          description="Include YouTube's auto-generated captions if no manual subtitles exist"
+          checked={form.auto_generated_subtitles}
+          onChange={() => setForm({ ...form, auto_generated_subtitles: !form.auto_generated_subtitles })}
+        />
 
         <div>
-          <label className="block text-sm text-[var(--muted)] mb-1">SponsorBlock</label>
+          <label className="block text-sm font-medium mb-1">Subtitle languages</label>
+          <p className="text-xs text-[var(--muted)] mb-2">Comma-separated language codes (e.g. en, es, fr)</p>
+          <input
+            type="text"
+            value={form.subtitle_languages}
+            onChange={e => setForm({ ...form, subtitle_languages: e.target.value })}
+            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+            placeholder="en"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+        <div>
+          <label className="block text-sm font-medium mb-1">Audio language</label>
+          <p className="text-xs text-[var(--muted)] mb-2">Preferred audio track language code (leave empty for default)</p>
+          <input
+            type="text"
+            value={form.audio_track_language}
+            onChange={e => setForm({ ...form, audio_track_language: e.target.value })}
+            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+            placeholder="en"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+        <div>
+          <label className="block text-sm font-medium mb-1">SponsorBlock</label>
+          <p className="text-xs text-[var(--muted)] mb-2">Automatically handle sponsored segments using SponsorBlock data</p>
           <select
             value={form.sponsorblock_behavior}
             onChange={e => setForm({ ...form, sponsorblock_behavior: e.target.value })}
-            className="w-full md:w-auto px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="disabled">Disabled</option>
             <option value="delete">Remove segments</option>
             <option value="mark_chapter">Mark as chapters</option>
           </select>
           {form.sponsorblock_behavior !== 'disabled' && (
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-3">
               {sponsorBlockOpts.categories.map(cat => (
                 <button
                   key={cat}
@@ -394,5 +368,30 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
         </button>
       </div>
     </form>
+  )
+}
+
+function ToggleOption({ label, description, checked, onChange }: {
+  label: string
+  description: string
+  checked: boolean
+  onChange: () => void
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex-1">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-[var(--muted)]">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={onChange}
+        className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </button>
+    </div>
   )
 }
