@@ -33,7 +33,7 @@ class Profile(db.Model):
     id: int = db.Column(db.Integer, primary_key=True)
     name: str = db.Column(db.String(100), nullable=False, unique=True)
     embed_metadata: bool = db.Column(db.Boolean, default=True)
-    embed_thumbnail: bool = db.Column(db.Boolean, default=False)
+    embed_thumbnail: bool = db.Column(db.Boolean, default=True)
     exclude_shorts: bool = db.Column(db.Boolean, default=False)
     extra_args: str = db.Column(db.Text, default="{}")
 
@@ -44,10 +44,10 @@ class Profile(db.Model):
     subtitle_languages: str = db.Column(db.String(200), default="en")
 
     # Audio track language
-    audio_track_language: str = db.Column(db.String(100), default="")
+    audio_track_language: str = db.Column(db.String(100), default="en")
 
     # Output path template
-    output_template: str = db.Column(db.String(500), default="%(uploader)s/%(title)s.%(ext)s")
+    output_template: str = db.Column(db.String(500), default="%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s")
 
     # SponsorBlock options
     sponsorblock_behavior: str = db.Column(db.String(20), default=SponsorBlockBehavior.DISABLED)
@@ -91,7 +91,6 @@ class Profile(db.Model):
             "paths": {"temp": '/tmp'},
             "fragment_retries": 10,
             "retries": 10,
-            "nopart": True,
         }
         postprocessors = []
 

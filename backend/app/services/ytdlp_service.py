@@ -177,8 +177,7 @@ class YtDlpService:
         cls, video: Video, profile: Profile, output_dir: Path | None = None
     ) -> tuple[bool, str]:
         """Download a video using the specified profile settings."""
-        template = profile.output_template or "%(uploader)s/%(title)s.%(ext)s"
-        output_template = str(cls.DEFAULT_OUTPUT_DIR / template)
+        output_template = str(cls.DEFAULT_OUTPUT_DIR / profile.output_template)
         ydl_opts = cls._build_download_opts(profile, output_template)
 
         logger.info("Downloading video: %s", video.title)

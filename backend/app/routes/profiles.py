@@ -33,22 +33,38 @@ def _validate_sponsorblock_behavior(behavior: str) -> None:
         )
 
 
-@bp.get("/sponsorblock-options")
-def get_sponsorblock_options():
-    """Get available SponsorBlock behaviors and categories."""
+@bp.get("/options")
+def get_profile_options():
+    """Get profile options including defaults and SponsorBlock config."""
     return jsonify({
-        "behaviors": SponsorBlockBehavior.ALL,
-        "categories": SPONSORBLOCK_CATEGORIES,
-        "category_labels": {
-            "sponsor": "Sponsor",
-            "intro": "Intro/Intermission",
-            "outro": "Outro/Credits",
-            "selfpromo": "Unpaid/Self Promotion",
-            "preview": "Preview/Recap",
-            "interaction": "Interaction Reminder (Subscribe)",
-            "music_offtopic": "Music: Non-Music Section",
-            "filler": "Tangents/Jokes",
-        }
+        "defaults": {
+            "output_template": Profile.output_template.default.arg,
+            "embed_metadata": Profile.embed_metadata.default.arg,
+            "embed_thumbnail": Profile.embed_thumbnail.default.arg,
+            "exclude_shorts": Profile.exclude_shorts.default.arg,
+            "download_subtitles": Profile.download_subtitles.default.arg,
+            "embed_subtitles": Profile.embed_subtitles.default.arg,
+            "auto_generated_subtitles": Profile.auto_generated_subtitles.default.arg,
+            "subtitle_languages": Profile.subtitle_languages.default.arg,
+            "audio_track_language": Profile.audio_track_language.default.arg,
+            "sponsorblock_behavior": Profile.sponsorblock_behavior.default.arg,
+            "sponsorblock_categories": Profile.sponsorblock_categories.default.arg,
+            "extra_args": Profile.extra_args.default.arg,
+        },
+        "sponsorblock": {
+            "behaviors": SponsorBlockBehavior.ALL,
+            "categories": SPONSORBLOCK_CATEGORIES,
+            "category_labels": {
+                "sponsor": "Sponsor",
+                "intro": "Intro/Intermission",
+                "outro": "Outro/Credits",
+                "selfpromo": "Unpaid/Self Promotion",
+                "preview": "Preview/Recap",
+                "interaction": "Interaction Reminder (Subscribe)",
+                "music_offtopic": "Music: Non-Music Section",
+                "filler": "Tangents/Jokes",
+            },
+        },
     })
 
 
@@ -68,25 +84,26 @@ def create_profile():
     _validate_sponsorblock_behavior(data.get("sponsorblock_behavior", ""))
     _validate_sponsorblock_categories(data.get("sponsorblock_categories", ""))
 
-    profile = Profile(
-        name=name,
-        embed_metadata=data.get("embed_metadata", True),
-        embed_thumbnail=data.get("embed_thumbnail", False),
-        exclude_shorts=data.get("exclude_shorts", False),
-        extra_args=data.get("extra_args", "{}"),
-        # Subtitle options
-        download_subtitles=data.get("download_subtitles", False),
-        embed_subtitles=data.get("embed_subtitles", False),
-        auto_generated_subtitles=data.get("auto_generated_subtitles", False),
-        subtitle_languages=data.get("subtitle_languages", "en"),
-        # Audio track language
-        audio_track_language=data.get("audio_track_language", ""),
-        # Output template
-        output_template=data.get("output_template", "%(uploader)s/%(title)s.%(ext)s"),
-        # SponsorBlock options
-        sponsorblock_behavior=data.get("sponsorblock_behavior", SponsorBlockBehavior.DISABLED),
-        sponsorblock_categories=data.get("sponsorblock_categories", ""),
-    )
+    # Build profile with provided values, falling back to model defaults
+    profile = Profile(name=name)
+    
+    optional_fields = [
+        "embed_metadata",
+        "embed_thumbnail",
+        "exclude_shorts",
+        "extra_args",
+        "download_subtitles",
+        "embed_subtitles",
+        "auto_generated_subtitles",
+        "subtitle_languages",
+        "audio_track_language",
+        "output_template",
+        "sponsorblock_behavior",
+        "sponsorblock_categories",
+    ]
+    for field in optional_fields:
+        if field in data:
+            setattr(profile, field, data[field])
 
     db.session.add(profile)
     db.session.commit()

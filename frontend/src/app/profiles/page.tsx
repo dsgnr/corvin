@@ -1,23 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, Profile, SponsorBlockOptions } from '@/lib/api'
+import { api, Profile, ProfileOptions } from '@/lib/api'
 import { Plus, Trash2, Edit2, Loader2, Copy, X, Check } from 'lucide-react'
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [sponsorBlockOpts, setSponsorBlockOpts] = useState<SponsorBlockOptions | null>(null)
+  const [profileOptions, setProfileOptions] = useState<ProfileOptions | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
 
   const fetchData = async () => {
     try {
-      const [profilesData, sbOpts] = await Promise.all([
+      const [profilesData, options] = await Promise.all([
         api.getProfiles(),
-        api.getSponsorBlockOptions(),
+        api.getProfileOptions(),
       ])
       setProfiles(profilesData)
-      setSponsorBlockOpts(sbOpts)
+      setProfileOptions(options)
     } catch (err) {
       console.error('Failed to fetch profiles:', err)
     } finally {
@@ -86,9 +86,10 @@ export default function ProfilesPage() {
       </div>
 
       <div className="grid gap-4">
-        {editingId === 'new' && sponsorBlockOpts && (
+        {editingId === 'new' && profileOptions && (
           <ProfileForm
-            sponsorBlockOpts={sponsorBlockOpts}
+            defaults={profileOptions.defaults}
+            sponsorBlockOpts={profileOptions.sponsorblock}
             onSave={(data) => handleSave(data)}
             onCancel={() => setEditingId(null)}
           />
@@ -100,11 +101,12 @@ export default function ProfilesPage() {
           </div>
         ) : (
           profiles.map(profile => (
-            editingId === profile.id && sponsorBlockOpts ? (
+            editingId === profile.id && profileOptions ? (
               <ProfileForm
                 key={profile.id}
                 profile={profile}
-                sponsorBlockOpts={sponsorBlockOpts}
+                defaults={profileOptions.defaults}
+                sponsorBlockOpts={profileOptions.sponsorblock}
                 onSave={(data) => handleSave(data, profile.id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -179,40 +181,41 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   )
 }
 
-function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
+function ProfileForm({ profile, defaults, sponsorBlockOpts, onSave, onCancel }: {
   profile?: Profile
-  sponsorBlockOpts: SponsorBlockOptions
+  defaults: ProfileOptions['defaults']
+  sponsorBlockOpts: ProfileOptions['sponsorblock']
   onSave: (data: Partial<Profile>) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState({
     name: profile?.name || '',
-    output_template: profile?.output_template || '%(uploader)s/%(title)s.%(ext)s',
-    embed_metadata: profile?.embed_metadata ?? true,
-    embed_thumbnail: profile?.embed_thumbnail ?? false,
-    exclude_shorts: profile?.exclude_shorts ?? false,
-    download_subtitles: profile?.download_subtitles ?? false,
-    embed_subtitles: profile?.embed_subtitles ?? false,
-    auto_generated_subtitles: profile?.auto_generated_subtitles ?? false,
-    subtitle_languages: profile?.subtitle_languages || 'en',
-    audio_track_language: profile?.audio_track_language || '',
-    sponsorblock_behavior: profile?.sponsorblock_behavior || 'disabled',
-    sponsorblock_categories: profile?.sponsorblock_categories || '',
-    extra_args: profile?.extra_args || '{}',
+    output_template: profile?.output_template || defaults.output_template,
+    embed_metadata: profile?.embed_metadata ?? defaults.embed_metadata,
+    embed_thumbnail: profile?.embed_thumbnail ?? defaults.embed_thumbnail,
+    exclude_shorts: profile?.exclude_shorts ?? defaults.exclude_shorts,
+    download_subtitles: profile?.download_subtitles ?? defaults.download_subtitles,
+    embed_subtitles: profile?.embed_subtitles ?? defaults.embed_subtitles,
+    auto_generated_subtitles: profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
+    subtitle_languages: profile?.subtitle_languages || defaults.subtitle_languages,
+    audio_track_language: profile?.audio_track_language || defaults.audio_track_language,
+    sponsorblock_behavior: profile?.sponsorblock_behavior || defaults.sponsorblock_behavior,
+    sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
+    extra_args: profile?.extra_args || defaults.extra_args,
   })
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await onSave(form)
+    onSave(form)
     setSaving(false)
   }
 
   const toggleCategory = (cat: string) => {
     const current = form.sponsorblock_categories.split(',').filter(Boolean)
     const updated = current.includes(cat)
-      ? current.filter(c => c !== cat)
+      ? current.filter((c: string) => c !== cat)
       : [...current, cat]
     setForm({ ...form, sponsorblock_categories: updated.join(',') })
   }
@@ -234,7 +237,7 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
 
       <div>
         <label className="block text-sm font-medium mb-1">Output Template</label>
-        <p className="text-xs text-[var(--muted)] mb-2">yt-dlp output path template. Use variables like %(uploader)s, %(title)s, %(ext)s</p>
+        <p className="text-xs text-[var(--muted)] mb-2">yt-dlp output path template. Default outputs in a format Plex likes, (eg. s2026e0101 - title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s</p>
         <input
           type="text"
           value={form.output_template}
@@ -332,7 +335,7 @@ function ProfileForm({ profile, sponsorBlockOpts, onSave, onCancel }: {
           </select>
           {form.sponsorblock_behavior !== 'disabled' && (
             <div className="flex flex-wrap gap-2 mt-3">
-              {sponsorBlockOpts.categories.map(cat => (
+              {sponsorBlockOpts.categories.map((cat: string) => (
                 <button
                   key={cat}
                   type="button"
