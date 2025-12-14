@@ -132,9 +132,9 @@ export default function ListDetailPage() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
         >
-          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
           Sync
         </button>
       </div>
