@@ -85,10 +85,10 @@ class Task(db.Model):
         """Get the name/title of the related entity."""
         if self.task_type == TaskType.SYNC.value:
             video_list = VideoList.query.get(self.entity_id)
-            return video_list.name
+            return video_list.name if video_list else None
         if self.task_type == TaskType.DOWNLOAD.value:
             video = Video.query.get(self.entity_id)
-            return video.title
+            return video.title if video else None
         return None
 
 
