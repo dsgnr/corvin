@@ -94,7 +94,7 @@ export default function TasksPage() {
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--success)] hover:opacity-90 text-white rounded-md transition-colors disabled:opacity-50"
         >
           <Download size={14} className={triggering ? 'animate-bounce' : ''} />
-          Download Queued
+          Download Pending
         </button>
       </div>
 
