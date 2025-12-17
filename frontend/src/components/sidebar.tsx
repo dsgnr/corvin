@@ -11,7 +11,7 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
-  Download,
+  ListTodo,
   FolderCog,
 } from 'lucide-react'
 import packageJson from '../../package.json'
@@ -19,7 +19,7 @@ import packageJson from '../../package.json'
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/lists', label: 'Lists', icon: ListVideo },
-  { href: '/downloads', label: 'Downloads', icon: Download },
+  { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/profiles', label: 'Profiles', icon: FolderCog },
   { href: '/history', label: 'History', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },
