@@ -101,13 +101,13 @@ export default function Dashboard() {
           icon={ListVideo}
         />
         <StatCard
-          title="Pending Syncs"
+          title="Queued Syncs"
           value={stats?.pending_sync ?? 0}
           subtitle={`${stats?.running_sync ?? 0} running`}
           icon={RefreshCw}
         />
         <StatCard
-          title="Pending Downloads"
+          title="Queued Downloads"
           value={stats?.pending_download ?? 0}
           subtitle={`${stats?.running_download ?? 0} running`}
           icon={Download}
@@ -149,7 +149,7 @@ export default function Dashboard() {
                   task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
                   task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]'
                 )}>
-                  {task.status}
+                  {task.status === 'pending' ? 'queued' : task.status}
                 </span>
               </div>
             ))

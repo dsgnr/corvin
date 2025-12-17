@@ -197,7 +197,7 @@ export default function ListDetailPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
           >
             {downloadingPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Download Pending
+            Download Queued
           </button>
         )}
         {stats.failed > 0 && (
