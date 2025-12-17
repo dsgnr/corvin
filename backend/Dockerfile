@@ -11,7 +11,7 @@ WORKDIR /app
 RUN apk add --no-cache gcc musl-dev libffi-dev \
     && pip install --no-cache-dir poetry==$POETRY_VER
 
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --only=main --no-root --no-cache
 
@@ -20,15 +20,16 @@ FROM python:3.13-alpine AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH="/app/.venv/lib/python3.13/site-packages"
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
 
 RUN apk add --no-cache ffmpeg deno
 
 WORKDIR /app
 
-COPY --from=builder $PYTHONPATH $PYTHONPATH
+COPY --from=builder /app/.venv /app/.venv
 
 COPY . .
 
 EXPOSE 5000
-CMD ["python", "run.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "run:app"]
