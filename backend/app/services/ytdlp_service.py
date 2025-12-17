@@ -116,9 +116,7 @@ class YtDlpService:
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
-            "nopart": True,
-            "fragment_retries": 10,
-            "retries": 10
+            "retries": 10,
         }
 
         try:
@@ -208,5 +206,7 @@ class YtDlpService:
             "outtmpl": output_template,
             "quiet": True,
             "no_warnings": True,
+            "ignoreerrors": True,
+            "fragment_retries": 10,
         })
         return opts
