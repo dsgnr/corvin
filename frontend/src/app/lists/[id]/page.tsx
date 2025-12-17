@@ -170,17 +170,28 @@ export default function ListDetailPage() {
         <Link href="/lists" className="p-2 rounded-md hover:bg-[var(--card)] transition-colors">
           <ArrowLeft size={20} />
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold">{list.name}</h1>
-          <a
-            href={list.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
-          >
-            {list.url}
-            <ExternalLink size={12} />
-          </a>
+        <div className="flex-1 flex items-center gap-4">
+          {list.thumbnail && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={list.thumbnail}
+              alt={list.name}
+              className="w-16 h-16 rounded-lg object-cover"
+              referrerPolicy="no-referrer"
+            />
+          )}
+          <div>
+            <h1 className="text-2xl font-semibold">{list.name}</h1>
+            <a
+              href={list.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+            >
+              {list.url}
+              <ExternalLink size={12} />
+            </a>
+          </div>
         </div>
         <button
           onClick={handleSync}
@@ -211,6 +222,30 @@ export default function ListDetailPage() {
           </button>
         )}
       </div>
+
+      {/* Description and Tags */}
+      {(list.description || (list.tags && list.tags.length > 0)) && (
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 space-y-4">
+          {list.description && (
+            <div>
+              <h3 className="text-sm font-medium mb-2">Description</h3>
+              <p className="text-sm text-[var(--muted)] whitespace-pre-line">{list.description}</p>
+            </div>
+          )}
+          {list.tags && list.tags.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2">Tags</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {list.tags.map((tag, i) => (
+                  <span key={i} className="text-xs px-2 py-1 rounded bg-[var(--border)] text-[var(--muted)]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">

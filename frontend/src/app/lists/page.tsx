@@ -50,7 +50,13 @@ export default function ListsPage() {
     const interval = setInterval(async () => {
       const stillRunning = await checkSyncStatus()
       if (stillRunning.size === 0) {
-        fetchData()
+        // Only refetch lists data, not profiles (they don't change during sync)
+        const listsData = await api.getLists()
+        setLists(prev => {
+          // Only update if data actually changed to prevent unnecessary re-renders
+          if (JSON.stringify(prev) === JSON.stringify(listsData)) return prev
+          return listsData
+        })
       }
     }, 3000)
     return () => clearInterval(interval)
@@ -180,63 +186,79 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-      <div className="flex items-start justify-between">
+      <div className="flex gap-4">
+        {list.thumbnail && (
+          <Link href={`/lists/${list.id}`} className="flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={list.thumbnail}
+              alt={list.name}
+              className="w-20 h-20 rounded-lg object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          </Link>
+        )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link href={`/lists/${list.id}`} className="font-medium hover:text-[var(--accent)] transition-colors">
-              {list.name}
-            </Link>
-            <span className={clsx(
-              'text-xs px-2 py-0.5 rounded',
-              list.enabled ? 'bg-[var(--success)]/20 text-[var(--success)]' : 'bg-[var(--muted)]/20 text-[var(--muted)]'
-            )}>
-              {list.enabled ? 'Enabled' : 'Disabled'}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
-              {list.list_type}
-            </span>
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <Link href={`/lists/${list.id}`} className="font-medium hover:text-[var(--accent)] transition-colors">
+                  {list.name}
+                </Link>
+                <span className={clsx(
+                  'text-xs px-2 py-0.5 rounded',
+                  list.enabled ? 'bg-[var(--success)]/20 text-[var(--success)]' : 'bg-[var(--muted)]/20 text-[var(--muted)]'
+                )}>
+                  {list.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
+                  {list.list_type}
+                </span>
+              </div>
+              <a
+                href={list.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 mt-1"
+              >
+                {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
+                <ExternalLink size={12} />
+              </a>
+              <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted)]">
+                <span>Profile: {profile?.name || 'Unknown'}</span>
+                <span>Sync: {list.sync_frequency}</span>
+                {list.last_synced && (
+                  <span>Last synced: {new Date(list.last_synced).toLocaleDateString()}</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 ml-4">
+              <button
+                onClick={onSync}
+                disabled={syncing}
+                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+                title="Sync now"
+              >
+                <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+                {syncing && <span className="text-xs">Syncing</span>}
+              </button>
+              <button
+                onClick={onEdit}
+                className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                title="Edit"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button
+                onClick={onDelete}
+                className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
-          <a
-            href={list.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 mt-1"
-          >
-            {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
-            <ExternalLink size={12} />
-          </a>
-          <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted)]">
-            <span>Profile: {profile?.name || 'Unknown'}</span>
-            <span>Sync: {list.sync_frequency}</span>
-            {list.last_synced && (
-              <span>Last synced: {new Date(list.last_synced).toLocaleDateString()}</span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
-            title="Sync now"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            {syncing && <span className="text-xs">Syncing</span>}
-          </button>
-          <button
-            onClick={onEdit}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-            title="Edit"
-          >
-            <Edit2 size={16} />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
-            title="Delete"
-          >
-            <Trash2 size={16} />
-          </button>
         </div>
       </div>
     </div>

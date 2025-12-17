@@ -37,8 +37,16 @@ def _execute_sync(list_id: int) -> dict:
     if video_list.profile.exclude_shorts and video_list.list_type == "channel":
         url = _append_videos_path(url)
 
-    videos_data = YtDlpService.extract_info(url, from_date)
+    videos_data, channel_meta = YtDlpService.extract_info(url, from_date)
     new_count = _store_discovered_videos(video_list, videos_data)
+
+    # Update channel metadata
+    if channel_meta.get("description"):
+        video_list.description = channel_meta["description"]
+    if channel_meta.get("thumbnail"):
+        video_list.thumbnail = channel_meta["thumbnail"]
+    if channel_meta.get("tags"):
+        video_list.tags = ",".join(channel_meta["tags"][:20])  # Limit to 20 tags
 
     video_list.last_synced = datetime.utcnow()
     db.session.commit()
