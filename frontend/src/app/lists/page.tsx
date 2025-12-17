@@ -11,7 +11,18 @@ export default function ListsPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
-  const [syncingId, setSyncingId] = useState<number | null>(null)
+  const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set())
+
+  const checkSyncStatus = async () => {
+    try {
+      const tasks = await api.getTasks({ type: 'sync', status: 'running' })
+      const runningIds = new Set(tasks.map(t => t.entity_id))
+      setSyncingIds(runningIds)
+      return runningIds
+    } catch {
+      return new Set<number>()
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -21,6 +32,7 @@ export default function ListsPage() {
       ])
       setLists(listsData)
       setProfiles(profilesData)
+      await checkSyncStatus()
     } catch (err) {
       console.error('Failed to fetch lists:', err)
     } finally {
@@ -32,14 +44,29 @@ export default function ListsPage() {
     fetchData()
   }, [])
 
+  // Poll for sync status while any list is syncing
+  useEffect(() => {
+    if (syncingIds.size === 0) return
+    const interval = setInterval(async () => {
+      const stillRunning = await checkSyncStatus()
+      if (stillRunning.size === 0) {
+        fetchData()
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [syncingIds.size])
+
   const handleSync = async (listId: number) => {
-    setSyncingId(listId)
+    setSyncingIds(prev => new Set(prev).add(listId))
     try {
       await api.triggerListSync(listId)
     } catch (err) {
       console.error('Failed to sync:', err)
-    } finally {
-      setSyncingId(null)
+      setSyncingIds(prev => {
+        const next = new Set(prev)
+        next.delete(listId)
+        return next
+      })
     }
   }
 
@@ -128,7 +155,7 @@ export default function ListsPage() {
                 key={list.id}
                 list={list}
                 profiles={profiles}
-                syncing={syncingId === list.id}
+                syncing={syncingIds.has(list.id)}
                 onSync={() => handleSync(list.id)}
                 onEdit={() => setEditingId(list.id)}
                 onDelete={() => handleDelete(list)}
@@ -190,10 +217,11 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
           <button
             onClick={onSync}
             disabled={syncing}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
             title="Sync now"
           >
-            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            {syncing && <span className="text-xs">Syncing</span>}
           </button>
           <button
             onClick={onEdit}

@@ -17,9 +17,22 @@ export default function ListDetailPage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [downloadingPending, setDownloadingPending] = useState(false)
+  const [retryingFailed, setRetryingFailed] = useState(false)
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
   const [currentPage, setCurrentPage] = useState(1)
+
+  const checkSyncStatus = async () => {
+    try {
+      const tasks = await api.getTasks({ type: 'sync', status: 'running' })
+      const isRunning = tasks.some(t => t.entity_id === listId)
+      setSyncing(isRunning)
+      return isRunning
+    } catch {
+      return false
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -29,6 +42,7 @@ export default function ListDetailPage() {
       ])
       setList(listData)
       setVideos(videosData)
+      await checkSyncStatus()
     } catch (err) {
       console.error('Failed to fetch list:', err)
     } finally {
@@ -40,15 +54,54 @@ export default function ListDetailPage() {
     fetchData()
   }, [listId])
 
+  // Poll for sync status while syncing
+  useEffect(() => {
+    if (!syncing) return
+    const interval = setInterval(async () => {
+      const stillRunning = await checkSyncStatus()
+      if (!stillRunning) {
+        fetchData()
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [syncing, listId])
+
   const handleSync = async () => {
     setSyncing(true)
     try {
       await api.triggerListSync(listId)
-      setTimeout(fetchData, 2000)
     } catch (err) {
       console.error('Failed to sync:', err)
-    } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleDownloadPending = async () => {
+    const pendingVideos = videos.filter(v => !v.downloaded && !v.error_message)
+    if (pendingVideos.length === 0) return
+    
+    setDownloadingPending(true)
+    try {
+      await Promise.all(pendingVideos.map(v => api.triggerVideoDownload(v.id)))
+    } catch (err) {
+      console.error('Failed to queue downloads:', err)
+    } finally {
+      setDownloadingPending(false)
+    }
+  }
+
+  const handleRetryFailed = async () => {
+    const failedVideos = videos.filter(v => !!v.error_message)
+    if (failedVideos.length === 0) return
+    
+    setRetryingFailed(true)
+    try {
+      await Promise.all(failedVideos.map(v => api.retryVideo(v.id)))
+      setTimeout(fetchData, 1000)
+    } catch (err) {
+      console.error('Failed to retry videos:', err)
+    } finally {
+      setRetryingFailed(false)
     }
   }
 
@@ -135,8 +188,28 @@ export default function ListDetailPage() {
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
         >
           <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          Sync
+          {syncing ? 'Syncing' : 'Sync'}
         </button>
+        {stats.pending > 0 && (
+          <button
+            onClick={handleDownloadPending}
+            disabled={downloadingPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
+          >
+            {downloadingPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Download Pending
+          </button>
+        )}
+        {stats.failed > 0 && (
+          <button
+            onClick={handleRetryFailed}
+            disabled={retryingFailed}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
+          >
+            {retryingFailed ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            Retry Failed
+          </button>
+        )}
       </div>
 
       {/* Stats */}
