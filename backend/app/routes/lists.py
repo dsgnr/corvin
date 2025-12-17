@@ -6,7 +6,9 @@ from app.extensions import db
 from app.core.exceptions import ValidationError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.models import VideoList, Profile, HistoryAction
+from app.models.task import TaskType
 from app.services import HistoryService
+from app.tasks import enqueue_task
 
 logger = get_logger("routes.lists")
 bp = Blueprint("lists", __name__, url_prefix="/api/lists")
@@ -40,6 +42,11 @@ def create_list():
         video_list.id,
         {"name": video_list.name, "url": video_list.url},
     )
+
+    # Auto-trigger sync for new list
+    if video_list.enabled:
+        enqueue_task(TaskType.SYNC.value, video_list.id)
+        logger.info("Auto-triggered sync for new list: %s", video_list.name)
 
     logger.info("Created list: %s", video_list.name)
     return jsonify(video_list.to_dict()), 201
