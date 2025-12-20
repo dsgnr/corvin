@@ -273,5 +273,6 @@ class YtDlpService:
             "no_warnings": True,
             "ignoreerrors": True,
             "fragment_retries": 10,
+            "concurrent_fragment_downloads": 5,
         })
         return opts
