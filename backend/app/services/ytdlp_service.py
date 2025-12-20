@@ -16,18 +16,57 @@ class YtDlpService:
     DEFAULT_OUTPUT_DIR = Path("/downloads")
 
     @classmethod
-    def extract_info(cls, url: str, from_date: datetime | None = None) -> tuple[list[dict], dict]:
+    def extract_list_metadata(cls, url: str) -> dict:
+        """Extract only channel/playlist metadata without fetching videos.
+        
+        Returns:
+            Dict with: name, description, thumbnail, tags, extractor
+        """
+        logger.info("Extracting metadata from: %s", url)
+
+        ydl_opts = {
+            "dump_single_json": True,
+            "extract_flat": "in_playlist",
+            "playlist_items": "0",
+            "retries": 10,
+            "simulate": True,
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception as e:
+            logger.error("Failed to extract metadata from %s: %s", url, e)
+            raise
+
+        if not info:
+            logger.warning("No info returned for URL: %s", url)
+            return {}
+
+        return {
+            "name": info.get("title") or info.get("channel") or info.get("uploader"),
+            "description": info.get("description"),
+            "thumbnail": cls._get_best_thumbnail(info.get("thumbnails", [])),
+            "tags": info.get("tags", []),
+            "extractor": info.get("extractor_key") or info.get("extractor"),
+        }
+
+    @classmethod
+    def extract_videos(cls, url: str, from_date: datetime | None = None) -> list[dict]:
         """Extract video information from a URL (channel/playlist) using parallel fetching.
         
         Returns:
-            Tuple of (videos list, channel metadata dict)
+            List of video dicts
         """
-        logger.info("Extracting info from: %s", url)
+        logger.info("Extracting videos from: %s", url)
 
         # Fast flat extraction to get video IDs
-        video_urls, channel_meta = cls._extract_flat_playlist(url)
+        video_urls = cls._extract_video_urls(url)
         if not video_urls:
-            return [], channel_meta
+            return []
 
         logger.info("Found %d videos, fetching metadata in parallel...", len(video_urls))
 
@@ -35,16 +74,16 @@ class YtDlpService:
         videos = cls._fetch_metadata_parallel(video_urls, from_date)
 
         logger.info("Extracted %d videos from %s", len(videos), url)
-        return videos, channel_meta
+        return videos
 
     @classmethod
-    def _extract_flat_playlist(cls, url: str) -> tuple[list[str], dict]:
+    def _extract_video_urls(cls, url: str) -> list[str]:
         """Extract video URLs from a playlist/channel without full metadata.
         
         Works with any site supported by yt-dlp (YouTube, Vimeo, SoundCloud, etc.)
         
         Returns:
-            Tuple of (video URLs list, channel metadata dict)
+            List of video URLs
         """
         ydl_opts = {
             "extract_flat": True,
@@ -53,26 +92,16 @@ class YtDlpService:
             "ignoreerrors": True,
         }
 
-        channel_meta = {}
-
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
-            logger.error("Failed to extract flat playlist from %s: %s", url, e)
+            logger.error("Failed to extract video URLs from %s: %s", url, e)
             raise
 
         if not info:
             logger.warning("No info returned for URL: %s", url)
-            return [], channel_meta
-
-        # Extract channel/playlist metadata
-        channel_meta = {
-            "description": info.get("description"),
-            "thumbnail": cls._get_best_thumbnail(info.get("thumbnails", [])),
-            "tags": info.get("tags", []),
-            "extractor": info.get("extractor_key") or info.get("extractor"),
-        }
+            return []
 
         # My understanding...
         # There are two ways in which we'll receive entries from yt-dlp.
@@ -85,7 +114,6 @@ class YtDlpService:
         # If none of the items have an 'entries' key, return as-is
         entries = info.get("entries", [])
 
-        # Handle nested entries (videos/shorts playlists)
         if any(entry and "entries" in entry for entry in entries if entry):
             flattened = []
             for entry in entries:
@@ -98,14 +126,13 @@ class YtDlpService:
         for entry in entries:
             if not entry:
                 continue
-            # Prefer webpage_url (full URL), then url, then try to construct from id
             video_url = entry.get("webpage_url") or entry.get("url")
             if video_url:
                 video_urls.append(video_url)
             else:
                 logger.debug("Skipping entry without URL: %s", entry.get("id"))
 
-        return video_urls, channel_meta
+        return video_urls
 
     @classmethod
     def _get_best_thumbnail(cls, thumbnails: list[dict]) -> str | None:

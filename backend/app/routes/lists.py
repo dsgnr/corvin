@@ -8,6 +8,7 @@ from app.core.logging import get_logger
 from app.models import VideoList, Profile, HistoryAction
 from app.models.task import TaskType
 from app.services import HistoryService
+from app.services.ytdlp_service import YtDlpService
 from app.tasks import enqueue_task
 
 logger = get_logger("routes.lists")
@@ -23,6 +24,12 @@ def create_list():
 
     from_date = _parse_from_date(data.get("from_date"))
 
+    metadata = {}
+    try:
+        metadata = YtDlpService.extract_list_metadata(data["url"])
+    except Exception as e:
+        logger.warning("Failed to fetch metadata for %s: %s", data["url"], e)
+
     video_list = VideoList(
         name=data["name"],
         url=data["url"],
@@ -31,6 +38,11 @@ def create_list():
         from_date=from_date,
         sync_frequency=data.get("sync_frequency", "daily"),
         enabled=data.get("enabled", True),
+        # Populate from fetched metadata
+        description=metadata.get("description"),
+        thumbnail=metadata.get("thumbnail"),
+        tags=",".join(metadata.get("tags", [])[:20]) if metadata.get("tags") else None,
+        extractor=metadata.get("extractor"),
     )
 
     db.session.add(video_list)
@@ -43,7 +55,7 @@ def create_list():
         {"name": video_list.name, "url": video_list.url},
     )
 
-    # Auto-trigger sync for new list
+    # Auto-trigger sync for new list (videos only)
     if video_list.enabled:
         enqueue_task(TaskType.SYNC.value, video_list.id)
         logger.info("Auto-triggered sync for new list: %s", video_list.name)
