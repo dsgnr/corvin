@@ -16,6 +16,7 @@ class Video(db.Model):
     upload_date: datetime | None = db.Column(db.DateTime, nullable=True)
     thumbnail: str | None = db.Column(db.String(500), nullable=True)
     description: str | None = db.Column(db.Text, nullable=True)
+    extractor: str | None = db.Column(db.String(50), nullable=True)  # Platform identifier (e.g., "Youtube", "Vimeo")
     list_id: int = db.Column(
         db.Integer, db.ForeignKey("video_lists.id"), nullable=False
     )
@@ -42,6 +43,7 @@ class Video(db.Model):
             "upload_date": self.upload_date.isoformat() if self.upload_date else None,
             "thumbnail": self.thumbnail,
             "description": self.description,
+            "extractor": self.extractor,
             "list_id": self.list_id,
             "downloaded": self.downloaded,
             "download_path": self.download_path,

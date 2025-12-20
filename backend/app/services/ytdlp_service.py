@@ -41,6 +41,8 @@ class YtDlpService:
     def _extract_flat_playlist(cls, url: str) -> tuple[list[str], dict]:
         """Extract video URLs from a playlist/channel without full metadata.
         
+        Works with any site supported by yt-dlp (YouTube, Vimeo, SoundCloud, etc.)
+        
         Returns:
             Tuple of (video URLs list, channel metadata dict)
         """
@@ -69,6 +71,7 @@ class YtDlpService:
             "description": info.get("description"),
             "thumbnail": cls._get_best_thumbnail(info.get("thumbnails", [])),
             "tags": info.get("tags", []),
+            "extractor": info.get("extractor_key") or info.get("extractor"),
         }
 
         # My understanding...
@@ -90,14 +93,17 @@ class YtDlpService:
                     flattened.extend(entry["entries"])
             entries = flattened
 
-        # Build video URLs from IDs
+        # Build video URLs - use webpage_url when available, fall back to url field
         video_urls = []
         for entry in entries:
             if not entry:
                 continue
-            video_id = entry.get("id")
-            if video_id:
-                video_urls.append(f"https://www.youtube.com/watch?v={video_id}")
+            # Prefer webpage_url (full URL), then url, then try to construct from id
+            video_url = entry.get("webpage_url") or entry.get("url")
+            if video_url:
+                video_urls.append(video_url)
+            else:
+                logger.debug("Skipping entry without URL: %s", entry.get("id"))
 
         return video_urls, channel_meta
 
@@ -168,25 +174,28 @@ class YtDlpService:
 
     @classmethod
     def _parse_single_entry(cls, entry: dict) -> dict | None:
-        """Parse a single video entry."""
+        """Parse a single video entry from any supported site."""
         video_id = entry.get("id")
         if not video_id:
             return None
 
         upload_date = cls._parse_upload_date(entry.get("upload_date"))
 
+        # Use webpage_url as the canonical URL (works for any site)
+        video_url = entry.get("webpage_url") or entry.get("url")
+        if not video_url:
+            logger.warning("No URL found for video: %s", video_id)
+            return None
+
         return {
             "video_id": video_id,
             "title": entry.get("title", "Unknown"),
-            "url": (
-                entry.get("url")
-                or entry.get("webpage_url")
-                or f"https://www.youtube.com/watch?v={video_id}"
-            ),
+            "url": video_url,
             "duration": entry.get("duration"),
             "upload_date": upload_date,
             "thumbnail": entry.get("thumbnail"),
             "description": entry.get("description"),
+            "extractor": entry.get("extractor_key") or entry.get("extractor"),
         }
 
     @staticmethod

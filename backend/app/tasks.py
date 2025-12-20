@@ -47,6 +47,8 @@ def _execute_sync(list_id: int) -> dict:
         video_list.thumbnail = channel_meta["thumbnail"]
     if channel_meta.get("tags"):
         video_list.tags = ",".join(channel_meta["tags"][:20])  # Limit to 20 tags
+    if channel_meta.get("extractor"):
+        video_list.extractor = channel_meta["extractor"]
 
     video_list.last_synced = datetime.utcnow()
     db.session.commit()
@@ -63,7 +65,14 @@ def _execute_sync(list_id: int) -> dict:
 
 
 def _append_videos_path(url: str) -> str:
-    """Append /videos to a YouTube channel URL to exclude shorts."""
+    """Append /videos to a YouTube channel URL to exclude shorts.
+    
+    Only applies to YouTube URLs - other platforms are returned unchanged.
+    """
+    # Only modify YouTube URLs
+    if "youtube.com" not in url and "youtu.be" not in url:
+        return url
+    
     url = url.rstrip("/")
     if "/videos" not in url and "/shorts" not in url and "/streams" not in url:
         return f"{url}/videos"
@@ -96,6 +105,7 @@ def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
             duration=video_data.get("duration"),
             upload_date=video_data.get("upload_date"),
             thumbnail=video_data.get("thumbnail"),
+            extractor=video_data.get("extractor"),
             list_id=video_list.id,
         )
         db.session.add(video)
