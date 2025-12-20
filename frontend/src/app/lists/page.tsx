@@ -225,7 +225,7 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
                 href={list.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 mt-1"
+                className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 mt-1"
               >
                 {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
                 <ExternalLink size={12} />
