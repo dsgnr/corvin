@@ -10,6 +10,20 @@ import { Pagination } from '@/components/Pagination'
 
 const PAGE_SIZE = 20
 
+// Convert URLs in text to clickable links and escape HTML
+function linkifyText(text: string): string {
+  // First escape HTML to prevent XSS
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+  
+  // Then convert URLs to links
+  const urlRegex = /(https?:\/\/[^\s<]+)/g
+  return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+}
+
 export default function ListDetailPage() {
   const params = useParams()
   const listId = Number(params.id)
@@ -236,7 +250,10 @@ export default function ListDetailPage() {
           {list.description && (
             <div>
               <h3 className="text-sm font-medium mb-2">Description</h3>
-              <p className="text-sm text-[var(--muted)] whitespace-pre-line">{list.description}</p>
+              <div 
+                className="text-sm text-[var(--muted)] whitespace-pre-line prose prose-sm prose-invert max-w-none [&_a]:text-[var(--accent)] [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: linkifyText(list.description) }}
+              />
             </div>
           )}
           {list.tags && list.tags.length > 0 && (
