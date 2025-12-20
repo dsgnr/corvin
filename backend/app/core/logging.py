@@ -3,7 +3,7 @@ import sys
 
 
 def setup_logging(level: int = logging.INFO) -> None:
-    """Configure application logging."""
+    """Configure application-wide logging with a consistent format."""
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -16,10 +16,9 @@ def setup_logging(level: int = logging.INFO) -> None:
     root.setLevel(level)
     root.addHandler(handler)
 
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance for a module."""
+    """Return a logger instance prefixed with 'app.' for the given module name."""
     return logging.getLogger(f"app.{name}")

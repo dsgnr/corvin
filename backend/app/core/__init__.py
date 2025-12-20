@@ -1,1 +1,1 @@
-# Core utilities
+# Core utilities for logging and error handling.

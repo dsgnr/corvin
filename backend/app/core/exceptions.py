@@ -2,7 +2,7 @@ from typing import Any
 
 
 class AppError(Exception):
-    """Base application error."""
+    """Base exception for application errors with HTTP status code support."""
 
     def __init__(self, message: str, status_code: int = 500, details: Any = None):
         super().__init__(message)
@@ -11,6 +11,7 @@ class AppError(Exception):
         self.details = details
 
     def to_dict(self) -> dict:
+        """Convert the error to a dictionary for JSON responses."""
         return {
             "error": self.message,
             "details": self.details,
@@ -18,7 +19,7 @@ class AppError(Exception):
 
 
 class NotFoundError(AppError):
-    """Resource not found."""
+    """Raised when a requested resource does not exist."""
 
     def __init__(self, resource: str, identifier: Any):
         super().__init__(
@@ -28,14 +29,14 @@ class NotFoundError(AppError):
 
 
 class ConflictError(AppError):
-    """Resource conflict (duplicate, already exists, etc)."""
+    """Raised when an operation conflicts with existing data."""
 
     def __init__(self, message: str):
         super().__init__(message=message, status_code=409)
 
 
 class ValidationError(AppError):
-    """Invalid input data."""
+    """Raised when input data fails validation."""
 
     def __init__(self, message: str, details: Any = None):
         super().__init__(message=message, status_code=400, details=details)
