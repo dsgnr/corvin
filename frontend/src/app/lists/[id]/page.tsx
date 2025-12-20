@@ -208,7 +208,7 @@ export default function ListDetailPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
           >
             {downloadingPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Download Queued
+            Download Pending
           </button>
         )}
         {stats.failed > 0 && (
@@ -257,7 +257,7 @@ export default function ListDetailPage() {
           )}
         >
           <p className="text-2xl font-semibold">{stats.total}</p>
-          <p className="text-xs text-[var(--muted)]">Total</p>
+          <p className="text-xs text-[var(--muted)]">Total found</p>
         </button>
         <button
           onClick={() => setFilter('downloaded')}
