@@ -260,7 +260,7 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         >
           <option value="">Keep original</option>
           {outputFormats.map((fmt: string) => (
-            <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
+            <option key={fmt} value={fmt}>{fmt}</option>
           ))}
         </select>
       </div>
