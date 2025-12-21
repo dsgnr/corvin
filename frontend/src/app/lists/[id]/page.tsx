@@ -402,7 +402,9 @@ function VideoRow({ video, downloading, onDownload, autoDownload }: {
         ) : autoDownload ? (
           <Clock size={18} className="text-[var(--warning)]" />
         ) : (
-          <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
+          <span title="Not pending - auto download is disabled for this list">
+            <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
+          </span>
         )}
         {!video.downloaded && (
           <button
