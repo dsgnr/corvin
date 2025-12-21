@@ -84,7 +84,7 @@ export default function Dashboard() {
           <button
             onClick={handleDownloadPending}
             disabled={downloading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--success)] hover:opacity-90 text-white rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--success)] hover:opacity-90 text-success rounded-md transition-colors disabled:opacity-50"
           >
             <Download size={14} className={downloading ? 'animate-bounce' : ''} />
             Download Pending
