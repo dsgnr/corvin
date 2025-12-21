@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 
-from app.extensions import db
-from app.core.exceptions import ValidationError, ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.models import VideoList, Profile, HistoryAction
+from app.extensions import db
+from app.models import HistoryAction, Profile, VideoList
 from app.models.task import TaskType
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService
@@ -89,8 +89,8 @@ def _parse_from_date(date_str: str | None) -> str | None:
     # Validate it's a real date
     try:
         datetime.strptime(clean, "%Y%m%d")
-    except ValueError:
-        raise ValidationError("Invalid from_date (not a valid date)")
+    except ValueError as err:
+        raise ValidationError("Invalid from_date (not a valid date)") from err
     return clean
 
 

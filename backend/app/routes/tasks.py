@@ -1,11 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 
-from app.extensions import db
-from app.core.exceptions import NotFoundError, ValidationError, ConflictError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
+from app.extensions import db
 from app.models.task import Task, TaskStatus, TaskType
 from app.task_queue import get_worker
-from app.tasks import enqueue_task, schedule_syncs, schedule_downloads
+from app.tasks import enqueue_task, schedule_downloads, schedule_syncs
 
 logger = get_logger("routes.tasks")
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
@@ -103,7 +103,9 @@ def trigger_lists_sync():
         raise ValidationError("list_ids must be an array")
 
     result = schedule_syncs(list_ids)
-    logger.info("Triggered sync for %d lists: %d queued", len(list_ids), result["queued"])
+    logger.info(
+        "Triggered sync for %d lists: %d queued", len(list_ids), result["queued"]
+    )
     return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
 
@@ -140,7 +142,9 @@ def trigger_videos_download():
         raise ValidationError("video_ids must be an array")
 
     result = schedule_downloads(video_ids)
-    logger.info("Triggered download for %d videos: %d queued", len(video_ids), result["queued"])
+    logger.info(
+        "Triggered download for %d videos: %d queued", len(video_ids), result["queued"]
+    )
     return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
 

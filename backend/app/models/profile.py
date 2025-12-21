@@ -5,6 +5,7 @@ from app.extensions import db
 
 class SponsorBlockBehavior:
     """SponsorBlock behavior options."""
+
     DISABLED = "disabled"
     DELETE = "delete"
     MARK_CHAPTER = "mark_chapter"
@@ -14,14 +15,14 @@ class SponsorBlockBehavior:
 
 # Valid SponsorBlock categories
 SPONSORBLOCK_CATEGORIES = [
-    "sponsor",           # Sponsor
-    "intro",             # Intro/Intermission
-    "outro",             # Outro/Credits
-    "selfpromo",         # Unpaid/Self Promotion
-    "preview",           # Preview/Recap
-    "interaction",       # Interaction Reminder (Subscribe)
-    "music_offtopic",    # Music: Non-Music Section
-    "filler",            # Tangents/Jokes
+    "sponsor",  # Sponsor
+    "intro",  # Intro/Intermission
+    "outro",  # Outro/Credits
+    "selfpromo",  # Unpaid/Self Promotion
+    "preview",  # Preview/Recap
+    "interaction",  # Interaction Reminder (Subscribe)
+    "music_offtopic",  # Music: Non-Music Section
+    "filler",  # Tangents/Jokes
 ]
 
 # Supported output formats for remuxing
@@ -50,10 +51,15 @@ class Profile(db.Model):
     audio_track_language: str = db.Column(db.String(100), default="en")
 
     # Output path template
-    output_template: str = db.Column(db.String(500), default="%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s")
+    output_template: str = db.Column(
+        db.String(500),
+        default="%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
+    )
 
     # SponsorBlock options
-    sponsorblock_behavior: str = db.Column(db.String(20), default=SponsorBlockBehavior.DISABLED)
+    sponsorblock_behavior: str = db.Column(
+        db.String(20), default=SponsorBlockBehavior.DISABLED
+    )
     sponsorblock_categories: str = db.Column(db.String(500), default="")
 
     # Output format for remuxing
@@ -94,7 +100,9 @@ class Profile(db.Model):
 
     def to_yt_dlp_opts(self) -> dict:
         """Convert profile settings to a yt-dlp options dictionary."""
-        output_fmt = self.output_format if self.output_format in OUTPUT_FORMATS else "mp4"
+        output_fmt = (
+            self.output_format if self.output_format in OUTPUT_FORMATS else "mp4"
+        )
 
         opts = {
             "paths": {"temp": "/tmp"},
@@ -102,7 +110,15 @@ class Profile(db.Model):
             "retries": 10,
             "final_ext": output_fmt,
             "merge_output_format": output_fmt,
-            "format_sort": ["vcodec:h264", "lang", "quality", "res", "fps", "hdr:12", "acodec:aac"],
+            "format_sort": [
+                "vcodec:h264",
+                "lang",
+                "quality",
+                "res",
+                "fps",
+                "hdr:12",
+                "acodec:aac",
+            ],
         }
 
         postprocessors = []
@@ -118,24 +134,30 @@ class Profile(db.Model):
     def _add_metadata_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add metadata and thumbnail postprocessors."""
         if self.embed_metadata:
-            postprocessors.append({
-                "key": "FFmpegMetadata",
-                "add_chapters": True,
-                "add_infojson": "if_exists",
-                "add_metadata": True,
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegMetadata",
+                    "add_chapters": True,
+                    "add_infojson": "if_exists",
+                    "add_metadata": True,
+                }
+            )
 
         if self.embed_thumbnail:
             opts["writethumbnail"] = True
-            postprocessors.append({
-                "key": "FFmpegThumbnailsConvertor",
-                "format": "jpg",
-                "when": "before_dl",
-            })
-            postprocessors.append({
-                "key": "EmbedThumbnail",
-                "already_have_thumbnail": True,
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegThumbnailsConvertor",
+                    "format": "jpg",
+                    "when": "before_dl",
+                }
+            )
+            postprocessors.append(
+                {
+                    "key": "EmbedThumbnail",
+                    "already_have_thumbnail": True,
+                }
+            )
 
     def _add_subtitle_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add subtitle-related options and postprocessors."""
@@ -143,30 +165,38 @@ class Profile(db.Model):
             opts["writesubtitles"] = True
             opts["subtitlesformat"] = "srt"
             if self.subtitle_languages:
-                opts["subtitleslangs"] = [lang.strip() for lang in self.subtitle_languages.split(",")]
+                opts["subtitleslangs"] = [
+                    lang.strip() for lang in self.subtitle_languages.split(",")
+                ]
 
         if self.download_subtitles:
-            postprocessors.append({
-                "key": "FFmpegSubtitlesConvertor",
-                "format": "srt",
-                "when": "before_dl",
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegSubtitlesConvertor",
+                    "format": "srt",
+                    "when": "before_dl",
+                }
+            )
 
         if self.auto_generated_subtitles:
             opts["writeautomaticsub"] = True
             opts["subtitlesformat"] = "srt"
 
         if self.embed_subtitles:
-            postprocessors.append({
-                "key": "FFmpegEmbedSubtitle",
-                "already_have_subtitle": True,
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegEmbedSubtitle",
+                    "already_have_subtitle": True,
+                }
+            )
 
     def _add_audio_options(self, opts: dict) -> None:
         """Add audio track language preferences."""
         if self.audio_track_language:
             opts["audio_multistreams"] = True
-            opts["format_sort"] = [f"lang:{self.audio_track_language}"] + opts["format_sort"]
+            opts["format_sort"] = [f"lang:{self.audio_track_language}"] + opts[
+                "format_sort"
+            ]
 
     def _add_sponsorblock_postprocessors(self, postprocessors: list) -> None:
         """Add SponsorBlock postprocessors if enabled."""
@@ -175,45 +205,61 @@ class Profile(db.Model):
         if not self.sponsorblock_categories:
             return
 
-        categories = [c.strip() for c in self.sponsorblock_categories.split(",") if c.strip()]
+        categories = [
+            c.strip() for c in self.sponsorblock_categories.split(",") if c.strip()
+        ]
         if not categories:
             return
 
         categories_set = set(categories)
 
-        postprocessors.append({
-            "key": "SponsorBlock",
-            "api": "https://sponsor.ajay.app",
-            "categories": categories_set,
-            "when": "after_filter",
-        })
+        postprocessors.append(
+            {
+                "key": "SponsorBlock",
+                "api": "https://sponsor.ajay.app",
+                "categories": categories_set,
+                "when": "after_filter",
+            }
+        )
 
-        remove_segments = categories_set if self.sponsorblock_behavior == SponsorBlockBehavior.DELETE else set()
-        postprocessors.append({
-            "key": "ModifyChapters",
-            "force_keyframes": False,
-            "remove_chapters_patterns": [],
-            "remove_ranges": [],
-            "remove_sponsor_segments": remove_segments,
-            "sponsorblock_chapter_title": "[SponsorBlock]: %(category_names)l",
-        })
+        remove_segments = (
+            categories_set
+            if self.sponsorblock_behavior == SponsorBlockBehavior.DELETE
+            else set()
+        )
+        postprocessors.append(
+            {
+                "key": "ModifyChapters",
+                "force_keyframes": False,
+                "remove_chapters_patterns": [],
+                "remove_ranges": [],
+                "remove_sponsor_segments": remove_segments,
+                "sponsorblock_chapter_title": "[SponsorBlock]: %(category_names)l",
+            }
+        )
 
         if self.sponsorblock_behavior == SponsorBlockBehavior.MARK_CHAPTER:
-            postprocessors.append({
-                "key": "FFmpegMetadata",
-                "add_chapters": True,
-                "add_infojson": None,
-                "add_metadata": False,
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegMetadata",
+                    "add_chapters": True,
+                    "add_infojson": None,
+                    "add_metadata": False,
+                }
+            )
 
     def _add_output_postprocessors(self, postprocessors: list, output_fmt: str) -> None:
         """Add output format remuxing postprocessors."""
-        postprocessors.append({
-            "key": "FFmpegVideoRemuxer",
-            "preferedformat": output_fmt,
-        })
-        postprocessors.append({
-            "key": "FFmpegConcat",
-            "only_multi_video": True,
-            "when": "playlist",
-        })
+        postprocessors.append(
+            {
+                "key": "FFmpegVideoRemuxer",
+                "preferedformat": output_fmt,
+            }
+        )
+        postprocessors.append(
+            {
+                "key": "FFmpegConcat",
+                "only_multi_video": True,
+                "when": "playlist",
+            }
+        )

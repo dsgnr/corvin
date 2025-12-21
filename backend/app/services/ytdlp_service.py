@@ -9,7 +9,7 @@ from app.models import Profile, Video
 
 logger = get_logger("ytdlp")
 
-MAX_METADATA_WORKERS = 5 # experimental amount
+MAX_METADATA_WORKERS = 5  # experimental amount
 
 
 class YtDlpService:
@@ -18,7 +18,7 @@ class YtDlpService:
     @classmethod
     def extract_list_metadata(cls, url: str) -> dict:
         """Extract only channel/playlist metadata without fetching videos.
-        
+
         Returns:
             Dict with: name, description, thumbnail, tags, extractor
         """
@@ -57,7 +57,7 @@ class YtDlpService:
     @classmethod
     def extract_videos(cls, url: str, from_date: datetime | None = None) -> list[dict]:
         """Extract video information from a URL (channel/playlist) using parallel fetching.
-        
+
         Returns:
             List of video dicts
         """
@@ -68,7 +68,9 @@ class YtDlpService:
         if not video_urls:
             return []
 
-        logger.info("Found %d videos, fetching metadata in parallel...", len(video_urls))
+        logger.info(
+            "Found %d videos, fetching metadata in parallel...", len(video_urls)
+        )
 
         # Fetch full metadata in parallel using the urls from above
         videos = cls._fetch_metadata_parallel(video_urls, from_date)
@@ -79,9 +81,9 @@ class YtDlpService:
     @classmethod
     def _extract_video_urls(cls, url: str) -> list[str]:
         """Extract video URLs from a playlist/channel without full metadata.
-        
+
         Works with any site supported by yt-dlp (YouTube, Vimeo, SoundCloud, etc.)
-        
+
         Returns:
             List of video URLs
         """
@@ -106,7 +108,7 @@ class YtDlpService:
         # My understanding...
         # There are two ways in which we'll receive entries from yt-dlp.
         # Sometimes the `entries` key will contain the list of videos.
-        # Othertimes, perhaps newer channels(?), we'll contain two playlist types (videos/shorts). 
+        # Othertimes, perhaps newer channels(?), we'll contain two playlist types (videos/shorts).
         # In these playlist types, there'll be a nested `entries` key.
         # It seems the cleanest way to determine this is by the presence (or lack) of an `entries` key.
         # If the list contains nested entry groups (items with an 'entries' key),
@@ -267,12 +269,14 @@ class YtDlpService:
     def _build_download_opts(profile: Profile, output_template: str) -> dict:
         """Build yt-dlp options from profile."""
         opts = profile.to_yt_dlp_opts()
-        opts.update({
-            "outtmpl": output_template,
-            "quiet": True,
-            "no_warnings": True,
-            "ignoreerrors": True,
-            "fragment_retries": 10,
-            "concurrent_fragment_downloads": 5,
-        })
+        opts.update(
+            {
+                "outtmpl": output_template,
+                "quiet": True,
+                "no_warnings": True,
+                "ignoreerrors": True,
+                "fragment_retries": 10,
+                "concurrent_fragment_downloads": 5,
+            }
+        )
         return opts

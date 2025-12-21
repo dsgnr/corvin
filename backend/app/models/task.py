@@ -2,8 +2,9 @@ from datetime import datetime
 from enum import Enum
 
 from app.extensions import db
-from app.models.video_list import VideoList
 from app.models.video import Video
+from app.models.video_list import VideoList
+
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
@@ -50,7 +51,10 @@ class Task(db.Model):
     )
 
     def add_log(
-        self, message: str, level: str = TaskLogLevel.INFO.value, attempt: int | None = None
+        self,
+        message: str,
+        level: str = TaskLogLevel.INFO.value,
+        attempt: int | None = None,
     ) -> "TaskLog":
         """Add a log entry to this task."""
         log = TaskLog(
@@ -75,10 +79,14 @@ class Task(db.Model):
             "max_retries": self.max_retries,
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
         }
         if include_logs:
-            data["logs"] = [log.to_dict() for log in self.logs.order_by(TaskLog.created_at.asc())]
+            data["logs"] = [
+                log.to_dict() for log in self.logs.order_by(TaskLog.created_at.asc())
+            ]
         return data
 
     def _get_entity_name(self) -> str | None:

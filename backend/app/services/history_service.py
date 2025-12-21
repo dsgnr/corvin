@@ -1,7 +1,7 @@
 import json
 
-from app.extensions import db
 from app.core.logging import get_logger
+from app.extensions import db
 from app.models import History, HistoryAction
 
 logger = get_logger("history")

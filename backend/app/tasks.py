@@ -17,7 +17,7 @@ def sync_single_list(app: Flask, list_id: int) -> dict:
 def _execute_sync(list_id: int) -> dict:
     """Execute the sync operation for a list (videos only, metadata already populated)."""
     from app.extensions import db
-    from app.models import VideoList, HistoryAction
+    from app.models import HistoryAction, VideoList
     from app.services import HistoryService, YtDlpService
 
     video_list = VideoList.query.get(list_id)
@@ -56,13 +56,13 @@ def _execute_sync(list_id: int) -> dict:
 
 def _append_videos_path(url: str) -> str:
     """Append /videos to a YouTube channel URL to exclude shorts.
-    
+
     Only applies to YouTube URLs - other platforms are returned unchanged.
     """
     # Only modify YouTube URLs
     if "youtube.com" not in url and "youtu.be" not in url:
         return url
-    
+
     url = url.rstrip("/")
     if "/videos" not in url and "/shorts" not in url and "/streams" not in url:
         return f"{url}/videos"
@@ -72,7 +72,7 @@ def _append_videos_path(url: str) -> str:
 def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
     """Store newly discovered videos and return count."""
     from app.extensions import db
-    from app.models import Video, HistoryAction
+    from app.models import HistoryAction, Video
     from app.services import HistoryService
 
     new_count = 0
@@ -125,8 +125,7 @@ def download_single_video(app: Flask, video_id: int) -> dict:
 
 def _execute_download(video_id: int) -> dict:
     """Execute the download operation for a video."""
-    from app.extensions import db
-    from app.models import Video, HistoryAction
+    from app.models import HistoryAction, Video
     from app.services import HistoryService, YtDlpService
 
     video = Video.query.get(video_id)
@@ -286,7 +285,7 @@ def schedule_syncs(list_ids: list[int] | None = None) -> dict:
     if list_ids:
         # Validate list IDs exist and are enabled
         lists = VideoList.query.filter(
-            VideoList.id.in_(list_ids), VideoList.enabled == True
+            VideoList.id.in_(list_ids), VideoList.enabled.is_(True)
         ).all()
         ids_to_queue = [vl.id for vl in lists]
     else:
@@ -318,7 +317,7 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
     if video_ids:
         # Validate video IDs exist and are not downloaded
         videos = Video.query.filter(
-            Video.id.in_(video_ids), Video.downloaded == False
+            Video.id.in_(video_ids), Video.downloaded.is_(False)
         ).all()
         ids_to_queue = [v.id for v in videos]
     else:

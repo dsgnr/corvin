@@ -16,7 +16,9 @@ class Video(db.Model):
     upload_date: datetime | None = db.Column(db.DateTime, nullable=True)
     thumbnail: str | None = db.Column(db.String(500), nullable=True)
     description: str | None = db.Column(db.Text, nullable=True)
-    extractor: str | None = db.Column(db.String(50), nullable=True)  # Platform identifier (e.g., "Youtube", "Vimeo")
+    extractor: str | None = db.Column(
+        db.String(50), nullable=True
+    )  # Platform identifier (e.g., "Youtube", "Vimeo")
     list_id: int = db.Column(
         db.Integer, db.ForeignKey("video_lists.id"), nullable=False
     )

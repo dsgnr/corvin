@@ -3,7 +3,7 @@ import logging
 from flask import Flask
 from flask_cors import CORS
 
-from app.core.logging import setup_logging, get_logger
+from app.core.logging import get_logger, setup_logging
 from app.extensions import db, migrate, scheduler
 
 logger = get_logger("app")
@@ -46,7 +46,7 @@ def _configure_app(app: Flask, config: dict | None) -> None:
 
 def _register_blueprints(app: Flask) -> None:
     """Register all route blueprints."""
-    from app.routes import profiles, lists, videos, history, tasks, errors
+    from app.routes import errors, history, lists, profiles, tasks, videos
 
     app.register_blueprint(profiles.bp)
     app.register_blueprint(lists.bp)
@@ -71,9 +71,9 @@ def _reset_stale_tasks() -> None:
 
 def _init_worker(app: Flask) -> None:
     """Set up the background task worker and register handlers."""
-    from app.task_queue import init_worker
-    from app.tasks import sync_single_list, download_single_video
     from app.models.task import TaskType
+    from app.task_queue import init_worker
+    from app.tasks import download_single_video, sync_single_list
 
     worker = init_worker(
         app,

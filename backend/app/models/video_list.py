@@ -19,7 +19,9 @@ class VideoList(db.Model):
     name: str = db.Column(db.String(200), nullable=False)
     url: str = db.Column(db.String(500), nullable=False, unique=True)
     list_type: str = db.Column(db.String(20), default="channel")
-    extractor: str | None = db.Column(db.String(50), nullable=True)  # Platform identifier (e.g., "Youtube", "Vimeo")
+    extractor: str | None = db.Column(
+        db.String(50), nullable=True
+    )  # Platform identifier (e.g., "Youtube", "Vimeo")
     profile_id: int = db.Column(
         db.Integer, db.ForeignKey("profiles.id"), nullable=False
     )
@@ -40,7 +42,10 @@ class VideoList(db.Model):
 
     profile = db.relationship("Profile", back_populates="lists")
     videos = db.relationship(
-        "Video", back_populates="video_list", lazy="dynamic", cascade="all, delete-orphan"
+        "Video",
+        back_populates="video_list",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
     )
 
     def is_due_for_sync(self) -> bool:

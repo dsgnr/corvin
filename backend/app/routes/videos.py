@@ -1,9 +1,9 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 
-from app.extensions import db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.models import Video, HistoryAction
+from app.extensions import db
+from app.models import HistoryAction, Video
 from app.services import HistoryService
 
 logger = get_logger("routes.videos")

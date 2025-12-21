@@ -1,9 +1,9 @@
 import json
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Callable
 
 from flask import Flask
 
@@ -83,9 +83,7 @@ class TaskWorker:
     def _process_pending_tasks(self) -> None:
         """Check for pending tasks and submit to executors."""
         with self.app.app_context():
-            self._process_task_type(
-                "sync", self._sync_executor, self.max_sync_workers
-            )
+            self._process_task_type("sync", self._sync_executor, self.max_sync_workers)
             self._process_task_type(
                 "download", self._download_executor, self.max_download_workers
             )
@@ -145,7 +143,7 @@ class TaskWorker:
     def _run_task_handler(self, task_id: int, task_type: str) -> None:
         """Run the task handler and update task status."""
         from app.extensions import db
-        from app.models.task import Task, TaskStatus, TaskLogLevel
+        from app.models.task import Task, TaskLogLevel, TaskStatus
 
         task = Task.query.get(task_id)
         if not task:
@@ -180,7 +178,7 @@ class TaskWorker:
     def _fail_task(self, task, error_message: str) -> None:
         """Mark a task as failed."""
         from app.extensions import db
-        from app.models.task import TaskStatus, TaskLogLevel
+        from app.models.task import TaskLogLevel, TaskStatus
 
         task.status = TaskStatus.FAILED.value
         task.error = error_message
@@ -192,7 +190,7 @@ class TaskWorker:
     def _handle_task_failure(self, task, exception: Exception, attempt: int) -> None:
         """Handle task failure with retry logic."""
         from app.extensions import db
-        from app.models.task import TaskStatus, TaskLogLevel
+        from app.models.task import TaskLogLevel, TaskStatus
 
         error_msg = str(exception)
         task.error = error_msg
