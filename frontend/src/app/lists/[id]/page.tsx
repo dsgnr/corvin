@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, VideoList, Video } from '@/lib/api'
-import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink, CircleSlash } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 
@@ -162,6 +162,9 @@ export default function ListDetailPage() {
     failed: videos.filter(v => !!v.error_message).length,
   }
 
+  // For manual download lists, pending is effectively 0 (not auto-queued)
+  const effectivePending = list?.auto_download ? stats.pending : 0
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -229,7 +232,7 @@ export default function ListDetailPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
           >
             {downloadingPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Download Pending
+            Download {list?.auto_download ? 'Pending' : 'All'}
           </button>
         )}
         {stats.failed > 0 && (
@@ -300,8 +303,15 @@ export default function ListDetailPage() {
             filter === 'pending' ? 'bg-[var(--warning)]/10 border-[var(--warning)]' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
           )}
         >
-          <p className="text-2xl font-semibold text-[var(--warning)]">{stats.pending}</p>
-          <p className="text-xs text-[var(--muted)]">Pending</p>
+          <p className={clsx(
+            'text-2xl font-semibold',
+            list?.auto_download ? 'text-[var(--warning)]' : 'text-[var(--muted)]'
+          )}>
+            {list?.auto_download ? stats.pending : 0}
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            {list?.auto_download ? 'Pending' : 'Not queued (manual)'}
+          </p>
         </button>
         <button
           onClick={() => setFilter('failed')}
@@ -330,6 +340,7 @@ export default function ListDetailPage() {
                 video={video}
                 downloading={downloadingIds.has(video.id)}
                 onDownload={() => handleDownload(video.id)}
+                autoDownload={list?.auto_download ?? true}
               />
             ))
           )}
@@ -340,10 +351,11 @@ export default function ListDetailPage() {
   )
 }
 
-function VideoRow({ video, downloading, onDownload }: {
+function VideoRow({ video, downloading, onDownload, autoDownload }: {
   video: Video
   downloading: boolean
   onDownload: () => void
+  autoDownload: boolean
 }) {
   const formatDuration = (seconds: number | null) => {
     if (!seconds) return '--:--'
@@ -387,8 +399,10 @@ function VideoRow({ video, downloading, onDownload }: {
           <CheckCircle size={18} className="text-[var(--success)]" />
         ) : video.error_message ? (
           <XCircle size={18} className="text-[var(--error)]" />
-        ) : (
+        ) : autoDownload ? (
           <Clock size={18} className="text-[var(--warning)]" />
+        ) : (
+          <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
         )}
         {!video.downloaded && (
           <button

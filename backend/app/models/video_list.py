@@ -28,6 +28,10 @@ class VideoList(db.Model):
     from_date: str | None = db.Column(db.String(8), nullable=True)  # YYYYMMDD format
     sync_frequency: str = db.Column(db.String(10), default=SyncFrequency.DAILY.value)
     enabled: bool = db.Column(db.Boolean, default=True)
+    auto_download: bool = db.Column(
+        db.Boolean,
+        default=True,
+    )
     last_synced: datetime | None = db.Column(db.DateTime, nullable=True)
 
     # Channel/playlist metadata (populated on sync)
@@ -78,6 +82,7 @@ class VideoList(db.Model):
             "from_date": self.from_date,
             "sync_frequency": self.sync_frequency,
             "enabled": self.enabled,
+            "auto_download": self.auto_download,
             "last_synced": self.last_synced.isoformat() if self.last_synced else None,
             "description": self.description,
             "thumbnail": self.thumbnail,

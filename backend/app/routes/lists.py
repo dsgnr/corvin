@@ -38,6 +38,7 @@ def create_list():
         from_date=from_date,
         sync_frequency=data.get("sync_frequency", "daily"),
         enabled=data.get("enabled", True),
+        auto_download=data.get("auto_download", True),
         # Populate from fetched metadata
         description=metadata.get("description"),
         thumbnail=metadata.get("thumbnail"),
@@ -153,7 +154,7 @@ def _apply_list_updates(video_list: VideoList, data: dict) -> None:
     if "from_date" in data:
         video_list.from_date = _parse_from_date(data["from_date"])
 
-    simple_fields = ["name", "list_type", "sync_frequency", "enabled"]
+    simple_fields = ["name", "list_type", "sync_frequency", "enabled", "auto_download"]
     for field in simple_fields:
         if field in data:
             setattr(video_list, field, data[field])

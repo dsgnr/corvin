@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { api, Video } from '@/lib/api'
-import { ArrowLeft, Download, ExternalLink, CheckCircle, XCircle, Clock, Loader2, RotateCcw } from 'lucide-react'
+import { api, Video, VideoList } from '@/lib/api'
+import { ArrowLeft, Download, ExternalLink, CheckCircle, XCircle, Clock, Loader2, RotateCcw, CircleSlash } from 'lucide-react'
 
 function linkifyDescription(text: string): string {
   // Escape HTML entities first
@@ -23,6 +23,7 @@ export default function VideoDetailPage() {
   const params = useParams()
   const videoId = Number(params.id)
   const [video, setVideo] = useState<Video | null>(null)
+  const [list, setList] = useState<VideoList | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -31,6 +32,9 @@ export default function VideoDetailPage() {
     try {
       const data = await api.getVideo(videoId)
       setVideo(data)
+      // Fetch list to get auto_download status
+      const listData = await api.getList(data.list_id)
+      setList(listData)
     } catch (err) {
       console.error('Failed to fetch video:', err)
     } finally {
@@ -178,10 +182,15 @@ export default function VideoDetailPage() {
                       <XCircle size={16} className="text-[var(--error)]" />
                       <span className="text-[var(--error)]">Failed</span>
                     </>
-                  ) : (
+                  ) : list?.auto_download ? (
                     <>
                       <Clock size={16} className="text-[var(--warning)]" />
                       <span className="text-[var(--warning)]">Pending</span>
+                    </>
+                  ) : (
+                    <>
+                      <CircleSlash size={16} className="text-[var(--muted)]" />
+                      <span className="text-[var(--muted)]">Not downloaded (manual list)</span>
                     </>
                   )}
                 </dd>

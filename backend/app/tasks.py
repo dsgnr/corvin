@@ -310,8 +310,11 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
     """
     Queue download tasks for specified videos or all pending videos.
     Returns dict with queued/skipped counts.
+
+    Note: Videos from lists with auto_download=False are excluded from automatic
+    scheduling. They must be manually selected for download.
     """
-    from app.models import Video
+    from app.models import Video, VideoList
     from app.models.task import TaskType
 
     if video_ids:
@@ -321,9 +324,11 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
         ).all()
         ids_to_queue = [v.id for v in videos]
     else:
-        # All pending videos (not downloaded, no error or has retries)
+        # All pending videos from lists with auto_download enabled
         videos = (
-            Video.query.filter_by(downloaded=False)
+            Video.query.join(VideoList)
+            .filter(VideoList.auto_download.is_(True))
+            .filter(Video.downloaded.is_(False))
             .filter((Video.error_message.is_(None)) | (Video.retry_count > 0))
             .limit(100)
             .all()

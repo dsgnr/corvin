@@ -217,6 +217,11 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
                 )}>
                   {list.enabled ? 'Enabled' : 'Disabled'}
                 </span>
+                {!list.auto_download && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
+                    Manual DL
+                  </span>
+                )}
                 <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
                   {list.list_type}
                 </span>
@@ -284,6 +289,7 @@ function ListForm({ list, profiles, onSave, onCancel }: {
     sync_frequency: list?.sync_frequency || 'daily',
     from_date: list?.from_date || '',
     enabled: list?.enabled ?? true,
+    auto_download: list?.auto_download ?? true,
   })
   const [saving, setSaving] = useState(false)
 
@@ -365,15 +371,29 @@ function ListForm({ list, profiles, onSave, onCancel }: {
         </div>
       </div>
       <div className="flex items-center justify-between pt-2">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={e => setForm({ ...form, enabled: e.target.checked })}
-            className="rounded border-[var(--border)]"
-          />
-          <span className="text-sm">Enabled</span>
-        </label>
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={e => setForm({ ...form, enabled: e.target.checked })}
+              className="rounded border-[var(--border)]"
+            />
+            <span className="text-sm">Enabled</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={form.auto_download}
+              onChange={e => setForm({ ...form, auto_download: e.target.checked })}
+              className="rounded border-[var(--border)]"
+            />
+            <span className="text-sm">Auto download</span>
+            <span className="text-xs text-[var(--muted)]">
+              (if disabled, videos must be manually selected)
+            </span>
+          </label>
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
