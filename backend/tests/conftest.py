@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.models import Profile, Video, VideoList
+from app.models.task import Task, TaskStatus, TaskType
 
 
 @pytest.fixture
@@ -70,3 +71,18 @@ def sample_video(app, sample_list):
         db.session.commit()
         video_id = video.id
     return video_id
+
+
+@pytest.fixture
+def sample_task(app, sample_list):
+    """Create a sample task for testing."""
+    with app.app_context():
+        task = Task(
+            task_type=TaskType.SYNC.value,
+            entity_id=sample_list,
+            status=TaskStatus.PENDING.value,
+        )
+        db.session.add(task)
+        db.session.commit()
+        task_id = task.id
+    return task_id
