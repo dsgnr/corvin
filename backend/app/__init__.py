@@ -25,9 +25,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     with app.app_context():
         db.create_all()
-        _reset_stale_tasks()
-        _init_worker(app)
-        _setup_scheduler(app)
+        if not app.config.get("TESTING"):
+            _reset_stale_tasks()
+            _init_worker(app)
+            _setup_scheduler(app)
 
     logger.info("Application initialised")
     return app
