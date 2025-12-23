@@ -6,8 +6,6 @@ services:
     volumes:
       - ./data:/data
       - ./downloads:/downloads
-    environment:
-      - FLASK_ENV=production
     restart: unless-stopped
 
   frontend:

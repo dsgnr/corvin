@@ -45,7 +45,6 @@ Both directories are mounted as volumes and persist between container restarts.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FLASK_ENV` | `production` | Flask environment mode |
 | `API_BASE` | `http://localhost:5000/api` | API URL for the frontend |
 
 ### Worker Configuration
