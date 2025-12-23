@@ -4,7 +4,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Profile, Video, VideoList
+from app.models import History, HistoryAction, Profile, Video, VideoList
 from app.models.task import Task, TaskStatus, TaskType
 
 
@@ -86,3 +86,25 @@ def sample_task(app, sample_list):
         db.session.commit()
         task_id = task.id
     return task_id
+
+
+@pytest.fixture
+def sample_history(app):
+    """Create sample history entries."""
+    with app.app_context():
+        entries = [
+            History(
+                action=HistoryAction.PROFILE_CREATED.value,
+                entity_type="profile",
+                entity_id=1,
+                details='{"name": "Test Profile"}',
+            ),
+            History(
+                action=HistoryAction.LIST_CREATED.value,
+                entity_type="list",
+                entity_id=1,
+                details='{"name": "Test List"}',
+            ),
+        ]
+        db.session.add_all(entries)
+        db.session.commit()
