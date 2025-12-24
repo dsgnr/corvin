@@ -31,6 +31,25 @@ class TestExtractListMetadata:
         assert result["extractor"] == "Youtube"
 
     @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_extracts_thumbnails_list(self, mock_ydl_class):
+        """Should include full thumbnails list in metadata."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        thumbnails = [
+            {"id": "0", "url": "https://example.com/banner.jpg"},
+            {"id": "avatar_uncropped", "url": "https://example.com/avatar.jpg"},
+            {"id": "banner_uncropped", "url": "https://example.com/fanart.jpg"},
+        ]
+        mock_ydl.extract_info.return_value = {
+            "title": "Test Channel",
+            "thumbnails": thumbnails,
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["thumbnails"] == thumbnails
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
     def test_handles_empty_response(self, mock_ydl_class):
         """Should return empty dict when no info returned."""
         mock_ydl = MagicMock()
@@ -165,3 +184,125 @@ class TestBuildDownloadOpts:
             assert opts["outtmpl"] == "/downloads/%(title)s"
             assert opts["quiet"] is True
             assert "postprocessors" in opts
+
+
+class TestDownloadListArtwork:
+    """Tests for YtDlpService.download_list_artwork method."""
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_downloads_all_artwork(self, mock_get, tmp_path):
+        """Should download fanart, poster, and banner from thumbnails."""
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        thumbnails = [
+            {"id": "banner_uncropped", "url": "https://example.com/fanart.jpg"},
+            {"id": "avatar_uncropped", "url": "https://example.com/poster.jpg"},
+            {"id": "0", "url": "https://example.com/banner.jpg"},
+        ]
+
+        results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        assert results["fanart.jpg"] is True
+        assert results["poster.jpg"] is True
+        assert results["banner.jpg"] is True
+        assert (tmp_path / "fanart.jpg").exists()
+        assert (tmp_path / "poster.jpg").exists()
+        assert (tmp_path / "banner.jpg").exists()
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_handles_missing_thumbnails(self, mock_get, tmp_path):
+        """Should return False for missing thumbnail IDs."""
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        thumbnails = [
+            {"id": "banner_uncropped", "url": "https://example.com/fanart.jpg"},
+        ]
+
+        results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        assert results["fanart.jpg"] is True
+        assert results["poster.jpg"] is False
+        assert results["banner.jpg"] is False
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_handles_download_failure(self, mock_get, tmp_path):
+        """Should return False when download fails."""
+        import requests
+
+        mock_get.side_effect = requests.RequestException("Network error")
+
+        thumbnails = [
+            {"id": "banner_uncropped", "url": "https://example.com/fanart.jpg"},
+        ]
+
+        results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        assert results["fanart.jpg"] is False
+
+    def test_handles_empty_thumbnails(self, tmp_path):
+        """Should return all False for empty thumbnails list."""
+        results = YtDlpService.download_list_artwork([], tmp_path)
+
+        assert results["fanart.jpg"] is False
+        assert results["poster.jpg"] is False
+        assert results["banner.jpg"] is False
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_creates_output_directory(self, mock_get, tmp_path):
+        """Should create output directory if it doesn't exist."""
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        thumbnails = [
+            {"id": "0", "url": "https://example.com/banner.jpg"},
+        ]
+        nested_dir = tmp_path / "nested" / "dir"
+
+        results = YtDlpService.download_list_artwork(thumbnails, nested_dir)
+
+        assert results["banner.jpg"] is True
+        assert (nested_dir / "banner.jpg").exists()
+
+
+class TestDownloadImage:
+    """Tests for YtDlpService._download_image method."""
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_downloads_image(self, mock_get, tmp_path):
+        """Should download and save image."""
+        mock_response = MagicMock()
+        mock_response.content = b"image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        output_path = tmp_path / "test.jpg"
+        result = YtDlpService._download_image(
+            "https://example.com/img.jpg", output_path
+        )
+
+        assert result is True
+        assert output_path.exists()
+        assert output_path.read_bytes() == b"image data"
+
+    @patch("app.services.ytdlp_service.requests.get")
+    def test_handles_http_error(self, mock_get, tmp_path):
+        """Should return False on HTTP error."""
+        import requests
+
+        mock_get.side_effect = requests.RequestException("404 Not Found")
+
+        output_path = tmp_path / "test.jpg"
+        result = YtDlpService._download_image(
+            "https://example.com/img.jpg", output_path
+        )
+
+        assert result is False
+        assert not output_path.exists()

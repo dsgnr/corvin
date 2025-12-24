@@ -49,6 +49,20 @@ def create_list():
     db.session.add(video_list)
     db.session.commit()
 
+    # Download list artwork (fanart, poster, banner) if thumbnails available
+    thumbnails = metadata.get("thumbnails", [])
+    if thumbnails and metadata.get("name"):
+        artwork_dir = YtDlpService.DEFAULT_OUTPUT_DIR / metadata["name"]
+        try:
+            results = YtDlpService.download_list_artwork(thumbnails, artwork_dir)
+            downloaded = [f for f, success in results.items() if success]
+            if downloaded:
+                logger.info(
+                    "Downloaded artwork for %s: %s", video_list.name, downloaded
+                )
+        except Exception as e:
+            logger.warning("Failed to download artwork for %s: %s", video_list.name, e)
+
     HistoryService.log(
         HistoryAction.LIST_CREATED,
         "list",

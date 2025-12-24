@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
+import requests
 import yt_dlp
 
 from app.core.logging import get_logger
@@ -10,6 +11,13 @@ from app.models import Profile, Video
 logger = get_logger("ytdlp")
 
 MAX_METADATA_WORKERS = 5  # experimental amount
+
+# Thumbnail ID to filename mapping for list artwork
+THUMBNAIL_ARTWORK_MAP = {
+    "banner_uncropped": "fanart.jpg",
+    "avatar_uncropped": "poster.jpg",
+    "0": "banner.jpg",
+}
 
 
 class YtDlpService:
@@ -20,7 +28,7 @@ class YtDlpService:
         """Extract only channel/playlist metadata without fetching videos.
 
         Returns:
-            Dict with: name, description, thumbnail, tags, extractor
+            Dict with: name, description, thumbnail, thumbnails, tags, extractor
         """
         logger.info("Extracting metadata from: %s", url)
 
@@ -46,10 +54,13 @@ class YtDlpService:
             logger.warning("No info returned for URL: %s", url)
             return {}
 
+        thumbnails = info.get("thumbnails", [])
+
         return {
             "name": info.get("title") or info.get("channel") or info.get("uploader"),
             "description": info.get("description"),
-            "thumbnail": cls._get_best_thumbnail(info.get("thumbnails", [])),
+            "thumbnail": cls._get_best_thumbnail(thumbnails),
+            "thumbnails": thumbnails,
             "tags": info.get("tags", []),
             "extractor": info.get("extractor_key") or info.get("extractor"),
         }
@@ -147,6 +158,78 @@ class YtDlpService:
             if thumb.get("url"):
                 return thumb["url"]
         return thumbnails[0].get("url") if thumbnails else None
+
+    @classmethod
+    def download_list_artwork(
+        cls, thumbnails: list[dict], output_dir: Path
+    ) -> dict[str, bool]:
+        """Download list artwork (fanart, poster, banner) from thumbnails.
+
+        Downloads specific thumbnails based on their ID:
+        - banner_uncropped -> fanart.jpg
+        - avatar_uncropped -> poster.jpg
+        - 0 -> banner.jpg
+
+        Args:
+            thumbnails: List of thumbnail dicts with 'id' and 'url' keys
+            output_dir: Directory to save the artwork files
+
+        Returns:
+            Dict mapping filename to success status
+        """
+        results = {}
+
+        # Build a lookup of thumbnail ID to URL
+        thumb_lookup = {}
+        for thumb in thumbnails:
+            thumb_id = thumb.get("id")
+            thumb_url = thumb.get("url")
+            if thumb_id is not None and thumb_url:
+                thumb_lookup[str(thumb_id)] = thumb_url
+
+        # Download each mapped thumbnail
+        for thumb_id, filename in THUMBNAIL_ARTWORK_MAP.items():
+            url = thumb_lookup.get(thumb_id)
+            if not url:
+                logger.debug("Thumbnail ID '%s' not found in thumbnails", thumb_id)
+                results[filename] = False
+                continue
+
+            output_path = output_dir / filename
+            success = cls._download_image(url, output_path)
+            results[filename] = success
+
+        return results
+
+    @classmethod
+    def _download_image(cls, url: str, output_path: Path) -> bool:
+        """Download an image from URL to the specified path.
+
+        Args:
+            url: URL of the image to download
+            output_path: Path to save the image
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+
+            logger.info("Downloaded artwork: %s", output_path)
+            return True
+
+        except requests.RequestException as e:
+            logger.warning("Failed to download image from %s: %s", url, e)
+            return False
+        except OSError as e:
+            logger.warning("Failed to save image to %s: %s", output_path, e)
+            return False
 
     @classmethod
     def _fetch_metadata_parallel(
