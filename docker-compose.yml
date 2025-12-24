@@ -6,6 +6,8 @@ services:
     volumes:
       - ./data:/data
       - ./downloads:/downloads
+    environment:
+      - TZ=UTC
     restart: unless-stopped
 
   frontend:

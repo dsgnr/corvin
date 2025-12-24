@@ -23,7 +23,7 @@ ENV PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 
-RUN apk add --no-cache ffmpeg deno
+RUN apk add --no-cache ffmpeg deno tzdata
 
 WORKDIR /app
 

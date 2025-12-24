@@ -10,6 +10,7 @@ services:
       - ./data:/data
       - ./downloads:/downloads
     environment:
+      - TZ=UTC
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - DEBUG_METRICS=1
