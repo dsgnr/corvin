@@ -5,6 +5,7 @@ from flask_cors import CORS
 
 from app.core.logging import get_logger, setup_logging
 from app.extensions import db, migrate, scheduler
+from app.metrics import init_metrics
 
 logger = get_logger("app")
 
@@ -20,6 +21,7 @@ def create_app(config: dict | None = None) -> Flask:
     CORS(app)
     db.init_app(app)
     migrate.init_app(app, db)
+    init_metrics(app)
 
     _register_blueprints(app)
 
