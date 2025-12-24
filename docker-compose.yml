@@ -1,6 +1,6 @@
 services:
   api:
-    build: ./backend
+    image: ghcr.io/dsgnr/corvin-backend:latest
     ports:
       - "5000:5000"
     volumes:
@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/dsgnr/corvin-backend:latest
     ports:
       - "3000:3000"
     depends_on:
