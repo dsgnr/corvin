@@ -26,8 +26,11 @@ def create_app(config: dict | None = None) -> Flask:
     _register_blueprints(app)
 
     with app.app_context():
-        db.create_all()
+        from flask_migrate import upgrade
+
+        db.create_all()  # Fresh DBs
         if not app.config.get("TESTING"):
+            upgrade()  # Schema migrations
             _reset_stale_tasks()
             _init_worker(app)
             _setup_scheduler(app)
