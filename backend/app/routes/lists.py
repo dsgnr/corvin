@@ -60,6 +60,10 @@ def create_list():
                 logger.info(
                     "Downloaded artwork for %s: %s", video_list.name, downloaded
                 )
+            # Write channel/playlist NFO file
+            YtDlpService.write_channel_nfo(
+                metadata, artwork_dir, metadata.get("channel_id")
+            )
         except Exception as e:
             logger.warning("Failed to download artwork for %s: %s", video_list.name, e)
 

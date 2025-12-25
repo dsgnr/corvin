@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import requests
 import yt_dlp
@@ -63,6 +64,9 @@ class YtDlpService:
             "thumbnails": thumbnails,
             "tags": info.get("tags", []),
             "extractor": info.get("extractor_key") or info.get("extractor"),
+            "channel_id": info.get("channel_id")
+            or info.get("uploader_id")
+            or info.get("id"),
         }
 
     @classmethod
@@ -202,6 +206,142 @@ class YtDlpService:
         return results
 
     @classmethod
+    def write_channel_nfo(
+        cls, metadata: dict, output_dir: Path, channel_id: str | None = None
+    ) -> bool:
+        """Write a tvshow.nfo file for a channel/playlist.
+
+        Args:
+            metadata: Dict with name, description, tags, extractor, etc.
+            output_dir: Directory to save the tvshow.nfo file
+            channel_id: YouTube channel ID (e.g., @Fireship)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            root = ET.Element("tvshow")
+
+            name = metadata.get("name", "Unknown")
+            description = metadata.get("description") or ""
+            extractor = (metadata.get("extractor") or "YouTube").lower()
+
+            ET.SubElement(root, "plot").text = description
+            ET.SubElement(root, "outline").text = description
+            ET.SubElement(root, "lockdata").text = "false"
+            ET.SubElement(root, "dateadded").text = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            ET.SubElement(root, "title").text = name
+            ET.SubElement(root, "genre").text = extractor.capitalize()
+
+            # Add platform-specific ID
+            if channel_id:
+                ET.SubElement(root, f"{extractor}id").text = channel_id
+
+            # Art paths
+            art = ET.SubElement(root, "art")
+            ET.SubElement(art, "poster").text = str(output_dir / "poster.jpg")
+            ET.SubElement(art, "fanart").text = str(output_dir / "fanart.jpg")
+
+            ET.SubElement(root, "season").text = "-1"
+            ET.SubElement(root, "episode").text = "-1"
+
+            # Unique ID
+            unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
+            unique_id.text = channel_id or name
+
+            tree = ET.ElementTree(root)
+            output_path = output_dir / "tvshow.nfo"
+            tree.write(output_path, encoding="unicode", xml_declaration=True)
+
+            logger.info("Wrote channel NFO: %s", output_path)
+            return True
+
+        except Exception as e:
+            logger.warning("Failed to write channel NFO: %s", e)
+            return False
+
+    @classmethod
+    def write_video_nfo(
+        cls, video: Video, video_path: str, info: dict | None = None
+    ) -> bool:
+        """Write an NFO file for a downloaded video.
+
+        Args:
+            video: Video model instance
+            video_path: Path to the downloaded video file
+            info: Optional yt-dlp info dict for additional metadata
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            video_file = Path(video_path)
+            nfo_path = video_file.with_suffix(".nfo")
+            extractor = (video.extractor or "youtube").lower()
+
+            root = ET.Element("episodedetails")
+
+            # Basic metadata
+            ET.SubElement(root, "plot").text = video.description or ""
+            ET.SubElement(root, "lockdata").text = "false"
+            ET.SubElement(root, "dateadded").text = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            ET.SubElement(root, "title").text = video.title or "Unknown"
+
+            # Year and dates
+            if video.upload_date:
+                ET.SubElement(root, "year").text = str(video.upload_date.year)
+                ET.SubElement(root, "aired").text = video.upload_date.strftime(
+                    "%Y-%m-%d"
+                )
+                # Season is the year
+                ET.SubElement(root, "season").text = str(video.upload_date.year)
+
+            # Runtime in minutes
+            if video.duration:
+                ET.SubElement(root, "runtime").text = str(video.duration // 60)
+
+            ET.SubElement(root, "country").text = ""
+            ET.SubElement(root, "genre").text = extractor.capitalize()
+            ET.SubElement(root, "studio").text = ""
+
+            # Platform-specific video ID
+            ET.SubElement(root, f"{extractor}id").text = video.video_id
+
+            # Art - thumbnail path
+            thumb_path = video_file.with_suffix("-thumb.jpg")
+            art = ET.SubElement(root, "art")
+            ET.SubElement(art, "poster").text = str(thumb_path)
+
+            # Show title from the list
+            if video.video_list:
+                ET.SubElement(root, "showtitle").text = video.video_list.name
+
+            # Episode number (can be derived from video_id hash or left as placeholder)
+            ET.SubElement(root, "episode").text = str(
+                abs(hash(video.video_id)) % 1000000
+            )
+
+            # Unique ID
+            unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
+            unique_id.text = video.video_id
+
+            tree = ET.ElementTree(root)
+            tree.write(nfo_path, encoding="unicode", xml_declaration=True)
+
+            logger.info("Wrote video NFO: %s", nfo_path)
+            return True
+
+        except Exception as e:
+            logger.warning("Failed to write video NFO for %s: %s", video.title, e)
+            return False
+
+    @classmethod
     def _download_image(cls, url: str, output_path: Path) -> bool:
         """Download an image from URL to the specified path.
 
@@ -339,6 +479,10 @@ class YtDlpService:
 
                 filename = ydl.prepare_filename(info)
                 logger.info("Downloaded: %s", filename)
+
+                # Write video NFO file
+                cls.write_video_nfo(video, filename)
+
                 return True, filename
 
         except yt_dlp.DownloadError as e:
