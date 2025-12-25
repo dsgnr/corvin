@@ -1,5 +1,5 @@
 services:
-  api:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
@@ -7,7 +7,7 @@ services:
       - "5000:5000"
     volumes:
       - ./backend:/app
-      - ./data:/data
+      - ./corvin_data:/data
       - ./downloads:/downloads
     environment:
       - TZ=UTC
@@ -27,4 +27,4 @@ services:
     environment:
       - WATCHPACK_POLLING=true
     depends_on:
-      - api
+      - backend

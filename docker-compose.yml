@@ -1,20 +1,20 @@
 services:
-  api:
+  backend:
     image: ghcr.io/dsgnr/corvin-backend:latest
     ports:
       - "5000:5000"
     volumes:
-      - ./data:/data
+      - ./corvin_data:/data
       - ./downloads:/downloads
     environment:
       - TZ=UTC
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/dsgnr/corvin-backend:latest
+    image: ghcr.io/dsgnr/corvin-frontend:latest
     ports:
       - "3000:3000"
     depends_on:
-      api:
+      backend:
         condition: service_healthy
     restart: unless-stopped
