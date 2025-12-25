@@ -147,7 +147,7 @@ class YtDlpService:
             if video_url:
                 video_urls.append(video_url)
             else:
-                logger.debug("Skipping entry without URL: %s", entry.get("id"))
+                logger.info("Skipping entry without URL: %s", entry.get("id"))
 
         return video_urls
 
@@ -195,7 +195,7 @@ class YtDlpService:
         for thumb_id, filename in THUMBNAIL_ARTWORK_MAP.items():
             url = thumb_lookup.get(thumb_id)
             if not url:
-                logger.debug("Thumbnail ID '%s' not found in thumbnails", thumb_id)
+                logger.info("Thumbnail ID '%s' not found in thumbnails", thumb_id)
                 results[filename] = False
                 continue
 
@@ -421,7 +421,7 @@ class YtDlpService:
             return cls._parse_single_entry(info)
 
         except Exception as e:
-            logger.debug("Error fetching %s: %s", url, e)
+            logger.info("Error fetching %s: %s", url, e)
             return None
 
     @classmethod

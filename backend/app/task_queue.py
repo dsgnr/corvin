@@ -52,7 +52,7 @@ class TaskWorker:
     def register_handler(self, task_type: str, handler: Callable) -> None:
         """Register a handler function for a task type."""
         self._handlers[task_type] = handler
-        logger.debug("Registered handler for task type: %s", task_type)
+        logger.info("Registered handler for task type: %s", task_type)
 
     def start(self) -> None:
         """Start the background polling thread."""

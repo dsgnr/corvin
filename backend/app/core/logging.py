@@ -1,22 +1,38 @@
 import logging
-import sys
+import logging.config
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "[%(asctime)s +0000] [%(process)d] [%(levelname)s] %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "apscheduler": {
+            "level": "WARNING",
+        },
+    },
+}
 
 
 def setup_logging(level: int = logging.INFO) -> None:
-    """Configure application-wide logging with a consistent format."""
-    formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(formatter)
-
-    root = logging.getLogger()
-    root.setLevel(level)
-    root.addHandler(handler)
-
-    logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    """Configure application-wide logging."""
+    logging.config.dictConfig(LOGGING_CONFIG)
+    logging.getLogger().setLevel(level)
 
 
 def get_logger(name: str) -> logging.Logger:

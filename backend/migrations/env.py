@@ -2,15 +2,13 @@
 Alembic environment configuration.
 """
 
-from logging.config import fileConfig
-
 from alembic import context
 from flask import current_app
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Note: We skip fileConfig() here to preserve the app's logging configuration.
+# Logging is configured by app.core.logging.setup_logging() instead.
 
 
 def get_metadata():
