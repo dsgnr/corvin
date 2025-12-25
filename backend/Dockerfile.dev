@@ -8,7 +8,7 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-RUN apk add --no-cache ffmpeg tzdata
+RUN apk add --no-cache ffmpeg deno tzdata
 
 COPY pyproject.toml uv.lock* ./
 
