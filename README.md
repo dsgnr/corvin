@@ -114,8 +114,8 @@ The project uses ruff for Python linting and formatting:
 
 ```bash
 cd backend
-poetry run ruff check .
-poetry run ruff format .
+uv run ruff check .
+uv run ruff format .
 ```
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.

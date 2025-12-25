@@ -2,18 +2,17 @@ FROM python:3.13-alpine
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=0 \
-    POETRY_VER=2.2.1
+    UV_NO_PROGRESS=1
 
 WORKDIR /app
 
-RUN apk add --no-cache gcc musl-dev libffi-dev ffmpeg deno tzdata \
-    && pip install --no-cache-dir poetry==$POETRY_VER
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-COPY pyproject.toml poetry.lock* ./
+RUN apk add --no-cache ffmpeg tzdata
 
-RUN poetry install --no-root --no-cache
+COPY pyproject.toml uv.lock* ./
+
+RUN uv sync --frozen --no-install-project
 
 EXPOSE 5000
-CMD ["poetry", "run", "flask", "run", "--host=0.0.0.0", "--port=5000", "--reload"]
+CMD ["uv", "run", "flask", "run", "--host=0.0.0.0", "--port=5000", "--reload"]

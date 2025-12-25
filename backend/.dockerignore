@@ -12,4 +12,7 @@ dist
 *.egg-info
 .venv
 venv
-Dockerfile
+.ruff_cache
+tests
+Dockerfile*
+*.md
