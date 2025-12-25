@@ -18,7 +18,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.url_map.strict_slashes = False
     _configure_app(app, config)
 
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "*"}})
     db.init_app(app)
     migrate.init_app(app, db)
     init_metrics(app)

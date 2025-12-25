@@ -1,7 +1,19 @@
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api'
+function getApiBase(): string {
+  // Use env var if set
+  if (process.env.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE
+  }
+  // In browser, use same host with port 5000
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:5000/api`
+  }
+  // Server-side fallback
+  return 'http://localhost:5000/api'
+}
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  const apiBase = getApiBase()
+  const res = await fetch(`${apiBase}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
