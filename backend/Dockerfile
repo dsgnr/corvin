@@ -3,11 +3,15 @@ FROM python:3.13-alpine AS builder
 
 WORKDIR /app
 
+# uv binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv pip install --system --no-cache -r <(uv export --frozen --no-dev)
+RUN uv pip install \
+    --prefix=/install \
+    --no-cache \
+    -r <(uv export --frozen --no-dev)
 
 # Runtime stage
 FROM python:3.13-alpine AS runtime
@@ -19,11 +23,13 @@ RUN apk add --no-cache ffmpeg deno tzdata
 
 WORKDIR /app
 
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /install /usr/local
+
 COPY . .
 
 EXPOSE 5000
-CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "run:app"]
+
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "run:app"]
 
 HEALTHCHECK --interval=15s --timeout=10s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://0.0.0.0:5000/api/tasks/stats || exit 1
