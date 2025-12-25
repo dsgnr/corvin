@@ -360,6 +360,7 @@ class YtDlpService:
                 "ignoreerrors": True,
                 "fragment_retries": 10,
                 "concurrent_fragment_downloads": 5,
+                "writeinfojson": True,
             }
         )
         return opts
