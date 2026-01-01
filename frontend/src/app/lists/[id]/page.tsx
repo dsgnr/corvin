@@ -81,6 +81,20 @@ export default function ListDetailPage() {
     return () => clearInterval(interval)
   }, [syncing, listId])
 
+  // Refresh videos every second while syncing
+  useEffect(() => {
+    if (!syncing) return
+    const interval = setInterval(async () => {
+      try {
+        const videosData = await api.getVideos({ list_id: listId, limit: 500 })
+        setVideos(videosData)
+      } catch (err) {
+        console.error('Failed to refresh videos:', err)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [syncing, listId])
+
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -162,9 +176,6 @@ export default function ListDetailPage() {
     pending: videos.filter(v => !v.downloaded && !v.error_message).length,
     failed: videos.filter(v => !!v.error_message).length,
   }
-
-  // For manual download lists, pending is effectively 0 (not auto-queued)
-  const effectivePending = list?.auto_download ? stats.pending : 0
 
   if (loading) {
     return (
