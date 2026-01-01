@@ -439,6 +439,9 @@ class YtDlpService:
             logger.warning("No URL found for video: %s", video_id)
             return None
 
+        # Extract video metadata labels
+        labels = cls._extract_labels(entry)
+
         return {
             "video_id": video_id,
             "title": entry.get("title", "Unknown"),
@@ -448,7 +451,38 @@ class YtDlpService:
             "thumbnail": entry.get("thumbnail"),
             "description": entry.get("description"),
             "extractor": entry.get("extractor_key") or entry.get("extractor"),
+            "labels": labels,
         }
+
+    @classmethod
+    def _extract_labels(cls, info: dict) -> dict:
+        """Extract video metadata labels from yt-dlp info dict.
+
+        Extracts: audio codec, resolution, audio channels, dynamic range, filesize.
+        """
+        labels = {}
+
+        # Audio codec
+        if acodec := info.get("acodec"):
+            labels["acodec"] = acodec
+
+        # Resolution (height with 'p' suffix)
+        if height := info.get("height"):
+            labels["resolution"] = f"{height}p"
+
+        # Audio channels
+        if audio_channels := info.get("audio_channels"):
+            labels["audio_channels"] = audio_channels
+
+        # Dynamic range (SDR/HDR)
+        if dynamic_range := info.get("dynamic_range"):
+            labels["dynamic_range"] = dynamic_range
+
+        # Approximate filesize in bytes
+        if filesize := info.get("filesize_approx"):
+            labels["filesize_approx"] = filesize
+
+        return labels
 
     @staticmethod
     def _parse_upload_date(date_str: str | None) -> datetime | None:
@@ -463,8 +497,12 @@ class YtDlpService:
     @classmethod
     def download_video(
         cls, video: Video, profile: Profile, output_dir: Path | None = None
-    ) -> tuple[bool, str]:
-        """Download a video using the specified profile settings."""
+    ) -> tuple[bool, str, dict]:
+        """Download a video using the specified profile settings.
+
+        Returns:
+            Tuple of (success, filename/error, labels_dict)
+        """
         output_template = str(cls.DEFAULT_OUTPUT_DIR / profile.output_template)
         ydl_opts = cls._build_download_opts(profile, output_template)
 
@@ -475,22 +513,25 @@ class YtDlpService:
                 info = ydl.extract_info(video.url, download=True)
 
                 if not info:
-                    return False, "Failed to extract video info"
+                    return False, "Failed to extract video info", {}
 
                 filename = ydl.prepare_filename(info)
                 logger.info("Downloaded: %s", filename)
 
+                # Extract updated labels from downloaded file info
+                labels = cls._extract_labels(info)
+
                 # Write video NFO file
                 cls.write_video_nfo(video, filename)
 
-                return True, filename
+                return True, filename, labels
 
         except yt_dlp.DownloadError as e:
             logger.error("Download error for %s: %s", video.title, e)
-            return False, str(e)
+            return False, str(e), {}
         except Exception as e:
             logger.exception("Unexpected error downloading %s", video.title)
-            return False, str(e)
+            return False, str(e), {}
 
     @staticmethod
     def _build_download_opts(profile: Profile, output_template: str) -> dict:

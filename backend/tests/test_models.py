@@ -213,4 +213,32 @@ class TestVideo:
 
             assert result["title"] == "Test Video"
             assert result["downloaded"] is False
+            assert result["labels"] == {}  # Default empty dict when None
             assert "created_at" in result
+
+    def test_to_dict_with_labels(self, app, sample_list):
+        """Should include labels in dictionary."""
+        with app.app_context():
+            video = Video(
+                video_id="test456",
+                title="Video with Labels",
+                url="https://example.com/video",
+                list_id=sample_list,
+                labels={
+                    "acodec": "opus",
+                    "resolution": "2160p",
+                    "audio_channels": 2,
+                    "dynamic_range": "HDR",
+                    "filesize_approx": 1073741824,
+                },
+            )
+            db.session.add(video)
+            db.session.commit()
+
+            result = video.to_dict()
+
+            assert result["labels"]["acodec"] == "opus"
+            assert result["labels"]["resolution"] == "2160p"
+            assert result["labels"]["audio_channels"] == 2
+            assert result["labels"]["dynamic_range"] == "HDR"
+            assert result["labels"]["filesize_approx"] == 1073741824

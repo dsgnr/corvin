@@ -146,6 +146,28 @@ class TestParseSingleEntry:
         assert result["video_id"] == "abc123"
         assert result["title"] == "Test Video"
         assert result["duration"] == 300
+        assert result["labels"] == {}
+
+    def test_parses_entry_with_labels(self):
+        """Should parse video entry with metadata labels."""
+        entry = {
+            "id": "abc123",
+            "title": "Test Video",
+            "webpage_url": "https://youtube.com/watch?v=abc123",
+            "acodec": "opus",
+            "height": 2160,
+            "audio_channels": 2,
+            "dynamic_range": "HDR",
+            "filesize_approx": 1073741824,
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result["labels"]["acodec"] == "opus"
+        assert result["labels"]["resolution"] == "2160p"
+        assert result["labels"]["audio_channels"] == 2
+        assert result["labels"]["dynamic_range"] == "HDR"
+        assert result["labels"]["filesize_approx"] == 1073741824
 
     def test_returns_none_without_id(self):
         """Should return None if no video ID."""
@@ -166,6 +188,61 @@ class TestParseSingleEntry:
         result = YtDlpService._parse_single_entry(entry)
 
         assert result["url"] == "https://example.com/video"
+
+
+class TestExtractLabels:
+    """Tests for YtDlpService._extract_labels method."""
+
+    def test_extracts_all_labels(self):
+        """Should extract all available metadata labels."""
+        info = {
+            "acodec": "aac",
+            "height": 1080,
+            "audio_channels": 6,
+            "dynamic_range": "SDR",
+            "filesize_approx": 500000000,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        assert result["acodec"] == "aac"
+        assert result["resolution"] == "1080p"
+        assert result["audio_channels"] == 6
+        assert result["dynamic_range"] == "SDR"
+        assert result["filesize_approx"] == 500000000
+
+    def test_handles_missing_fields(self):
+        """Should only include available fields."""
+        info = {
+            "acodec": "opus",
+            "height": 720,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        assert result["acodec"] == "opus"
+        assert result["resolution"] == "720p"
+        assert "audio_channels" not in result
+        assert "dynamic_range" not in result
+        assert "filesize_approx" not in result
+
+    def test_handles_empty_info(self):
+        """Should return empty dict for empty info."""
+        result = YtDlpService._extract_labels({})
+
+        assert result == {}
+
+    def test_handles_none_values(self):
+        """Should skip None values."""
+        info = {
+            "acodec": None,
+            "height": 1080,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        assert "acodec" not in result
+        assert result["resolution"] == "1080p"
 
 
 class TestBuildDownloadOpts:

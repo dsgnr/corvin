@@ -96,6 +96,7 @@ def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
             upload_date=video_data.get("upload_date"),
             thumbnail=video_data.get("thumbnail"),
             extractor=video_data.get("extractor"),
+            labels=video_data.get("labels", {}),
             list_id=video_list.id,
         )
         db.session.add(video)
@@ -133,7 +134,7 @@ def _execute_download(video_id: int) -> dict:
         raise NotFoundError("Video", video_id)
 
     if video.downloaded:
-        logger.debug("Video %d already downloaded", video_id)
+        logger.info("Video %d already downloaded", video_id)
         return {"status": "already_downloaded"}
 
     profile = video.video_list.profile
@@ -146,16 +147,16 @@ def _execute_download(video_id: int) -> dict:
         {"title": video.title},
     )
 
-    success, result = YtDlpService.download_video(video, profile)
+    success, result, labels = YtDlpService.download_video(video, profile)
 
     if success:
-        return _mark_download_success(video, result)
+        return _mark_download_success(video, result, labels)
     else:
         return _mark_download_failure(video, result)
 
 
-def _mark_download_success(video, path: str) -> dict:
-    """Mark video as successfully downloaded."""
+def _mark_download_success(video, path: str, labels: dict) -> dict:
+    """Mark video as successfully downloaded and update labels."""
     from app.extensions import db
     from app.models import HistoryAction
     from app.services import HistoryService
@@ -163,6 +164,13 @@ def _mark_download_success(video, path: str) -> dict:
     video.downloaded = True
     video.download_path = path
     video.error_message = None
+
+    # Update labels with actual download info (merge with existing)
+    if labels:
+        existing_labels = video.labels or {}
+        existing_labels.update(labels)
+        video.labels = existing_labels
+
     db.session.commit()
 
     HistoryService.log(
@@ -208,7 +216,7 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
     )
 
     if existing:
-        logger.debug("Task already queued: %s/%d", task_type, entity_id)
+        logger.info("Task already queued: %s/%d", task_type, entity_id)
         return None
 
     task = Task(
