@@ -196,6 +196,7 @@ class TestExtractLabels:
     def test_extracts_all_labels(self):
         """Should extract all available metadata labels."""
         info = {
+            "ext": "mp4",
             "acodec": "aac",
             "height": 1080,
             "audio_channels": 6,
@@ -205,6 +206,7 @@ class TestExtractLabels:
 
         result = YtDlpService._extract_labels(info)
 
+        assert result["format"] == "mp4"
         assert result["acodec"] == "aac"
         assert result["resolution"] == "1080p"
         assert result["audio_channels"] == 6
@@ -222,6 +224,7 @@ class TestExtractLabels:
 
         assert result["acodec"] == "opus"
         assert result["resolution"] == "720p"
+        assert "format" not in result
         assert "audio_channels" not in result
         assert "dynamic_range" not in result
         assert "filesize_approx" not in result

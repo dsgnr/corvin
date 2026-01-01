@@ -439,9 +439,6 @@ class YtDlpService:
             logger.warning("No URL found for video: %s", video_id)
             return None
 
-        # Extract video metadata labels
-        labels = cls._extract_labels(entry)
-
         return {
             "video_id": video_id,
             "title": entry.get("title", "Unknown"),
@@ -451,16 +448,19 @@ class YtDlpService:
             "thumbnail": entry.get("thumbnail"),
             "description": entry.get("description"),
             "extractor": entry.get("extractor_key") or entry.get("extractor"),
-            "labels": labels,
         }
 
     @classmethod
     def _extract_labels(cls, info: dict) -> dict:
         """Extract video metadata labels from yt-dlp info dict.
 
-        Extracts: audio codec, resolution, audio channels, dynamic range, filesize.
+        Extracts: container format, audio codec, resolution, audio channels, dynamic range, filesize.
         """
         labels = {}
+
+        # Container format (mp4, mkv, webm, etc.)
+        if ext := info.get("ext"):
+            labels["format"] = ext
 
         # Audio codec
         if acodec := info.get("acodec"):
