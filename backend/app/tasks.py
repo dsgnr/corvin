@@ -16,8 +16,10 @@ def sync_single_list(app: Flask, list_id: int) -> dict:
 
 def _execute_sync(list_id: int) -> dict:
     """Execute the sync operation for a list (videos only, metadata already populated)."""
+    import threading
+
     from app.extensions import db
-    from app.models import HistoryAction, VideoList
+    from app.models import HistoryAction, Video, VideoList
     from app.services import HistoryService, YtDlpService
 
     video_list = VideoList.query.get(list_id)
@@ -32,13 +34,55 @@ def _execute_sync(list_id: int) -> dict:
         else None
     )
 
-    # Build the URL, appending /videos for YouTube channels if exclude_shorts is enabled
     url = video_list.url
     if video_list.profile.exclude_shorts and video_list.list_type == "channel":
         url = _append_videos_path(url)
 
-    videos_data = YtDlpService.extract_videos(url, from_date)
-    new_count = _store_discovered_videos(video_list, videos_data)
+    # Get existing video IDs to skip during extraction
+    existing_video_ids = {
+        v.video_id for v in Video.query.filter_by(list_id=list_id).all()
+    }
+
+    exclude_shorts = video_list.profile.exclude_shorts
+    counters = {"new": 0, "total": 0}
+    lock = threading.Lock()
+
+    def on_video_fetched(video_data: dict) -> None:
+        # We're adding to the db here, so make sure we don't have
+        # multiple threads writing to the db at any one time!
+        with lock:
+            counters["total"] += 1
+
+            if exclude_shorts and "shorts" in video_data.get("url", ""):
+                return
+
+            try:
+                db.session.add(
+                    Video(
+                        video_id=video_data["video_id"],
+                        title=video_data["title"],
+                        description=video_data["description"],
+                        url=video_data["url"],
+                        duration=video_data.get("duration"),
+                        upload_date=video_data.get("upload_date"),
+                        thumbnail=video_data.get("thumbnail"),
+                        extractor=video_data.get("extractor"),
+                        labels=video_data.get("labels", {}),
+                        list_id=video_list.id,
+                    )
+                )
+                db.session.commit()
+                counters["new"] += 1
+
+                HistoryService.log(
+                    HistoryAction.VIDEO_DISCOVERED,
+                    "video",
+                    details={"title": video_data["title"], "list_id": video_list.id},
+                )
+            except Exception:
+                db.session.rollback()
+
+    YtDlpService.extract_videos(url, from_date, on_video_fetched, existing_video_ids)
 
     video_list.last_synced = datetime.utcnow()
     db.session.commit()
@@ -47,11 +91,11 @@ def _execute_sync(list_id: int) -> dict:
         HistoryAction.LIST_SYNCED,
         "list",
         video_list.id,
-        {"new_videos": new_count, "total_found": len(videos_data)},
+        {"new_videos": counters["new"], "total_found": counters["total"]},
     )
 
-    logger.info("List %d synced: %d new videos", list_id, new_count)
-    return {"new_videos": new_count, "total_found": len(videos_data)}
+    logger.info("List %d synced: %d new videos", list_id, counters["new"])
+    return {"new_videos": counters["new"], "total_found": counters["total"]}
 
 
 def _append_videos_path(url: str) -> str:
@@ -67,48 +111,6 @@ def _append_videos_path(url: str) -> str:
     if "/videos" not in url and "/shorts" not in url and "/streams" not in url:
         return f"{url}/videos"
     return url
-
-
-def _store_discovered_videos(video_list, videos_data: list[dict]) -> int:
-    """Store newly discovered videos and return count."""
-    from app.extensions import db
-    from app.models import HistoryAction, Video
-    from app.services import HistoryService
-
-    new_count = 0
-    exclude_shorts = video_list.profile.exclude_shorts
-
-    for video_data in videos_data:
-        if _video_exists(video_data["video_id"], video_list.id):
-            continue
-
-        # Skip shorts if profile has exclude_shorts enabled
-        if exclude_shorts:
-            if "shorts" in video_data.get("url"):
-                continue
-
-        video = Video(
-            video_id=video_data["video_id"],
-            title=video_data["title"],
-            description=video_data["description"],
-            url=video_data["url"],
-            duration=video_data.get("duration"),
-            upload_date=video_data.get("upload_date"),
-            thumbnail=video_data.get("thumbnail"),
-            extractor=video_data.get("extractor"),
-            labels=video_data.get("labels", {}),
-            list_id=video_list.id,
-        )
-        db.session.add(video)
-        new_count += 1
-
-        HistoryService.log(
-            HistoryAction.VIDEO_DISCOVERED,
-            "video",
-            details={"title": video_data["title"], "list_id": video_list.id},
-        )
-
-    return new_count
 
 
 def _video_exists(video_id: str, list_id: int) -> bool:

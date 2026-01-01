@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -70,37 +71,65 @@ class YtDlpService:
         }
 
     @classmethod
-    def extract_videos(cls, url: str, from_date: datetime | None = None) -> list[dict]:
+    def extract_videos(
+        cls,
+        url: str,
+        from_date: datetime | None = None,
+        on_video_fetched: Callable[[dict], None] | None = None,
+        existing_video_ids: set[str] | None = None,
+    ) -> list[dict]:
         """Extract video information from a URL (channel/playlist) using parallel fetching.
+
+        Args:
+            url: Channel or playlist URL
+            from_date: Optional date filter - only return videos uploaded on or after this date
+            on_video_fetched: Optional callback called for each video as it's fetched.
+                              Signature: (video_data: dict) -> None
+            existing_video_ids: Optional set of video IDs to skip (already in database)
 
         Returns:
             List of video dicts
         """
         logger.info("Extracting videos from: %s", url)
 
-        # Fast flat extraction to get video IDs
-        video_urls = cls._extract_video_urls(url)
-        if not video_urls:
+        # Fast flat extraction to get video IDs and URLs
+        video_entries = cls._extract_video_entries(url)
+        if not video_entries:
+            return []
+
+        # Filter out existing videos before parallel fetching
+        if existing_video_ids:
+            original_count = len(video_entries)
+            video_entries = [
+                e for e in video_entries if e["video_id"] not in existing_video_ids
+            ]
+            skipped = original_count - len(video_entries)
+            if skipped > 0:
+                logger.info("Skipped %d existing videos", skipped)
+
+        if not video_entries:
+            logger.info("No new videos to fetch")
             return []
 
         logger.info(
-            "Found %d videos, fetching metadata in parallel...", len(video_urls)
+            "Found %d new videos, fetching metadata in parallel...", len(video_entries)
         )
 
-        # Fetch full metadata in parallel using the urls from above
-        videos = cls._fetch_metadata_parallel(video_urls, from_date)
+        # Fetch full metadata in parallel
+        video_urls = [e["url"] for e in video_entries]
+        videos = cls._fetch_metadata_parallel(video_urls, from_date, on_video_fetched)
 
         logger.info("Extracted %d videos from %s", len(videos), url)
         return videos
 
     @classmethod
-    def _extract_video_urls(cls, url: str) -> list[str]:
-        """Extract video URLs from a playlist/channel without full metadata.
+    def _extract_video_entries(cls, url: str) -> list[dict]:
+        """Extract video entries (id + url) from a playlist/channel without full metadata.
 
         Works with any site supported by yt-dlp (YouTube, Vimeo, SoundCloud, etc.)
 
         Returns:
-            List of video URLs
+            List of dicts with 'video_id' and 'url' keys
         """
         ydl_opts = {
             "extract_flat": True,
@@ -138,18 +167,19 @@ class YtDlpService:
                     flattened.extend(entry["entries"])
             entries = flattened
 
-        # Build video URLs - use webpage_url when available, fall back to url field
-        video_urls = []
+        # Build video entries with both ID and URL
+        video_entries = []
         for entry in entries:
             if not entry:
                 continue
+            video_id = entry.get("id")
             video_url = entry.get("webpage_url") or entry.get("url")
-            if video_url:
-                video_urls.append(video_url)
+            if video_id and video_url:
+                video_entries.append({"video_id": video_id, "url": video_url})
             else:
-                logger.info("Skipping entry without URL: %s", entry.get("id"))
+                logger.info("Skipping entry without ID or URL: %s", entry.get("id"))
 
-        return video_urls
+        return video_entries
 
     @classmethod
     def _get_best_thumbnail(cls, thumbnails: list[dict]) -> str | None:
@@ -373,7 +403,10 @@ class YtDlpService:
 
     @classmethod
     def _fetch_metadata_parallel(
-        cls, video_urls: list[str], from_date: datetime | None
+        cls,
+        video_urls: list[str],
+        from_date: datetime | None,
+        on_video_fetched: Callable[[dict], None] | None = None,
     ) -> list[dict]:
         """Fetch full metadata for videos in parallel."""
         from_date_str = from_date.strftime("%Y%m%d") if from_date else None
@@ -385,11 +418,19 @@ class YtDlpService:
                 for url in video_urls
             }
 
+            # Some channels are _incredibly_ large.
+            # Due to the way we have to fetch metadata, it can take a very long time.
+            # To aid with this, we break out our metadata fetching in to threads.
+            # Due to this, can be friendly to the user,
+            # and add the db entries when the threads complete.
+            # This along with the UI auto refreshing, it gives a better feedback experience.
             for future in as_completed(futures):
                 try:
                     video = future.result()
                     if video:
                         results.append(video)
+                        if on_video_fetched:
+                            on_video_fetched(video)
                 except Exception as e:
                     url = futures[future]
                     logger.warning("Failed to fetch metadata for %s: %s", url, e)
