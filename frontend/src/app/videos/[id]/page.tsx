@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, Video, VideoList } from '@/lib/api'
+import { formatDuration, formatFileSize } from '@/lib/utils'
 import { ArrowLeft, Download, ExternalLink, CheckCircle, XCircle, Clock, Loader2, RotateCcw, CircleSlash } from 'lucide-react'
 
 function linkifyDescription(text: string): string {
@@ -70,17 +71,6 @@ export default function VideoDetailPage() {
     } finally {
       setRetrying(false)
     }
-  }
-
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return 'Unknown'
-    const hrs = Math.floor(seconds / 3600)
-    const mins = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   if (loading) {
@@ -197,7 +187,7 @@ export default function VideoDetailPage() {
               </div>
               <div>
                 <dt className="text-[var(--muted)]">Duration</dt>
-                <dd className="mt-1">{formatDuration(video.duration)}</dd>
+                <dd className="mt-1">{video.duration ? formatDuration(video.duration) : 'Unknown'}</dd>
               </div>
               <div>
                 <dt className="text-[var(--muted)]">Upload Date</dt>
@@ -219,6 +209,49 @@ export default function VideoDetailPage() {
               </div>
             </dl>
           </div>
+
+          {/* Video Labels */}
+          {video.downloaded && video.labels && Object.keys(video.labels).length > 0 && (
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+              <h2 className="font-medium mb-4">Media Info</h2>
+              <div className="flex flex-wrap gap-2">
+                {video.labels.format && (
+                  <span className="px-2 py-1 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-sm font-medium">
+                    {video.labels.format.toUpperCase()}
+                  </span>
+                )}
+                {video.labels.resolution && (
+                  <span className="px-2 py-1 bg-[var(--accent)]/10 text-[var(--accent)] rounded text-sm font-medium">
+                    {video.labels.resolution}
+                  </span>
+                )}
+                {video.labels.dynamic_range && (
+                  <span className={`px-2 py-1 rounded text-sm font-medium ${
+                    video.labels.dynamic_range.toLowerCase().includes('hdr')
+                      ? 'bg-purple-500/10 text-purple-400'
+                      : 'bg-[var(--muted)]/10 text-[var(--muted)]'
+                  }`}>
+                    {video.labels.dynamic_range}
+                  </span>
+                )}
+                {video.labels.acodec && (
+                  <span className="px-2 py-1 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-sm">
+                    {video.labels.acodec.toUpperCase()}
+                  </span>
+                )}
+                {video.labels.audio_channels && (
+                  <span className="px-2 py-1 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-sm">
+                    {video.labels.audio_channels === 2 ? 'Stereo' : video.labels.audio_channels === 6 ? '5.1' : `${video.labels.audio_channels}ch`}
+                  </span>
+                )}
+                {video.labels.filesize_approx && (
+                  <span className="px-2 py-1 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-sm">
+                    {formatFileSize(video.labels.filesize_approx)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {video.download_path && (
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">

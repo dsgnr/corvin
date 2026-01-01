@@ -125,6 +125,15 @@ export interface VideoList {
   videos?: Video[]
 }
 
+export interface VideoLabels {
+  format?: string
+  acodec?: string
+  resolution?: string
+  audio_channels?: number
+  dynamic_range?: string
+  filesize_approx?: number
+}
+
 export interface Video {
   id: number
   video_id: string
@@ -135,6 +144,7 @@ export interface Video {
   thumbnail: string | null
   description: string | null
   extractor: string | null
+  labels: VideoLabels
   list_id: number
   downloaded: boolean
   download_path: string | null

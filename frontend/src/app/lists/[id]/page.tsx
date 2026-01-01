@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, VideoList, Video } from '@/lib/api'
+import { formatDuration, formatFileSize } from '@/lib/utils'
 import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink, CircleSlash } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -357,12 +358,7 @@ function VideoRow({ video, downloading, onDownload, autoDownload }: {
   onDownload: () => void
   autoDownload: boolean
 }) {
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return '--:--'
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+  const hasLabels = video.downloaded && video.labels && Object.keys(video.labels).length > 0
 
   return (
     <div className="p-4 flex items-center gap-4">
@@ -388,6 +384,44 @@ function VideoRow({ video, downloading, onDownload, autoDownload }: {
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
             <span>{new Date(video.upload_date).toLocaleDateString()}</span>
+          )}
+          {hasLabels && (
+            <div className="flex items-center gap-1.5">
+              {video.labels.format && (
+                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px] font-medium">
+                  {video.labels.format.toUpperCase()}
+                </span>
+              )}
+              {video.labels.resolution && (
+                <span className="px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded text-[10px] font-medium">
+                  {video.labels.resolution}
+                </span>
+              )}
+              {video.labels.dynamic_range && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  video.labels.dynamic_range.toLowerCase().includes('hdr')
+                    ? 'bg-purple-500/10 text-purple-400'
+                    : 'bg-[var(--muted)]/10 text-[var(--muted)]'
+                }`}>
+                  {video.labels.dynamic_range}
+                </span>
+              )}
+              {video.labels.acodec && (
+                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
+                  {video.labels.acodec.toUpperCase()}
+                </span>
+              )}
+              {video.labels.audio_channels && (
+                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
+                  {video.labels.audio_channels === 2 ? 'Stereo' : video.labels.audio_channels === 6 ? '5.1' : `${video.labels.audio_channels}ch`}
+                </span>
+              )}
+              {video.labels.filesize_approx && (
+                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
+                  {formatFileSize(video.labels.filesize_approx)}
+                </span>
+              )}
+            </div>
           )}
         </div>
         {video.error_message && (
