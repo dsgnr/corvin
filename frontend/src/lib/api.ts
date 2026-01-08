@@ -195,6 +195,27 @@ export interface HistoryEntry {
   created_at: string
 }
 
+export interface DownloadProgress {
+  video_id: number
+  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'error' | 'timeout'
+  percent: number
+  speed: string | null
+  eta: number | null
+  error: string | null
+}
+
+export function createProgressStream(videoId: number, onMessage: (data: DownloadProgress) => void): EventSource {
+  const source = new EventSource(`${getApiBase()}/progress/${videoId}/stream`)
+  source.onmessage = (e) => {
+    try {
+      onMessage(JSON.parse(e.data))
+    } catch {
+      // ignore
+    }
+  }
+  return source
+}
+
 export interface SponsorBlockOptions {
   behaviors: string[]
   categories: string[]

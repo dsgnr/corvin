@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, VideoList, Video } from '@/lib/api'
+import { useDownloadProgress } from '@/lib/useDownloadProgress'
 import { formatDuration, formatFileSize } from '@/lib/utils'
 import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink, CircleSlash } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
+import { DownloadProgress } from '@/components/DownloadProgress'
 
 const PAGE_SIZE = 20
 
@@ -414,6 +416,10 @@ export default function ListDetailPage() {
                 downloadRunning={runningDownloadIds.has(video.id)}
                 onDownload={() => handleDownload(video.id)}
                 autoDownload={list?.auto_download ?? true}
+                onDownloadComplete={() => {
+                  // Refresh video data when download completes
+                  api.getVideos({ list_id: listId, limit: 500 }).then(setVideos).catch(() => {})
+                }}
               />
             ))
           )}
@@ -424,15 +430,22 @@ export default function ListDetailPage() {
   )
 }
 
-function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownload, autoDownload }: {
+function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownload, autoDownload, onDownloadComplete }: {
   video: Video
   downloading: boolean
   downloadQueued: boolean
   downloadRunning: boolean
   onDownload: () => void
   autoDownload: boolean
+  onDownloadComplete?: () => void
 }) {
   const hasLabels = video.downloaded && video.labels && Object.keys(video.labels).length > 0
+
+  // Subscribe to real-time progress when download is running
+  const progress = useDownloadProgress(video.id, {
+    enabled: downloadRunning,
+    onComplete: onDownloadComplete,
+  })
 
   // Determine download status icon
   const renderStatusIcon = () => {
@@ -530,6 +543,12 @@ function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownl
             </div>
           )}
         </div>
+        {/* Show progress bar when downloading */}
+        {downloadRunning && progress && (
+          <div className="mt-2 max-w-sm">
+            <DownloadProgress progress={progress} />
+          </div>
+        )}
         {video.error_message && (
           <p className="text-xs text-[var(--error)] mt-1 line-clamp-1">{video.error_message}</p>
         )}
