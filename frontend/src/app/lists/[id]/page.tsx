@@ -31,7 +31,7 @@ export default function ListDetailPage() {
   const [list, setList] = useState<VideoList | null>(null)
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'queued' | 'running'>('idle')
   const [downloadingPending, setDownloadingPending] = useState(false)
   const [retryingFailed, setRetryingFailed] = useState(false)
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set())
@@ -40,12 +40,25 @@ export default function ListDetailPage() {
 
   const checkSyncStatus = async () => {
     try {
-      const tasks = await api.getTasks({ type: 'sync', status: 'running' })
-      const isRunning = tasks.some(t => t.entity_id === listId)
-      setSyncing(isRunning)
-      return isRunning
+      const [runningTasks, pendingTasks] = await Promise.all([
+        api.getTasks({ type: 'sync', status: 'running' }),
+        api.getTasks({ type: 'sync', status: 'pending' }),
+      ])
+      const isRunning = runningTasks.some(t => t.entity_id === listId)
+      const isQueued = pendingTasks.some(t => t.entity_id === listId)
+      
+      if (isRunning) {
+        setSyncStatus('running')
+        return 'running'
+      } else if (isQueued) {
+        setSyncStatus('queued')
+        return 'queued'
+      } else {
+        setSyncStatus('idle')
+        return 'idle'
+      }
     } catch {
-      return false
+      return 'idle'
     }
   }
 
@@ -69,21 +82,21 @@ export default function ListDetailPage() {
     fetchData()
   }, [listId])
 
-  // Poll for sync status while syncing
+  // Poll for sync status while queued or running
   useEffect(() => {
-    if (!syncing) return
+    if (syncStatus === 'idle') return
     const interval = setInterval(async () => {
-      const stillRunning = await checkSyncStatus()
-      if (!stillRunning) {
+      const status = await checkSyncStatus()
+      if (status === 'idle') {
         fetchData()
       }
     }, 3000)
     return () => clearInterval(interval)
-  }, [syncing, listId])
+  }, [syncStatus, listId])
 
-  // Refresh videos every second while syncing
+  // Refresh videos every second while running
   useEffect(() => {
-    if (!syncing) return
+    if (syncStatus !== 'running') return
     const interval = setInterval(async () => {
       try {
         const videosData = await api.getVideos({ list_id: listId, limit: 500 })
@@ -93,15 +106,15 @@ export default function ListDetailPage() {
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [syncing, listId])
+  }, [syncStatus, listId])
 
   const handleSync = async () => {
-    setSyncing(true)
+    setSyncStatus('queued')
     try {
       await api.triggerListSync(listId)
     } catch (err) {
       console.error('Failed to sync:', err)
-      setSyncing(false)
+      setSyncStatus('idle')
     }
   }
 
@@ -231,11 +244,22 @@ export default function ListDetailPage() {
         </div>
         <button
           onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
+          disabled={syncStatus !== 'idle'}
+          className={clsx(
+            'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors disabled:opacity-50',
+            syncStatus === 'queued'
+              ? 'bg-[var(--warning)] text-black'
+              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white'
+          )}
         >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing' : 'Sync'}
+          {syncStatus === 'running' ? (
+            <RefreshCw size={14} className="animate-spin" />
+          ) : syncStatus === 'queued' ? (
+            <Clock size={14} />
+          ) : (
+            <RefreshCw size={14} />
+          )}
+          {syncStatus === 'running' ? 'Syncing' : syncStatus === 'queued' ? 'Sync Queued' : 'Sync'}
         </button>
         {stats.pending > 0 && (
           <button
