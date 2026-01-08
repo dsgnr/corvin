@@ -159,6 +159,8 @@ def _execute_download(video_id: int) -> dict:
 
 def _mark_download_success(video, path: str, labels: dict) -> dict:
     """Mark video as successfully downloaded and update labels."""
+    from sqlalchemy.orm.attributes import flag_modified
+
     from app.extensions import db
     from app.models import HistoryAction
     from app.services import HistoryService
@@ -167,11 +169,11 @@ def _mark_download_success(video, path: str, labels: dict) -> dict:
     video.download_path = path
     video.error_message = None
 
-    # Update labels with actual download info (merge with existing)
     if labels:
         existing_labels = video.labels or {}
         existing_labels.update(labels)
         video.labels = existing_labels
+        flag_modified(video, "labels")
 
     db.session.commit()
 
