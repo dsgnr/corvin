@@ -52,13 +52,14 @@ def _configure_app(app: Flask, config: dict | None) -> None:
 
 def _register_blueprints(app: Flask) -> None:
     """Register all route blueprints."""
-    from app.routes import errors, history, lists, profiles, tasks, videos
+    from app.routes import errors, history, lists, profiles, progress, tasks, videos
 
     app.register_blueprint(profiles.bp)
     app.register_blueprint(lists.bp)
     app.register_blueprint(videos.bp)
     app.register_blueprint(history.bp)
     app.register_blueprint(tasks.bp)
+    app.register_blueprint(progress.bp)
     app.register_blueprint(errors.bp)
 
 

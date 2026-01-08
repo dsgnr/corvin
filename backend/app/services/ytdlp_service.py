@@ -537,15 +537,21 @@ class YtDlpService:
 
     @classmethod
     def download_video(
-        cls, video: Video, profile: Profile, output_dir: Path | None = None
+        cls,
+        video: Video,
+        profile: Profile,
+        output_dir: Path | None = None,
     ) -> tuple[bool, str, dict]:
         """Download a video using the specified profile settings.
 
         Returns:
-            Tuple of (success, filename/error, labels_dict)
+            Tuple of (success, filename_or_error, labels)
         """
+        from app.services import progress_service
+
         output_template = str(cls.DEFAULT_OUTPUT_DIR / profile.output_template)
         ydl_opts = cls._build_download_opts(profile, output_template)
+        ydl_opts["progress_hooks"] = [progress_service.create_hook(video.id)]
 
         logger.info("Downloading video: %s", video.title)
 
@@ -554,10 +560,11 @@ class YtDlpService:
                 info = ydl.extract_info(video.url, download=True)
 
                 if not info:
-                    return False, "Failed to extract video info", {}
+                    msg = "Failed to extract video info"
+                    progress_service.mark_error(video.id, msg)
+                    return False, msg, {}
 
                 filename = ydl.prepare_filename(info)
-                logger.info("Downloaded: %s", filename)
 
                 # Extract updated labels from downloaded file info
                 labels = cls._extract_labels(info)
@@ -565,14 +572,23 @@ class YtDlpService:
                 # Write video NFO file
                 cls.write_video_nfo(video, filename)
 
+                # Mark the download as done
+                progress_service.mark_done(video.id)
+
+                logger.info("Downloaded: %s", filename)
                 return True, filename, labels
 
         except yt_dlp.DownloadError as e:
-            logger.error("Download error for %s: %s", video.title, e)
-            return False, str(e), {}
+            error_msg = str(e)
+            logger.error("Download error for %s: %s", video.title, error_msg)
+            progress_service.mark_error(video.id, error_msg)
+            return False, error_msg, {}
+
         except Exception as e:
+            error_msg = str(e)
             logger.exception("Unexpected error downloading %s", video.title)
-            return False, str(e), {}
+            progress_service.mark_error(video.id, error_msg)
+            return False, error_msg, {}
 
     @staticmethod
     def _build_download_opts(profile: Profile, output_template: str) -> dict:
