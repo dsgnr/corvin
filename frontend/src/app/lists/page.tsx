@@ -361,6 +361,9 @@ function ListForm({ list, profiles, onSave, onCancel }: {
             onChange={e => setForm({ ...form, sync_frequency: e.target.value })}
             className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
+            <option value="hourly">Hourly</option>
+            <option value="6h">Every 6 hours</option>
+            <option value="12h">Every 12 hours</option>
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>

@@ -1,13 +1,16 @@
-from datetime import datetime
-from enum import Enum
+from datetime import datetime, timedelta
 
 from app.extensions import db
 
-
-class SyncFrequency(str, Enum):
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
+# Sync frequency options in hours
+SYNC_FREQUENCIES = {
+    "hourly": 1,
+    "6h": 6,
+    "12h": 12,
+    "daily": 24,
+    "weekly": 168,
+    "monthly": 720,
+}
 
 
 class VideoList(db.Model):
@@ -19,25 +22,19 @@ class VideoList(db.Model):
     name: str = db.Column(db.String(200), nullable=False)
     url: str = db.Column(db.String(500), nullable=False, unique=True)
     list_type: str = db.Column(db.String(20), default="channel")
-    extractor: str | None = db.Column(
-        db.String(50), nullable=True
-    )  # Platform identifier (e.g., "Youtube", "Vimeo")
+    extractor: str | None = db.Column(db.String(50), nullable=True)
     profile_id: int = db.Column(
         db.Integer, db.ForeignKey("profiles.id"), nullable=False
     )
     from_date: str | None = db.Column(db.String(8), nullable=True)  # YYYYMMDD format
-    sync_frequency: str = db.Column(db.String(10), default=SyncFrequency.DAILY.value)
+    sync_frequency: str = db.Column(db.String(10), default="daily")
     enabled: bool = db.Column(db.Boolean, default=True)
-    auto_download: bool = db.Column(
-        db.Boolean,
-        default=True,
-    )
+    auto_download: bool = db.Column(db.Boolean, default=True)
     last_synced: datetime | None = db.Column(db.DateTime, nullable=True)
 
-    # Channel/playlist metadata (populated on sync)
     description: str | None = db.Column(db.Text, nullable=True)
     thumbnail: str | None = db.Column(db.String(500), nullable=True)
-    tags: str | None = db.Column(db.Text, nullable=True)  # Comma-separated
+    tags: str | None = db.Column(db.Text, nullable=True)
 
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at: datetime = db.Column(
@@ -57,19 +54,16 @@ class VideoList(db.Model):
         if not self.last_synced:
             return True
 
-        from datetime import timedelta
+        hours = SYNC_FREQUENCIES.get(self.sync_frequency, 24)
+        return datetime.utcnow() - self.last_synced >= timedelta(hours=hours)
 
-        now = datetime.utcnow()
-        elapsed = now - self.last_synced
+    def next_sync_at(self) -> datetime | None:
+        """Calculate when the next sync is due."""
+        if not self.last_synced:
+            return None
 
-        if self.sync_frequency == SyncFrequency.DAILY.value:
-            return elapsed >= timedelta(days=1)
-        if self.sync_frequency == SyncFrequency.WEEKLY.value:
-            return elapsed >= timedelta(weeks=1)
-        if self.sync_frequency == SyncFrequency.MONTHLY.value:
-            return elapsed >= timedelta(days=30)
-
-        return True
+        hours = SYNC_FREQUENCIES.get(self.sync_frequency, 24)
+        return self.last_synced + timedelta(hours=hours)
 
     def to_dict(self, include_videos: bool = False) -> dict:
         data = {
@@ -84,6 +78,9 @@ class VideoList(db.Model):
             "enabled": self.enabled,
             "auto_download": self.auto_download,
             "last_synced": self.last_synced.isoformat() if self.last_synced else None,
+            "next_sync_at": self.next_sync_at().isoformat()
+            if self.next_sync_at()
+            else None,
             "description": self.description,
             "thumbnail": self.thumbnail,
             "tags": self.tags.split(",") if self.tags else [],

@@ -122,6 +122,7 @@ export interface VideoList {
   enabled: boolean
   auto_download: boolean
   last_synced: string | null
+  next_sync_at: string | null
   description: string | null
   thumbnail: string | null
   tags: string[]
