@@ -35,6 +35,8 @@ export default function ListDetailPage() {
   const [downloadingPending, setDownloadingPending] = useState(false)
   const [retryingFailed, setRetryingFailed] = useState(false)
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set())
+  const [queuedDownloadIds, setQueuedDownloadIds] = useState<Set<number>>(new Set())
+  const [runningDownloadIds, setRunningDownloadIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -62,6 +64,20 @@ export default function ListDetailPage() {
     }
   }
 
+  const checkDownloadStatus = async () => {
+    try {
+      const [runningTasks, pendingTasks] = await Promise.all([
+        api.getTasks({ type: 'download', status: 'running' }),
+        api.getTasks({ type: 'download', status: 'pending' }),
+      ])
+      const videoIds = new Set(videos.map(v => v.id))
+      setRunningDownloadIds(new Set(runningTasks.filter(t => videoIds.has(t.entity_id)).map(t => t.entity_id)))
+      setQueuedDownloadIds(new Set(pendingTasks.filter(t => videoIds.has(t.entity_id)).map(t => t.entity_id)))
+    } catch {
+      // ignore
+    }
+  }
+
   const fetchData = async () => {
     try {
       const [listData, videosData] = await Promise.all([
@@ -81,6 +97,24 @@ export default function ListDetailPage() {
   useEffect(() => {
     fetchData()
   }, [listId])
+
+  // Check download status when videos change
+  useEffect(() => {
+    if (videos.length > 0) {
+      checkDownloadStatus()
+    }
+  }, [videos])
+
+  // Poll download status periodically
+  useEffect(() => {
+    if (queuedDownloadIds.size === 0 && runningDownloadIds.size === 0) return
+    const interval = setInterval(() => {
+      checkDownloadStatus()
+      // Refresh videos to get updated download status
+      api.getVideos({ list_id: listId, limit: 500 }).then(setVideos).catch(() => {})
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [queuedDownloadIds.size, runningDownloadIds.size, listId])
 
   // Poll for sync status while queued or running
   useEffect(() => {
@@ -151,6 +185,7 @@ export default function ListDetailPage() {
     setDownloadingIds(prev => new Set(prev).add(videoId))
     try {
       await api.triggerVideoDownload(videoId)
+      setQueuedDownloadIds(prev => new Set(prev).add(videoId))
     } catch (err) {
       console.error('Failed to queue download:', err)
     } finally {
@@ -375,6 +410,8 @@ export default function ListDetailPage() {
                 key={video.id}
                 video={video}
                 downloading={downloadingIds.has(video.id)}
+                downloadQueued={queuedDownloadIds.has(video.id)}
+                downloadRunning={runningDownloadIds.has(video.id)}
                 onDownload={() => handleDownload(video.id)}
                 autoDownload={list?.auto_download ?? true}
               />
@@ -387,13 +424,47 @@ export default function ListDetailPage() {
   )
 }
 
-function VideoRow({ video, downloading, onDownload, autoDownload }: {
+function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownload, autoDownload }: {
   video: Video
   downloading: boolean
+  downloadQueued: boolean
+  downloadRunning: boolean
   onDownload: () => void
   autoDownload: boolean
 }) {
   const hasLabels = video.downloaded && video.labels && Object.keys(video.labels).length > 0
+
+  // Determine download status icon
+  const renderStatusIcon = () => {
+    if (video.downloaded) {
+      return <CheckCircle size={18} className="text-[var(--success)]" />
+    }
+    if (video.error_message) {
+      return <XCircle size={18} className="text-[var(--error)]" />
+    }
+    if (downloadRunning) {
+      return (
+        <span title="Downloading...">
+          <Loader2 size={18} className="text-[var(--accent)] animate-spin" />
+        </span>
+      )
+    }
+    if (downloadQueued) {
+      return (
+        <span title="Download queued">
+          <Clock size={18} className="text-[var(--warning)]" />
+        </span>
+      )
+    }
+    if (autoDownload) {
+      return <Clock size={18} className="text-[var(--warning)]" />
+    }
+    return (
+      <span title="Not pending - auto download is disabled for this list">
+        <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
+      </span>
+    )
+  }
 
   return (
     <div className="p-4 flex items-center gap-4">
@@ -464,18 +535,8 @@ function VideoRow({ video, downloading, onDownload, autoDownload }: {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {video.downloaded ? (
-          <CheckCircle size={18} className="text-[var(--success)]" />
-        ) : video.error_message ? (
-          <XCircle size={18} className="text-[var(--error)]" />
-        ) : autoDownload ? (
-          <Clock size={18} className="text-[var(--warning)]" />
-        ) : (
-          <span title="Not pending - auto download is disabled for this list">
-            <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
-          </span>
-        )}
-        {!video.downloaded && (
+        {renderStatusIcon()}
+        {!video.downloaded && !downloadRunning && !downloadQueued && (
           <button
             onClick={(e) => { e.preventDefault(); onDownload() }}
             disabled={downloading}
