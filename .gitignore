@@ -29,3 +29,4 @@ instance/
 .coverage
 htmlcov/
 .DS_Store
+corvin_data/
