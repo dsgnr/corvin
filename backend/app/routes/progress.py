@@ -1,4 +1,4 @@
-"""SSE endpoint for download progress."""
+"""SSE endpoint for download progress - streams all active downloads."""
 
 import json
 import time
@@ -10,28 +10,40 @@ from app.services import progress_service
 bp = Blueprint("progress", __name__, url_prefix="/api/progress")
 
 
-@bp.get("/<int:video_id>/stream")
-def stream(video_id: int):
+@bp.get("/stream")
+def stream():
+    """
+    Stream all active download progress.
+    Sends updates whenever any download's progress changes.
+    """
+
     def generate():
-        last = None
+        last_json = None
         idle = 0
+
         while True:
-            data = progress_service.get(video_id)
-            if data and data != last:
-                yield f"data: {json.dumps(data)}\n\n"
-                last = data
+            data = progress_service.get_all()
+            current_json = json.dumps(data, sort_keys=True)
+
+            if current_json != last_json:
+                yield f"data: {current_json}\n\n"
+                last_json = current_json
                 idle = 0
-                if data.get("status") in ("completed", "error"):
-                    break
             else:
                 idle += 1
-            if idle > 120:  # 60s timeout
-                yield f"data: {json.dumps({'video_id': video_id, 'status': 'timeout'})}\n\n"
+
+            # Keep alive for 5 minutes of inactivity
+            if idle > 600:
+                yield f"data: {json.dumps({'status': 'timeout'})}\n\n"
                 break
+
             time.sleep(0.5)
 
     return Response(
         generate(),
         mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )

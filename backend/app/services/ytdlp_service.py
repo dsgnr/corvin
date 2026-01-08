@@ -560,7 +560,7 @@ class YtDlpService:
                 info = ydl.extract_info(video.url, download=True)
 
                 if not info:
-                    msg = "Failed to extract video info"
+                    msg = "Failed to extract video info. Will retry..."
                     progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 

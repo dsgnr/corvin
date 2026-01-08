@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Sidebar } from '@/components/sidebar'
+import { ProgressProvider } from '@/lib/ProgressContext'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -29,12 +30,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: sidebarScript }} />
       </head>
       <body className="antialiased">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
-        </div>
+        <ProgressProvider>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 overflow-auto">{children}</main>
+          </div>
+        </ProgressProvider>
       </body>
     </html>
   )

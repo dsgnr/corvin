@@ -4,9 +4,19 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, VideoList, Video } from '@/lib/api'
-import { useDownloadProgress } from '@/lib/useDownloadProgress'
+import { useProgress } from '@/lib/ProgressContext'
 import { formatDuration, formatFileSize } from '@/lib/utils'
-import { ArrowLeft, Download, RefreshCw, CheckCircle, XCircle, Clock, Loader2, ExternalLink, CircleSlash } from 'lucide-react'
+import {
+  ArrowLeft,
+  Download,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Loader2,
+  ExternalLink,
+  CircleSlash,
+} from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { DownloadProgress } from '@/components/DownloadProgress'
@@ -416,10 +426,6 @@ export default function ListDetailPage() {
                 downloadRunning={runningDownloadIds.has(video.id)}
                 onDownload={() => handleDownload(video.id)}
                 autoDownload={list?.auto_download ?? true}
-                onDownloadComplete={() => {
-                  // Refresh video data when download completes
-                  api.getVideos({ list_id: listId, limit: 500 }).then(setVideos).catch(() => {})
-                }}
               />
             ))
           )}
@@ -430,24 +436,24 @@ export default function ListDetailPage() {
   )
 }
 
-function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownload, autoDownload, onDownloadComplete }: {
+function VideoRow({
+  video,
+  downloading,
+  downloadQueued,
+  downloadRunning,
+  onDownload,
+  autoDownload,
+}: {
   video: Video
   downloading: boolean
   downloadQueued: boolean
   downloadRunning: boolean
   onDownload: () => void
   autoDownload: boolean
-  onDownloadComplete?: () => void
 }) {
   const hasLabels = video.downloaded && video.labels && Object.keys(video.labels).length > 0
+  const progress = useProgress(video.id)
 
-  // Subscribe to real-time progress when download is running
-  const progress = useDownloadProgress(video.id, {
-    enabled: downloadRunning,
-    onComplete: onDownloadComplete,
-  })
-
-  // Determine download status icon
   const renderStatusIcon = () => {
     if (video.downloaded) {
       return <CheckCircle size={18} className="text-[var(--success)]" />
@@ -543,8 +549,8 @@ function VideoRow({ video, downloading, downloadQueued, downloadRunning, onDownl
             </div>
           )}
         </div>
-        {/* Show progress bar when downloading */}
-        {downloadRunning && progress && (
+        {/* Show progress bar when we have progress data */}
+        {progress && progress.status !== 'completed' && (
           <div className="mt-2 max-w-sm">
             <DownloadProgress progress={progress} />
           </div>

@@ -1,13 +1,10 @@
 function getApiBase(): string {
-  // Use env var if set
   if (process.env.NEXT_PUBLIC_API_BASE) {
     return process.env.NEXT_PUBLIC_API_BASE
   }
-  // In browser, use same host with port 5000
   if (typeof window !== 'undefined') {
     return `${window.location.protocol}//${window.location.hostname}:5000/api`
   }
-  // Server-side fallback
   return 'http://localhost:5000/api'
 }
 
@@ -35,15 +32,20 @@ export const api = {
   getProfiles: () => request<Profile[]>('/profiles'),
   getProfile: (id: number) => request<Profile>(`/profiles/${id}`),
   getProfileOptions: () => request<ProfileOptions>('/profiles/options'),
-  createProfile: (data: Partial<Profile>) => request<Profile>('/profiles', { method: 'POST', body: JSON.stringify(data) }),
-  updateProfile: (id: number, data: Partial<Profile>) => request<Profile>(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  createProfile: (data: Partial<Profile>) =>
+    request<Profile>('/profiles', { method: 'POST', body: JSON.stringify(data) }),
+  updateProfile: (id: number, data: Partial<Profile>) =>
+    request<Profile>(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProfile: (id: number) => request<void>(`/profiles/${id}`, { method: 'DELETE' }),
 
   // Lists
   getLists: () => request<VideoList[]>('/lists'),
-  getList: (id: number, includeVideos = false) => request<VideoList>(`/lists/${id}?include_videos=${includeVideos}`),
-  createList: (data: Partial<VideoList>) => request<VideoList>('/lists', { method: 'POST', body: JSON.stringify(data) }),
-  updateList: (id: number, data: Partial<VideoList>) => request<VideoList>(`/lists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getList: (id: number, includeVideos = false) =>
+    request<VideoList>(`/lists/${id}?include_videos=${includeVideos}`),
+  createList: (data: Partial<VideoList>) =>
+    request<VideoList>('/lists', { method: 'POST', body: JSON.stringify(data) }),
+  updateList: (id: number, data: Partial<VideoList>) =>
+    request<VideoList>(`/lists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteList: (id: number) => request<void>(`/lists/${id}`, { method: 'DELETE' }),
 
   // Videos
@@ -56,7 +58,8 @@ export const api = {
     return request<Video[]>(`/videos?${query}`)
   },
   getVideo: (id: number) => request<Video>(`/videos/${id}`),
-  retryVideo: (id: number) => request<{ message: string; video: Video }>(`/videos/${id}/retry`, { method: 'POST' }),
+  retryVideo: (id: number) =>
+    request<{ message: string; video: Video }>(`/videos/${id}/retry`, { method: 'POST' }),
 
   // Tasks
   getTasks: (params?: { type?: string; status?: string; limit?: number }) => {
@@ -70,8 +73,10 @@ export const api = {
   getTaskStats: () => request<TaskStats>('/tasks/stats'),
   triggerListSync: (listId: number) => request<Task>(`/tasks/sync/list/${listId}`, { method: 'POST' }),
   triggerAllSyncs: () => request<{ queued: number; skipped: number }>('/tasks/sync/all', { method: 'POST' }),
-  triggerVideoDownload: (videoId: number) => request<Task>(`/tasks/download/video/${videoId}`, { method: 'POST' }),
-  triggerPendingDownloads: () => request<{ queued: number; skipped: number }>('/tasks/download/pending', { method: 'POST' }),
+  triggerVideoDownload: (videoId: number) =>
+    request<Task>(`/tasks/download/video/${videoId}`, { method: 'POST' }),
+  triggerPendingDownloads: () =>
+    request<{ queued: number; skipped: number }>('/tasks/download/pending', { method: 'POST' }),
   retryTask: (id: number) => request<Task>(`/tasks/${id}/retry`, { method: 'POST' }),
 
   // History
@@ -197,23 +202,17 @@ export interface HistoryEntry {
 
 export interface DownloadProgress {
   video_id: number
-  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'error' | 'timeout'
+  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'error'
   percent: number
   speed: string | null
   eta: number | null
   error: string | null
 }
 
-export function createProgressStream(videoId: number, onMessage: (data: DownloadProgress) => void): EventSource {
-  const source = new EventSource(`${getApiBase()}/progress/${videoId}/stream`)
-  source.onmessage = (e) => {
-    try {
-      onMessage(JSON.parse(e.data))
-    } catch {
-      // ignore
-    }
-  }
-  return source
+export type ProgressMap = Record<number, DownloadProgress>
+
+export function getProgressStreamUrl(): string {
+  return `${getApiBase()}/progress/stream`
 }
 
 export interface SponsorBlockOptions {
