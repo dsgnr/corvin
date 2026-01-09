@@ -58,55 +58,51 @@ export default function ListDetailPage() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
-  const checkSyncStatus = async () => {
+  const checkAllTaskStatus = async () => {
     try {
-      const [runningTasks, pendingTasks] = await Promise.all([
-        api.getTasks({ type: 'sync', status: 'running' }),
-        api.getTasks({ type: 'sync', status: 'pending' }),
-      ])
-      const isRunning = runningTasks.some(t => t.entity_id === listId)
-      const isQueued = pendingTasks.some(t => t.entity_id === listId)
-      
+      const activeTasks = await api.getActiveTasks({ list_id: listId })
+
+      // Update sync status
+      const isRunning = activeTasks.sync.running.includes(listId)
+      const isQueued = activeTasks.sync.pending.includes(listId)
       if (isRunning) {
         setSyncStatus('running')
-        return 'running'
       } else if (isQueued) {
         setSyncStatus('queued')
-        return 'queued'
       } else {
         setSyncStatus('idle')
-        return 'idle'
       }
-    } catch {
-      return 'idle'
-    }
-  }
 
-  const checkDownloadStatus = async () => {
-    try {
-      const [runningTasks, pendingTasks] = await Promise.all([
-        api.getTasks({ type: 'download', status: 'running' }),
-        api.getTasks({ type: 'download', status: 'pending' }),
-      ])
-      const videoIds = new Set(videos.map(v => v.id))
-      setRunningDownloadIds(new Set(runningTasks.filter(t => videoIds.has(t.entity_id)).map(t => t.entity_id)))
-      setQueuedDownloadIds(new Set(pendingTasks.filter(t => videoIds.has(t.entity_id)).map(t => t.entity_id)))
+      // Update download status (no need to filter by videoIds since backend already did)
+      setRunningDownloadIds(new Set(activeTasks.download.running))
+      setQueuedDownloadIds(new Set(activeTasks.download.pending))
+
+      return { syncStatus: isRunning ? 'running' : isQueued ? 'queued' : 'idle' }
     } catch {
-      // ignore
+      return { syncStatus: 'idle' }
     }
   }
 
   const fetchData = async () => {
     try {
-      const [listData, videosData, profilesData] = await Promise.all([
+      const [listData, videosData, profilesData, activeTasks] = await Promise.all([
         api.getList(listId),
         api.getVideos({ list_id: listId, limit: 500 }),
         api.getProfiles(),
+        api.getActiveTasks({ list_id: listId }),
       ])
       setList(listData)
       setVideos(videosData)
       setProfiles(profilesData)
-      await checkSyncStatus()
+      
+      // Update sync status
+      const isRunning = activeTasks.sync.running.includes(listId)
+      const isQueued = activeTasks.sync.pending.includes(listId)
+      setSyncStatus(isRunning ? 'running' : isQueued ? 'queued' : 'idle')
+
+      // Update download status (no need to filter since backend already filtered by list_id)
+      setRunningDownloadIds(new Set(activeTasks.download.running))
+      setQueuedDownloadIds(new Set(activeTasks.download.pending))
     } catch (err) {
       console.error('Failed to fetch list:', err)
     } finally {
@@ -118,18 +114,11 @@ export default function ListDetailPage() {
     fetchData()
   }, [listId])
 
-  // Check download status when videos change
-  useEffect(() => {
-    if (videos.length > 0) {
-      checkDownloadStatus()
-    }
-  }, [videos])
-
   // Poll download status periodically
   useEffect(() => {
     if (queuedDownloadIds.size === 0 && runningDownloadIds.size === 0) return
-    const interval = setInterval(() => {
-      checkDownloadStatus()
+    const interval = setInterval(async () => {
+      await checkAllTaskStatus()
       // Refresh videos to get updated download status
       api.getVideos({ list_id: listId, limit: 500 }).then(setVideos).catch(() => {})
     }, 3000)
@@ -140,8 +129,8 @@ export default function ListDetailPage() {
   useEffect(() => {
     if (syncStatus === 'idle') return
     const interval = setInterval(async () => {
-      const status = await checkSyncStatus()
-      if (status === 'idle') {
+      const result = await checkAllTaskStatus()
+      if (result.syncStatus === 'idle') {
         fetchData()
       }
     }, 3000)

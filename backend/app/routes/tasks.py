@@ -78,6 +78,62 @@ def task_stats():
     return jsonify(stats)
 
 
+@bp.get("/active")
+def get_active_tasks():
+    """Get all pending and running tasks, grouped by type and status.
+
+    Optional query params:
+    - list_id: Filter to only include sync tasks for this list and download tasks for videos in this list
+    """
+    from app.models.video import Video
+
+    list_id = request.args.get("list_id", type=int)
+    active_statuses = [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]
+
+    result = {
+        "sync": {"pending": [], "running": []},
+        "download": {"pending": [], "running": []},
+    }
+
+    if list_id:
+        # Get sync tasks for this specific list
+        sync_tasks = Task.query.filter(
+            Task.task_type == TaskType.SYNC.value,
+            Task.status.in_(active_statuses),
+            Task.entity_id == list_id,
+        ).all()
+
+        # Get video IDs for this list
+        video_ids = [
+            v.id
+            for v in Video.query.filter_by(list_id=list_id)
+            .with_entities(Video.id)
+            .all()
+        ]
+
+        # Get download tasks for videos in this list
+        download_tasks = []
+        if video_ids:
+            download_tasks = Task.query.filter(
+                Task.task_type == TaskType.DOWNLOAD.value,
+                Task.status.in_(active_statuses),
+                Task.entity_id.in_(video_ids),
+            ).all()
+
+        tasks = sync_tasks + download_tasks
+    else:
+        # Get all active tasks
+        tasks = Task.query.filter(Task.status.in_(active_statuses)).all()
+
+    for task in tasks:
+        task_type = task.task_type
+        status = task.status
+        if task_type in result and status in result[task_type]:
+            result[task_type][status].append(task.entity_id)
+
+    return jsonify(result)
+
+
 @bp.post("/sync/list/<int:list_id>")
 def trigger_list_sync(list_id: int):
     """Trigger a sync for a specific list."""

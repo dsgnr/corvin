@@ -71,6 +71,12 @@ export const api = {
   },
   getTask: (id: number) => request<Task>(`/tasks/${id}?include_logs=true`),
   getTaskStats: () => request<TaskStats>('/tasks/stats'),
+  getActiveTasks: (params?: { list_id?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.list_id) query.set('list_id', String(params.list_id))
+    const queryStr = query.toString()
+    return request<ActiveTasks>(`/tasks/active${queryStr ? `?${queryStr}` : ''}`)
+  },
   triggerListSync: (listId: number) => request<Task>(`/tasks/sync/list/${listId}`, { method: 'POST' }),
   triggerAllSyncs: () => request<{ queued: number; skipped: number }>('/tasks/sync/all', { method: 'POST' }),
   triggerVideoDownload: (videoId: number) =>
@@ -190,6 +196,11 @@ export interface TaskStats {
   running_sync: number
   running_download: number
   worker?: Record<string, unknown>
+}
+
+export interface ActiveTasks {
+  sync: { pending: number[]; running: number[] }
+  download: { pending: number[]; running: number[] }
 }
 
 export interface HistoryEntry {
