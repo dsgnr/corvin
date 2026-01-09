@@ -13,7 +13,6 @@ def _get_pyproject() -> dict:
         pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
         with open(pyproject_path, "rb") as f:
             _pyproject_data = tomllib.load(f)
-            print(_pyproject_data)
     return _pyproject_data
 
 
