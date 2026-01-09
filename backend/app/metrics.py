@@ -1,32 +1,12 @@
 """Prometheus metrics for the application."""
 
-import tomllib
-from pathlib import Path
-
 from flask import Flask
 from prometheus_client import Gauge, Info
 from prometheus_flask_exporter import PrometheusMetrics
 
+from app.core.helpers import _get_pyproject_attr
+
 _pyproject_data: dict | None = None
-
-
-def _get_pyproject() -> dict:
-    """Load and cache pyproject.toml data."""
-    global _pyproject_data
-    if _pyproject_data is None:
-        pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
-        with open(pyproject_path, "rb") as f:
-            _pyproject_data = tomllib.load(f)
-    return _pyproject_data
-
-
-def _get_pyproject_attr(key: str, default: str = "unknown") -> str:
-    """Get an attribute from pyproject.toml [tool.poetry] section."""
-    try:
-        return _get_pyproject()["tool"]["poetry"].get(key, default)
-    except Exception:
-        return default
-
 
 app_info = Info(_get_pyproject_attr("name"), _get_pyproject_attr("description"))
 
