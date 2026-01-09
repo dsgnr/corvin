@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { api, VideoList, Video } from '@/lib/api'
+import { api, VideoList, Video, Profile } from '@/lib/api'
 import { useProgress } from '@/lib/ProgressContext'
 import { formatDuration, formatFileSize } from '@/lib/utils'
 import {
@@ -16,10 +16,12 @@ import {
   Loader2,
   ExternalLink,
   CircleSlash,
+  Edit2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { DownloadProgress } from '@/components/DownloadProgress'
+import { ListForm } from '@/components/ListForm'
 
 const PAGE_SIZE = 20
 
@@ -42,7 +44,9 @@ export default function ListDetailPage() {
   const listId = Number(params.id)
   const [list, setList] = useState<VideoList | null>(null)
   const [videos, setVideos] = useState<Video[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<'idle' | 'queued' | 'running'>('idle')
   const [downloadingPending, setDownloadingPending] = useState(false)
   const [retryingFailed, setRetryingFailed] = useState(false)
@@ -92,12 +96,14 @@ export default function ListDetailPage() {
 
   const fetchData = async () => {
     try {
-      const [listData, videosData] = await Promise.all([
+      const [listData, videosData, profilesData] = await Promise.all([
         api.getList(listId),
         api.getVideos({ list_id: listId, limit: 500 }),
+        api.getProfiles(),
       ])
       setList(listData)
       setVideos(videosData)
+      setProfiles(profilesData)
       await checkSyncStatus()
     } catch (err) {
       console.error('Failed to fetch list:', err)
@@ -190,6 +196,16 @@ export default function ListDetailPage() {
       console.error('Failed to retry videos:', err)
     } finally {
       setRetryingFailed(false)
+    }
+  }
+
+  const handleSave = async (data: Partial<VideoList>) => {
+    try {
+      const updated = await api.updateList(listId, data)
+      setList(updated)
+      setEditing(false)
+    } catch (err) {
+      console.error('Failed to save:', err)
     }
   }
 
@@ -290,6 +306,13 @@ export default function ListDetailPage() {
           </div>
         </div>
         <button
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors"
+        >
+          <Edit2 size={14} />
+          Edit
+        </button>
+        <button
           onClick={handleSync}
           disabled={syncStatus !== 'idle'}
           className={clsx(
@@ -329,6 +352,16 @@ export default function ListDetailPage() {
           </button>
         )}
       </div>
+
+      {/* Edit Form */}
+      {editing && (
+        <ListForm
+          list={list}
+          profiles={profiles}
+          onSave={handleSave}
+          onCancel={() => setEditing(false)}
+        />
+      )}
 
       {/* Description and Tags */}
       {(list.description || (list.tags && list.tags.length > 0)) && (
@@ -579,3 +612,4 @@ function VideoRow({
     </div>
   )
 }
+
