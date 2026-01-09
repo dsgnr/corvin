@@ -17,6 +17,7 @@ import {
   ExternalLink,
   CircleSlash,
   Edit2,
+  Search,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -54,6 +55,7 @@ export default function ListDetailPage() {
   const [queuedDownloadIds, setQueuedDownloadIds] = useState<Set<number>>(new Set())
   const [runningDownloadIds, setRunningDownloadIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
+  const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
   const checkSyncStatus = async () => {
@@ -227,9 +229,15 @@ export default function ListDetailPage() {
 
   const filteredVideos = videos
     .filter(v => {
-      if (filter === 'pending') return !v.downloaded && !v.error_message
-      if (filter === 'downloaded') return v.downloaded
-      if (filter === 'failed') return !!v.error_message
+      // Status filter
+      if (filter === 'pending' && (v.downloaded || v.error_message)) return false
+      if (filter === 'downloaded' && !v.downloaded) return false
+      if (filter === 'failed' && !v.error_message) return false
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase()
+        return v.title?.toLowerCase().includes(searchLower)
+      }
       return true
     })
     .sort((a, b) => {
@@ -241,10 +249,10 @@ export default function ListDetailPage() {
   const totalPages = Math.ceil(filteredVideos.length / PAGE_SIZE)
   const paginatedVideos = filteredVideos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  // Reset to page 1 when filter changes
+  // Reset to page 1 when filter or search changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [filter])
+  }, [filter, search])
 
   const stats = {
     total: videos.length,
@@ -443,8 +451,18 @@ export default function ListDetailPage() {
 
       {/* Videos */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)]">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
           <h2 className="font-medium">Videos ({filteredVideos.length})</h2>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              type="text"
+              placeholder="Search videos..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+            />
+          </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {paginatedVideos.length === 0 ? (
