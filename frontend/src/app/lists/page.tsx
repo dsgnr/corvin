@@ -239,7 +239,7 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
                 <span>Profile: {profile?.name || 'Unknown'}</span>
                 <span>Sync: {list.sync_frequency}</span>
                 {list.last_synced && (
-                  <span>Last synced: {new Date(list.last_synced).toLocaleDateString()}</span>
+                  <span>Last synced: {new Date(list.last_synced).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
                 )}
               </div>
             </div>
