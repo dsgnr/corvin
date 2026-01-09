@@ -5,10 +5,11 @@ description = "A self‑hosted media ingestion and archiving tool"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "flask>=3.1",
+    "flask-openapi3[scalar]>=4.0",
     "flask-sqlalchemy>=3.1",
     "flask-migrate>=4.1",
     "flask-cors>=4.0",
+    "pydantic>=2.0",
     "yt-dlp>=2025.12.8",
     "apscheduler>=3.11",
     "gunicorn>=23.0.0",
