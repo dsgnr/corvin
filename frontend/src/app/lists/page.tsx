@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, VideoList, Profile } from '@/lib/api'
-import { Plus, RefreshCw, Trash2, Edit2, ExternalLink, Loader2 } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Edit2, ExternalLink, Loader2, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import Link from 'next/link'
 import { ListForm } from '@/components/ListForm'
@@ -13,6 +13,7 @@ export default function ListsPage() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set())
+  const [search, setSearch] = useState('')
 
   const checkSyncStatus = async () => {
     try {
@@ -102,6 +103,12 @@ export default function ListsPage() {
     }
   }
 
+  const filteredLists = lists.filter(list => {
+    if (!search) return true
+    const searchLower = search.toLowerCase()
+    return list.name?.toLowerCase().includes(searchLower)
+  })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -114,15 +121,27 @@ export default function ListsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Lists</h1>
-        {editingId !== 'new' && (
-          <button
-            onClick={() => setEditingId('new')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
-          >
-            <Plus size={14} />
-            Add List
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              type="text"
+              placeholder="Search lists..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+            />
+          </div>
+          {editingId !== 'new' && (
+            <button
+              onClick={() => setEditingId('new')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+            >
+              <Plus size={14} />
+              Add List
+            </button>
+          )}
+        </div>
       </div>
 
       {profiles.length === 0 && (
@@ -143,12 +162,12 @@ export default function ListsPage() {
           />
         )}
 
-        {lists.length === 0 && editingId !== 'new' ? (
+        {filteredLists.length === 0 && editingId !== 'new' ? (
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-8 text-center">
-            <p className="text-[var(--muted)]">No lists yet. Add one to get started.</p>
+            <p className="text-[var(--muted)]">{search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'}</p>
           </div>
         ) : (
-          lists.map(list => (
+          filteredLists.map(list => (
             editingId === list.id ? (
               <ListForm
                 key={list.id}
