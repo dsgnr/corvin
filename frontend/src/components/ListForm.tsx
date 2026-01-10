@@ -51,7 +51,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
           <label className="block text-sm font-medium mb-1">URL</label>
           <p className="text-xs text-[var(--muted)] mb-2">YouTube channel or playlist URL to monitor</p>
           <input
-            type="url"
+            type="text"
             value={form.url}
             onChange={e => setForm({ ...form, url: e.target.value })}
             className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
