@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify, request
+from flask import jsonify
+from flask_openapi3 import APIBlueprint, Tag
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
@@ -9,10 +10,12 @@ from app.models.profile import (
     SPONSORBLOCK_CATEGORIES,
     SponsorBlockBehavior,
 )
+from app.schemas.profiles import ProfileCreate, ProfilePath, ProfileUpdate
 from app.services import HistoryService
 
 logger = get_logger("routes.profiles")
-bp = Blueprint("profiles", __name__, url_prefix="/api/profiles")
+tag = Tag(name="Profiles", description="Download profile management")
+bp = APIBlueprint("profiles", __name__, url_prefix="/api/profiles", abp_tags=[tag])
 
 
 def _validate_sponsorblock_categories(categories_str: str) -> None:
@@ -77,42 +80,30 @@ def get_profile_options():
 
 
 @bp.post("/")
-def create_profile():
+def create_profile(body: ProfileCreate):
     """Create a new profile."""
-    data = request.get_json() or {}
+    if Profile.query.filter_by(name=body.name).first():
+        raise ConflictError(f"Profile '{body.name}' already exists")
 
-    name = data.get("name")
-    if not name:
-        raise ValidationError("Name is required")
+    _validate_sponsorblock_behavior(body.sponsorblock_behavior)
+    _validate_sponsorblock_categories(body.sponsorblock_categories)
 
-    if Profile.query.filter_by(name=name).first():
-        raise ConflictError(f"Profile '{name}' already exists")
-
-    # Validate SponsorBlock options
-    _validate_sponsorblock_behavior(data.get("sponsorblock_behavior", ""))
-    _validate_sponsorblock_categories(data.get("sponsorblock_categories", ""))
-
-    # Build profile with provided values, falling back to model defaults
-    profile = Profile(name=name)
-
-    optional_fields = [
-        "embed_metadata",
-        "embed_thumbnail",
-        "exclude_shorts",
-        "extra_args",
-        "download_subtitles",
-        "embed_subtitles",
-        "auto_generated_subtitles",
-        "subtitle_languages",
-        "audio_track_language",
-        "output_template",
-        "output_format",
-        "sponsorblock_behavior",
-        "sponsorblock_categories",
-    ]
-    for field in optional_fields:
-        if field in data:
-            setattr(profile, field, data[field])
+    profile = Profile(
+        name=body.name,
+        output_template=body.output_template,
+        embed_metadata=body.embed_metadata,
+        embed_thumbnail=body.embed_thumbnail,
+        exclude_shorts=body.exclude_shorts,
+        download_subtitles=body.download_subtitles,
+        embed_subtitles=body.embed_subtitles,
+        auto_generated_subtitles=body.auto_generated_subtitles,
+        subtitle_languages=body.subtitle_languages,
+        audio_track_language=body.audio_track_language,
+        sponsorblock_behavior=body.sponsorblock_behavior,
+        sponsorblock_categories=body.sponsorblock_categories,
+        output_format=body.output_format,
+        extra_args=body.extra_args,
+    )
 
     db.session.add(profile)
     db.session.commit()
@@ -133,59 +124,36 @@ def list_profiles():
 
 
 @bp.get("/<int:profile_id>")
-def get_profile(profile_id: int):
+def get_profile(path: ProfilePath):
     """Get a profile by ID."""
-    profile = Profile.query.get(profile_id)
+    profile = Profile.query.get(path.profile_id)
     if not profile:
-        raise NotFoundError("Profile", profile_id)
+        raise NotFoundError("Profile", path.profile_id)
     return jsonify(profile.to_dict())
 
 
 @bp.put("/<int:profile_id>")
-def update_profile(profile_id: int):
+def update_profile(path: ProfilePath, body: ProfileUpdate):
     """Update a profile."""
-    profile = Profile.query.get(profile_id)
+    profile = Profile.query.get(path.profile_id)
     if not profile:
-        raise NotFoundError("Profile", profile_id)
+        raise NotFoundError("Profile", path.profile_id)
 
-    data = request.get_json() or {}
+    data = body.model_dump(exclude_unset=True)
     if not data:
         raise ValidationError("No data provided")
 
     if "name" in data and data["name"] != profile.name:
         if Profile.query.filter_by(name=data["name"]).first():
             raise ConflictError(f"Profile '{data['name']}' already exists")
-        profile.name = data["name"]
 
-    # Validate SponsorBlock options if provided
     if "sponsorblock_behavior" in data:
         _validate_sponsorblock_behavior(data["sponsorblock_behavior"])
     if "sponsorblock_categories" in data:
         _validate_sponsorblock_categories(data["sponsorblock_categories"])
 
-    updatable_fields = [
-        "embed_metadata",
-        "embed_thumbnail",
-        "exclude_shorts",
-        "extra_args",
-        # Subtitle options
-        "download_subtitles",
-        "embed_subtitles",
-        "auto_generated_subtitles",
-        "subtitle_languages",
-        # Audio track language
-        "audio_track_language",
-        # Output template
-        "output_template",
-        # Output format
-        "output_format",
-        # SponsorBlock options
-        "sponsorblock_behavior",
-        "sponsorblock_categories",
-    ]
-    for field in updatable_fields:
-        if field in data:
-            setattr(profile, field, data[field])
+    for field, value in data.items():
+        setattr(profile, field, value)
 
     db.session.commit()
 
@@ -201,11 +169,11 @@ def update_profile(profile_id: int):
 
 
 @bp.delete("/<int:profile_id>")
-def delete_profile(profile_id: int):
+def delete_profile(path: ProfilePath):
     """Delete a profile."""
-    profile = Profile.query.get(profile_id)
+    profile = Profile.query.get(path.profile_id)
     if not profile:
-        raise NotFoundError("Profile", profile_id)
+        raise NotFoundError("Profile", path.profile_id)
 
     if profile.lists.count() > 0:
         raise ConflictError(
@@ -217,7 +185,10 @@ def delete_profile(profile_id: int):
     db.session.commit()
 
     HistoryService.log(
-        HistoryAction.PROFILE_DELETED, "profile", profile_id, {"name": profile_name}
+        HistoryAction.PROFILE_DELETED,
+        "profile",
+        path.profile_id,
+        {"name": profile_name},
     )
 
     logger.info("Deleted profile: %s", profile_name)

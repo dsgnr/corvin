@@ -1,20 +1,43 @@
 import logging
 
-from flask import Flask
+from flask import Response, json
 from flask_cors import CORS
+from flask_openapi3 import Info, OpenAPI
+from pydantic import ValidationError
 
+from app.core.helpers import _get_pyproject_attr
 from app.core.logging import get_logger, setup_logging
 from app.extensions import db, migrate, scheduler
 from app.metrics import init_metrics
 
 logger = get_logger("app")
 
+info = Info(
+    title=_get_pyproject_attr("name"),
+    version=_get_pyproject_attr("version"),
+    description=_get_pyproject_attr("description"),
+)
 
-def create_app(config: dict | None = None) -> Flask:
+
+def _validation_error_callback(e: ValidationError) -> Response:
+    """Return 400 instead of 422 for Pydantic validation errors."""
+    return Response(
+        json.dumps({"message": "Validation error", "errors": e.errors()}),
+        status=400,
+        mimetype="application/json",
+    )
+
+
+def create_app(config: dict | None = None) -> OpenAPI:
     """Create and configure the Flask application."""
     setup_logging(level=logging.INFO)
 
-    app = Flask(__name__)
+    app = OpenAPI(
+        __name__,
+        info=info,
+        doc_prefix="/api/docs",
+        validation_error_callback=_validation_error_callback,
+    )
     app.url_map.strict_slashes = False
     _configure_app(app, config)
 
@@ -39,7 +62,7 @@ def create_app(config: dict | None = None) -> Flask:
     return app
 
 
-def _configure_app(app: Flask, config: dict | None) -> None:
+def _configure_app(app: OpenAPI, config: dict | None) -> None:
     """Configure application settings."""
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////data/corvin.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -50,16 +73,16 @@ def _configure_app(app: Flask, config: dict | None) -> None:
         app.config.update(config)
 
 
-def _register_blueprints(app: Flask) -> None:
+def _register_blueprints(app: OpenAPI) -> None:
     """Register all route blueprints."""
     from app.routes import errors, history, lists, profiles, progress, tasks, videos
 
-    app.register_blueprint(profiles.bp)
-    app.register_blueprint(lists.bp)
-    app.register_blueprint(videos.bp)
-    app.register_blueprint(history.bp)
-    app.register_blueprint(tasks.bp)
-    app.register_blueprint(progress.bp)
+    app.register_api(profiles.bp)
+    app.register_api(lists.bp)
+    app.register_api(videos.bp)
+    app.register_api(history.bp)
+    app.register_api(tasks.bp)
+    app.register_api(progress.bp)
     app.register_blueprint(errors.bp)
 
 
@@ -76,7 +99,7 @@ def _reset_stale_tasks() -> None:
         logger.info("Reset %d stale tasks to pending", count)
 
 
-def _init_worker(app: Flask) -> None:
+def _init_worker(app: OpenAPI) -> None:
     """Set up the background task worker and register handlers."""
     from app.models.task import TaskType
     from app.task_queue import init_worker
@@ -92,7 +115,7 @@ def _init_worker(app: Flask) -> None:
     worker.start()
 
 
-def _setup_scheduler(app: Flask) -> None:
+def _setup_scheduler(app: OpenAPI) -> None:
     """Set up periodic task scheduling for syncs and downloads."""
     from app.tasks import schedule_all_syncs, schedule_downloads
 

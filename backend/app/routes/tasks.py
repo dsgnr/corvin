@@ -1,53 +1,59 @@
-from flask import Blueprint, jsonify, request
+from flask import jsonify
+from flask_openapi3 import APIBlueprint, Tag
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.extensions import db
-from app.models.task import Task, TaskStatus, TaskType
+from app.models.task import Task, TaskLog, TaskStatus, TaskType
+from app.models.video import Video
+from app.schemas.tasks import (
+    ActiveTasksQuery,
+    BulkDownloadRequest,
+    BulkSyncRequest,
+    ListIdPath,
+    TaskLogsQuery,
+    TaskPath,
+    TaskQuery,
+    VideoIdPath,
+)
 from app.task_queue import get_worker
 from app.tasks import enqueue_task, schedule_downloads, schedule_syncs
 
 logger = get_logger("routes.tasks")
-bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
+tag = Tag(name="Tasks", description="Background task management")
+bp = APIBlueprint("tasks", __name__, url_prefix="/api/tasks", abp_tags=[tag])
 
 
 @bp.get("/")
-def list_tasks():
+def list_tasks(query: TaskQuery):
     """List tasks with optional filtering."""
-    task_type = request.args.get("type")
-    status = request.args.get("status")
-    limit = request.args.get("limit", 50, type=int)
-    offset = request.args.get("offset", 0, type=int)
+    q = Task.query.order_by(Task.created_at.desc())
 
-    query = Task.query.order_by(Task.created_at.desc())
+    if query.type:
+        q = q.filter_by(task_type=query.type)
+    if query.status:
+        q = q.filter_by(status=query.status)
 
-    if task_type:
-        query = query.filter_by(task_type=task_type)
-    if status:
-        query = query.filter_by(status=status)
-
-    tasks = query.offset(offset).limit(limit).all()
+    offset = (query.page - 1) * query.per_page
+    tasks = q.offset(offset).limit(query.per_page).all()
     return jsonify([t.to_dict() for t in tasks])
 
 
 @bp.get("/<int:task_id>")
-def get_task(task_id: int):
+def get_task(path: TaskPath, query: TaskLogsQuery):
     """Get a task by ID with optional logs."""
-    task = Task.query.get(task_id)
+    task = Task.query.get(path.task_id)
     if not task:
-        raise NotFoundError("Task", task_id)
-    include_logs = request.args.get("include_logs", "true").lower() == "true"
-    return jsonify(task.to_dict(include_logs=include_logs))
+        raise NotFoundError("Task", path.task_id)
+    return jsonify(task.to_dict(include_logs=query.include_logs))
 
 
 @bp.get("/<int:task_id>/logs")
-def get_task_logs(task_id: int):
+def get_task_logs(path: TaskPath):
     """Get logs for a specific task."""
-    from app.models.task import TaskLog
-
-    task = Task.query.get(task_id)
+    task = Task.query.get(path.task_id)
     if not task:
-        raise NotFoundError("Task", task_id)
+        raise NotFoundError("Task", path.task_id)
 
     logs = task.logs.order_by(TaskLog.created_at.asc()).all()
     return jsonify([log.to_dict() for log in logs])
@@ -79,15 +85,8 @@ def task_stats():
 
 
 @bp.get("/active")
-def get_active_tasks():
-    """Get all pending and running tasks, grouped by type and status.
-
-    Optional query params:
-    - list_id: Filter to only include sync tasks for this list and download tasks for videos in this list
-    """
-    from app.models.video import Video
-
-    list_id = request.args.get("list_id", type=int)
+def get_active_tasks(query: ActiveTasksQuery):
+    """Get all pending and running tasks, grouped by type and status."""
     active_statuses = [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]
 
     result = {
@@ -95,23 +94,20 @@ def get_active_tasks():
         "download": {"pending": [], "running": []},
     }
 
-    if list_id:
-        # Get sync tasks for this specific list
+    if query.list_id:
         sync_tasks = Task.query.filter(
             Task.task_type == TaskType.SYNC.value,
             Task.status.in_(active_statuses),
-            Task.entity_id == list_id,
+            Task.entity_id == query.list_id,
         ).all()
 
-        # Get video IDs for this list
         video_ids = [
             v.id
-            for v in Video.query.filter_by(list_id=list_id)
+            for v in Video.query.filter_by(list_id=query.list_id)
             .with_entities(Video.id)
             .all()
         ]
 
-        # Get download tasks for videos in this list
         download_tasks = []
         if video_ids:
             download_tasks = Task.query.filter(
@@ -122,7 +118,6 @@ def get_active_tasks():
 
         tasks = sync_tasks + download_tasks
     else:
-        # Get all active tasks
         tasks = Task.query.filter(Task.status.in_(active_statuses)).all()
 
     for task in tasks:
@@ -135,32 +130,23 @@ def get_active_tasks():
 
 
 @bp.post("/sync/list/<int:list_id>")
-def trigger_list_sync(list_id: int):
+def trigger_list_sync(path: ListIdPath):
     """Trigger a sync for a specific list."""
-    task = enqueue_task(TaskType.SYNC.value, list_id)
+    task = enqueue_task(TaskType.SYNC.value, path.list_id)
 
     if not task:
         raise ConflictError("List sync already queued or running")
 
-    logger.info("Triggered sync for list %d", list_id)
+    logger.info("Triggered sync for list %d", path.list_id)
     return jsonify(task.to_dict()), 202
 
 
 @bp.post("/sync/lists")
-def trigger_lists_sync():
+def trigger_lists_sync(body: BulkSyncRequest):
     """Trigger sync for multiple lists by ID."""
-    data = request.get_json() or {}
-    list_ids = data.get("list_ids", [])
-
-    if not list_ids:
-        raise ValidationError("list_ids is required")
-
-    if not isinstance(list_ids, list):
-        raise ValidationError("list_ids must be an array")
-
-    result = schedule_syncs(list_ids)
+    result = schedule_syncs(body.list_ids)
     logger.info(
-        "Triggered sync for %d lists: %d queued", len(list_ids), result["queued"]
+        "Triggered sync for %d lists: %d queued", len(body.list_ids), result["queued"]
     )
     return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
@@ -174,32 +160,25 @@ def trigger_all_syncs():
 
 
 @bp.post("/download/video/<int:video_id>")
-def trigger_video_download(video_id: int):
+def trigger_video_download(path: VideoIdPath):
     """Trigger download for a specific video."""
-    task = enqueue_task(TaskType.DOWNLOAD.value, video_id)
+    task = enqueue_task(TaskType.DOWNLOAD.value, path.video_id)
 
     if not task:
         raise ConflictError("Video download already queued or running")
 
-    logger.info("Triggered download for video %d", video_id)
+    logger.info("Triggered download for video %d", path.video_id)
     return jsonify(task.to_dict()), 202
 
 
 @bp.post("/download/videos")
-def trigger_videos_download():
+def trigger_videos_download(body: BulkDownloadRequest):
     """Trigger download for multiple videos by ID."""
-    data = request.get_json() or {}
-    video_ids = data.get("video_ids", [])
-
-    if not video_ids:
-        raise ValidationError("video_ids is required")
-
-    if not isinstance(video_ids, list):
-        raise ValidationError("video_ids must be an array")
-
-    result = schedule_downloads(video_ids)
+    result = schedule_downloads(body.video_ids)
     logger.info(
-        "Triggered download for %d videos: %d queued", len(video_ids), result["queued"]
+        "Triggered download for %d videos: %d queued",
+        len(body.video_ids),
+        result["queued"],
     )
     return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
@@ -213,11 +192,11 @@ def trigger_pending_downloads():
 
 
 @bp.post("/<int:task_id>/retry")
-def retry_task(task_id: int):
+def retry_task(path: TaskPath):
     """Retry a failed or completed task."""
-    task = Task.query.get(task_id)
+    task = Task.query.get(path.task_id)
     if not task:
-        raise NotFoundError("Task", task_id)
+        raise NotFoundError("Task", path.task_id)
 
     if task.status not in (TaskStatus.FAILED.value, TaskStatus.COMPLETED.value):
         raise ValidationError("Can only retry failed or completed tasks")
@@ -229,5 +208,5 @@ def retry_task(task_id: int):
     task.retry_count = 0
     db.session.commit()
 
-    logger.info("Task %d reset for retry", task_id)
+    logger.info("Task %d reset for retry", path.task_id)
     return jsonify(task.to_dict())

@@ -1,22 +1,21 @@
-from flask import Blueprint, jsonify, request
+from flask import jsonify
+from flask_openapi3 import APIBlueprint, Tag
 
+from app.schemas.history import HistoryQuery
 from app.services import HistoryService
 
-bp = Blueprint("history", __name__, url_prefix="/api/history")
+tag = Tag(name="History", description="Activity history")
+bp = APIBlueprint("history", __name__, url_prefix="/api/history", abp_tags=[tag])
 
 
 @bp.get("/")
-def get_history():
+def get_history(query: HistoryQuery):
     """Get history entries with optional filtering."""
-    limit = request.args.get("limit", 100, type=int)
-    offset = request.args.get("offset", 0, type=int)
-    entity_type = request.args.get("entity_type")
-    action = request.args.get("action")
-
+    offset = (query.page - 1) * query.per_page
     entries = HistoryService.get_all(
-        limit=limit,
+        limit=query.per_page,
         offset=offset,
-        entity_type=entity_type,
-        action=action,
+        entity_type=query.entity_type,
+        action=query.action,
     )
     return jsonify([e.to_dict() for e in entries])

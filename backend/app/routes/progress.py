@@ -3,19 +3,18 @@
 import json
 import time
 
-from flask import Blueprint, Response
+from flask import Response
+from flask_openapi3 import APIBlueprint, Tag
 
 from app.services import progress_service
 
-bp = Blueprint("progress", __name__, url_prefix="/api/progress")
+tag = Tag(name="Progress", description="Download progress streaming")
+bp = APIBlueprint("progress", __name__, url_prefix="/api/progress", abp_tags=[tag])
 
 
 @bp.get("/stream")
 def stream():
-    """
-    Stream all active download progress.
-    Sends updates whenever any download's progress changes.
-    """
+    """Stream all active download progress via SSE."""
 
     def generate():
         last_json = None
@@ -32,7 +31,6 @@ def stream():
             else:
                 idle += 1
 
-            # Keep alive for 5 minutes of inactivity
             if idle > 600:
                 yield f"data: {json.dumps({'status': 'timeout'})}\n\n"
                 break
