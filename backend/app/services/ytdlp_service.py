@@ -343,8 +343,8 @@ class YtDlpService:
             # Platform-specific video ID
             ET.SubElement(root, f"{extractor}id").text = video.video_id
 
-            # Art - thumbnail path
-            thumb_path = video_file.with_suffix("-thumb.jpg")
+            # Art - thumbnail path (video.mp4 -> video-thumb.jpg)
+            thumb_path = video_file.parent / f"{video_file.stem}-thumb.jpg"
             art = ET.SubElement(root, "art")
             ET.SubElement(art, "poster").text = str(thumb_path)
 
