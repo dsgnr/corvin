@@ -121,75 +121,77 @@ export default function ListsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Lists</h1>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-            <input
-              type="text"
-              placeholder="Search lists..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
-            />
+        {profiles.length > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                placeholder="Search lists..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              />
+            </div>
+            {editingId !== 'new' && (
+              <button
+                onClick={() => setEditingId('new')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+              >
+                <Plus size={14} />
+                Add List
+              </button>
+            )}
           </div>
-          {editingId !== 'new' && (
-            <button
-              onClick={() => setEditingId('new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
-            >
-              <Plus size={14} />
-              Add List
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {profiles.length === 0 && (
+      {profiles.length === 0 ? (
         <div className="bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-md p-4">
           <p className="text-sm text-[var(--warning)]">
             You need to create a profile before adding lists.{' '}
             <Link href="/profiles" className="underline">Create one now</Link>
           </p>
         </div>
+      ) : (
+        <div className="grid gap-4">
+          {editingId === 'new' && (
+            <ListForm
+              profiles={profiles}
+              onSave={(data) => handleSave(data)}
+              onCancel={() => setEditingId(null)}
+            />
+          )}
+
+          {filteredLists.length === 0 && editingId !== 'new' ? (
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-8 text-center">
+              <p className="text-[var(--muted)]">{search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'}</p>
+            </div>
+          ) : (
+            filteredLists.map(list => (
+              editingId === list.id ? (
+                <ListForm
+                  key={list.id}
+                  list={list}
+                  profiles={profiles}
+                  onSave={(data) => handleSave(data, list.id)}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <ListCard
+                  key={list.id}
+                  list={list}
+                  profiles={profiles}
+                  syncing={syncingIds.has(list.id)}
+                  onSync={() => handleSync(list.id)}
+                  onEdit={() => setEditingId(list.id)}
+                  onDelete={() => handleDelete(list)}
+                />
+              )
+            ))
+          )}
+        </div>
       )}
-
-      <div className="grid gap-4">
-        {editingId === 'new' && (
-          <ListForm
-            profiles={profiles}
-            onSave={(data) => handleSave(data)}
-            onCancel={() => setEditingId(null)}
-          />
-        )}
-
-        {filteredLists.length === 0 && editingId !== 'new' ? (
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-8 text-center">
-            <p className="text-[var(--muted)]">{search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'}</p>
-          </div>
-        ) : (
-          filteredLists.map(list => (
-            editingId === list.id ? (
-              <ListForm
-                key={list.id}
-                list={list}
-                profiles={profiles}
-                onSave={(data) => handleSave(data, list.id)}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <ListCard
-                key={list.id}
-                list={list}
-                profiles={profiles}
-                syncing={syncingIds.has(list.id)}
-                onSync={() => handleSync(list.id)}
-                onEdit={() => setEditingId(list.id)}
-                onDelete={() => handleDelete(list)}
-              />
-            )
-          ))
-        )}
-      </div>
     </div>
   )
 }
