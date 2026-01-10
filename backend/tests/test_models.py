@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from app.extensions import db
 from app.models import Profile, Video, VideoList
 from app.models.task import Task, TaskLogLevel, TaskStatus, TaskType
-from app.models.video_list import SyncFrequency
 
 
 class TestVideoList:
@@ -31,7 +30,7 @@ class TestVideoList:
                 name="Test",
                 url="https://example.com",
                 profile_id=sample_profile,
-                sync_frequency=SyncFrequency.DAILY.value,
+                sync_frequency="daily",
                 last_synced=datetime.utcnow() - timedelta(days=2),
             )
             db.session.add(video_list)
@@ -46,7 +45,7 @@ class TestVideoList:
                 name="Test",
                 url="https://example.com",
                 profile_id=sample_profile,
-                sync_frequency=SyncFrequency.DAILY.value,
+                sync_frequency="daily",
                 last_synced=datetime.utcnow() - timedelta(hours=12),
             )
             db.session.add(video_list)
@@ -61,7 +60,7 @@ class TestVideoList:
                 name="Test",
                 url="https://example.com",
                 profile_id=sample_profile,
-                sync_frequency=SyncFrequency.WEEKLY.value,
+                sync_frequency="weekly",
                 last_synced=datetime.utcnow() - timedelta(weeks=2),
             )
             db.session.add(video_list)
