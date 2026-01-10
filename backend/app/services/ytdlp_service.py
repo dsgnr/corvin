@@ -105,7 +105,7 @@ class YtDlpService:
             ]
             skipped = original_count - len(video_entries)
             if skipped > 0:
-                logger.info("Skipped %d existing videos", skipped)
+                logger.info("Skipped %d existing videos for %s", skipped, url)
 
         if not video_entries:
             logger.info("No new videos to fetch")
@@ -364,11 +364,11 @@ class YtDlpService:
             tree = ET.ElementTree(root)
             tree.write(nfo_path, encoding="unicode", xml_declaration=True)
 
-            logger.info("Wrote video NFO: %s", nfo_path)
+            logger.info("Wrote video NFO: '%s'", nfo_path)
             return True
 
         except Exception as e:
-            logger.warning("Failed to write video NFO for %s: %s", video.title, e)
+            logger.warning("Failed to write video NFO for '%s': %s", video.title, e)
             return False
 
     @classmethod

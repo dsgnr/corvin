@@ -63,7 +63,7 @@ class TaskWorker:
 
     def stop(self, wait: bool = True) -> None:
         """Stop the worker and try to wait for tasks to complete."""
-        logger.info("TaskWorker stopping (wait=%s)", wait)
+        logger.info("TaskWorker stopping")
         self._shutdown = True
         if self._poll_thread:
             self._poll_thread.join(timeout=5.0)
@@ -126,7 +126,10 @@ class TaskWorker:
                     self._running_download += 1
 
             logger.info(
-                "Starting task %d (%s, entity=%d)", task.id, task_type, task.entity_id
+                "Starting task %d (%s) for entity %d",
+                task.id,
+                task_type,
+                task.entity_id,
             )
             executor.submit(self._execute_task, task.id, task_type)
 

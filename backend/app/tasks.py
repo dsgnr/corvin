@@ -26,7 +26,7 @@ def _execute_sync(list_id: int) -> dict:
     if not video_list:
         raise NotFoundError("VideoList", list_id)
 
-    logger.info("Syncing list %d: %s", list_id, video_list.name)
+    logger.info("Syncing list: %s", video_list.name)
 
     from_date = (
         datetime.strptime(video_list.from_date, "%Y%m%d")
@@ -94,7 +94,7 @@ def _execute_sync(list_id: int) -> dict:
         {"new_videos": counters["new"], "total_found": counters["total"]},
     )
 
-    logger.info("List %d synced: %d new videos", list_id, counters["new"])
+    logger.info("List '%s' synced: %d new videos", video_list.name, counters["new"])
     return {"new_videos": counters["new"], "total_found": counters["total"]}
 
 
@@ -136,11 +136,11 @@ def _execute_download(video_id: int) -> dict:
         raise NotFoundError("Video", video_id)
 
     if video.downloaded:
-        logger.info("Video %d already downloaded", video_id)
+        logger.info("Video already downloaded: %s", video.title)
         return {"status": "already_downloaded"}
 
     profile = video.video_list.profile
-    logger.info("Downloading video %d: %s", video_id, video.title)
+    logger.info("Downloading video: %s", video.title)
 
     HistoryService.log(
         HistoryAction.VIDEO_DOWNLOAD_STARTED,
@@ -184,7 +184,7 @@ def _mark_download_success(video, path: str, labels: dict) -> dict:
         {"title": video.title, "path": path},
     )
 
-    logger.info("Video %d downloaded to: %s", video.id, path)
+    logger.info("Video '%s' downloaded to: %s", video.title, path)
     return {"status": "completed", "path": path}
 
 
