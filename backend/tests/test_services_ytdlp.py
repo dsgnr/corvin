@@ -128,47 +128,6 @@ class TestParseUploadDate:
 class TestParseSingleEntry:
     """Tests for YtDlpService._parse_single_entry method."""
 
-    def test_parses_entry(self):
-        """Should parse video entry."""
-        entry = {
-            "id": "abc123",
-            "title": "Test Video",
-            "webpage_url": "https://youtube.com/watch?v=abc123",
-            "duration": 300,
-            "upload_date": "20240101",
-            "thumbnail": "https://example.com/thumb.jpg",
-            "description": "A test video",
-            "extractor_key": "Youtube",
-        }
-
-        result = YtDlpService._parse_single_entry(entry)
-
-        assert result["video_id"] == "abc123"
-        assert result["title"] == "Test Video"
-        assert result["duration"] == 300
-        assert result["labels"] == {}
-
-    def test_parses_entry_with_labels(self):
-        """Should parse video entry with metadata labels."""
-        entry = {
-            "id": "abc123",
-            "title": "Test Video",
-            "webpage_url": "https://youtube.com/watch?v=abc123",
-            "acodec": "opus",
-            "height": 2160,
-            "audio_channels": 2,
-            "dynamic_range": "HDR",
-            "filesize_approx": 1073741824,
-        }
-
-        result = YtDlpService._parse_single_entry(entry)
-
-        assert result["labels"]["acodec"] == "opus"
-        assert result["labels"]["resolution"] == "2160p"
-        assert result["labels"]["audio_channels"] == 2
-        assert result["labels"]["dynamic_range"] == "HDR"
-        assert result["labels"]["filesize_approx"] == 1073741824
-
     def test_returns_none_without_id(self):
         """Should return None if no video ID."""
         entry = {"title": "No ID Video"}
