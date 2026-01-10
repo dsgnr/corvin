@@ -12,5 +12,7 @@ class MessageResponse(BaseModel):
 class PaginationQuery(BaseModel):
     """Common pagination parameters."""
 
-    page: int = Field(1, ge=1, description="Page number")
-    per_page: int = Field(20, ge=1, le=100, description="Items per page")
+    limit: int | None = Field(
+        None, ge=1, description="Maximum items to return (None = all)"
+    )
+    offset: int = Field(0, ge=0, description="Number of items to skip")

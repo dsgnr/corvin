@@ -39,7 +39,7 @@ class TestGetHistory:
 
     def test_get_history_pagination(self, client, sample_history):
         """Should support limit and offset."""
-        response = client.get("/api/history?page=1&per_page=1")
+        response = client.get("/api/history?limit=1&offset=0")
 
         assert response.status_code == 200
         data = response.get_json()

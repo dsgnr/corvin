@@ -23,11 +23,10 @@ def list_videos(query: VideoQuery):
     if query.downloaded is not None:
         q = q.filter_by(downloaded=query.downloaded)
 
-    offset = (query.page - 1) * query.per_page
-    videos = (
-        q.order_by(Video.created_at.desc()).offset(offset).limit(query.per_page).all()
-    )
-    return jsonify([v.to_dict() for v in videos])
+    q = q.order_by(Video.created_at.desc()).offset(query.offset)
+    if query.limit:
+        q = q.limit(query.limit)
+    return jsonify([v.to_dict() for v in q.all()])
 
 
 @bp.get("/<int:video_id>")
@@ -51,11 +50,10 @@ def get_videos_by_list(path: VideoListPath, query: VideoQuery):
     if query.downloaded is not None:
         q = q.filter_by(downloaded=query.downloaded)
 
-    offset = (query.page - 1) * query.per_page
-    videos = (
-        q.order_by(Video.created_at.desc()).offset(offset).limit(query.per_page).all()
-    )
-    return jsonify([v.to_dict() for v in videos])
+    q = q.order_by(Video.created_at.desc()).offset(query.offset)
+    if query.limit:
+        q = q.limit(query.limit)
+    return jsonify([v.to_dict() for v in q.all()])
 
 
 @bp.post("/<int:video_id>/retry")

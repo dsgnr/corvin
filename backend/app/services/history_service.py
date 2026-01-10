@@ -36,7 +36,7 @@ class HistoryService:
 
     @staticmethod
     def get_all(
-        limit: int = 100,
+        limit: int | None = None,
         offset: int = 0,
         entity_type: str | None = None,
         action: str | None = None,
@@ -49,4 +49,7 @@ class HistoryService:
         if action:
             query = query.filter_by(action=action)
 
-        return query.offset(offset).limit(limit).all()
+        query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+        return query.all()

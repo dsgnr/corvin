@@ -34,9 +34,10 @@ def list_tasks(query: TaskQuery):
     if query.status:
         q = q.filter_by(status=query.status)
 
-    offset = (query.page - 1) * query.per_page
-    tasks = q.offset(offset).limit(query.per_page).all()
-    return jsonify([t.to_dict() for t in tasks])
+    q = q.offset(query.offset)
+    if query.limit:
+        q = q.limit(query.limit)
+    return jsonify([t.to_dict() for t in q.all()])
 
 
 @bp.get("/<int:task_id>")
