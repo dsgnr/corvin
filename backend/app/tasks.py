@@ -213,6 +213,7 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
     """Create a new task in the database if not already queued or running."""
     from app.extensions import db
     from app.models.task import Task, TaskStatus
+    from app.task_queue import get_worker
 
     existing = (
         Task.query.filter_by(task_type=task_type, entity_id=entity_id)
@@ -234,6 +235,12 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
     db.session.commit()
 
     logger.info("Enqueued task %d: %s/%d", task.id, task_type, entity_id)
+
+    # Notify worker that new tasks are available
+    worker = get_worker()
+    if worker:
+        worker.notify()
+
     return task
 
 
@@ -246,6 +253,7 @@ def enqueue_tasks_bulk(
     """
     from app.extensions import db
     from app.models.task import Task, TaskStatus
+    from app.task_queue import get_worker
 
     # Find existing pending/running tasks for these entities
     existing = (
@@ -272,6 +280,11 @@ def enqueue_tasks_bulk(
 
     if tasks:
         db.session.commit()
+
+        # Notify worker that new tasks are available
+        worker = get_worker()
+        if worker:
+            worker.notify()
 
     logger.info(
         "Bulk enqueued %d %s tasks (%d skipped as duplicates)",

@@ -1,6 +1,5 @@
 import json
 import threading
-import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -20,7 +19,7 @@ class TaskWorker:
         app: Flask,
         max_sync_workers: int = 2,
         max_download_workers: int = 3,
-        poll_interval: float = 2.0,
+        poll_interval: float = 30.0,
     ):
         self.app = app
         self.max_sync_workers = max_sync_workers
@@ -40,6 +39,7 @@ class TaskWorker:
 
         self._shutdown = False
         self._poll_thread: threading.Thread | None = None
+        self._task_event = threading.Event()
 
         self._handlers: dict[str, Callable] = {}
 
@@ -65,20 +65,27 @@ class TaskWorker:
         """Stop the worker and try to wait for tasks to complete."""
         logger.info("TaskWorker stopping")
         self._shutdown = True
+        self._task_event.set()  # Wake up the poll loop
         if self._poll_thread:
             self._poll_thread.join(timeout=5.0)
         self._sync_executor.shutdown(wait=wait)
         self._download_executor.shutdown(wait=wait)
         logger.info("TaskWorker stopped")
 
+    def notify(self) -> None:
+        """Signal that new tasks are available for processing."""
+        self._task_event.set()
+
     def _poll_loop(self) -> None:
-        """Main polling loop that picks up pending tasks."""
+        """Main loop that waits for task notifications or periodic fallback."""
         while not self._shutdown:
             try:
                 self._process_pending_tasks()
             except Exception:
                 logger.exception("Error in task poll loop")
-            time.sleep(self.poll_interval)
+            # Wait for notification or timeout (fallback poll)
+            self._task_event.wait(timeout=self.poll_interval)
+            self._task_event.clear()
 
     def _process_pending_tasks(self) -> None:
         """Check for pending tasks and submit to executors."""
