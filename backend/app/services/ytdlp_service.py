@@ -489,6 +489,7 @@ class YtDlpService:
             "thumbnail": entry.get("thumbnail"),
             "description": entry.get("description"),
             "extractor": entry.get("extractor_key") or entry.get("extractor"),
+            "media_type": entry.get("media_type"),
         }
 
     @classmethod

@@ -36,7 +36,7 @@ class VideoResponse(BaseModel):
     thumbnail: str | None = None
     description: str | None = None
     extractor: str | None = None
-    video_type: str = "video"
+    media_type: str = "video"
     labels: dict = {}
     list_id: int
     downloaded: bool = False
