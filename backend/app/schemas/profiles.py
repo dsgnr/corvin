@@ -19,7 +19,7 @@ class ProfileCreate(BaseModel):
     )
     embed_metadata: bool = Field(True, description="Embed metadata in file")
     embed_thumbnail: bool = Field(True, description="Embed thumbnail in file")
-    exclude_shorts: bool = Field(False, description="Exclude YouTube Shorts")
+    include_shorts: bool = Field(True, description="Include YouTube Shorts")
     download_subtitles: bool = Field(False, description="Download subtitles")
     embed_subtitles: bool = Field(False, description="Embed subtitles in file")
     auto_generated_subtitles: bool = Field(
@@ -46,7 +46,7 @@ class ProfileUpdate(BaseModel):
     output_template: str | None = Field(None, description="Output filename template")
     embed_metadata: bool | None = Field(None, description="Embed metadata in file")
     embed_thumbnail: bool | None = Field(None, description="Embed thumbnail in file")
-    exclude_shorts: bool | None = Field(None, description="Exclude YouTube Shorts")
+    include_shorts: bool | None = Field(None, description="Include YouTube Shorts")
     download_subtitles: bool | None = Field(None, description="Download subtitles")
     embed_subtitles: bool | None = Field(None, description="Embed subtitles in file")
     auto_generated_subtitles: bool | None = Field(
@@ -73,7 +73,7 @@ class ProfileResponse(BaseModel):
     name: str
     embed_metadata: bool = True
     embed_thumbnail: bool = True
-    exclude_shorts: bool = False
+    include_shorts: bool = True
     extra_args: str = "{}"
     download_subtitles: bool = False
     embed_subtitles: bool = False

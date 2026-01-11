@@ -13,7 +13,7 @@ PROFILE = {
     "output_format": "mp4",
     "embed_metadata": True,
     "embed_thumbnail": True,
-    "exclude_shorts": True,
+    "include_shorts": False,
     "download_subtitles": True,
     "embed_subtitles": True,
     "auto_generated_subtitles": True,

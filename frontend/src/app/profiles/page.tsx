@@ -138,7 +138,7 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   if (profile.embed_metadata) features.push('Metadata')
   if (profile.embed_thumbnail) features.push('Thumbnail')
   if (profile.download_subtitles) features.push('Subtitles')
-  if (profile.exclude_shorts) features.push('No Shorts')
+  if (!profile.include_shorts) features.push('No Shorts')
   if (profile.sponsorblock_behavior !== 'disabled') features.push('SponsorBlock')
 
   return (
@@ -197,7 +197,7 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
     output_format: profile?.output_format || defaults.output_format,
     embed_metadata: profile?.embed_metadata ?? defaults.embed_metadata,
     embed_thumbnail: profile?.embed_thumbnail ?? defaults.embed_thumbnail,
-    exclude_shorts: profile?.exclude_shorts ?? defaults.exclude_shorts,
+    include_shorts: profile?.include_shorts ?? defaults.include_shorts,
     download_subtitles: profile?.download_subtitles ?? defaults.download_subtitles,
     embed_subtitles: profile?.embed_subtitles ?? defaults.embed_subtitles,
     auto_generated_subtitles: profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
@@ -281,10 +281,10 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         />
 
         <ToggleOption
-          label="Exclude shorts"
-          description="Skip YouTube Shorts when syncing channels"
-          checked={form.exclude_shorts}
-          onChange={() => setForm({ ...form, exclude_shorts: !form.exclude_shorts })}
+          label="Include shorts"
+          description="Include YouTube Shorts when syncing channels"
+          checked={form.include_shorts}
+          onChange={() => setForm({ ...form, include_shorts: !form.include_shorts })}
         />
       </div>
 

@@ -35,7 +35,7 @@ def _execute_sync(list_id: int) -> dict:
     )
 
     url = video_list.url
-    if video_list.profile.exclude_shorts and video_list.list_type == "channel":
+    if not video_list.profile.include_shorts:
         url = _append_videos_path(url)
 
     # Get existing video IDs to skip during extraction
@@ -43,7 +43,7 @@ def _execute_sync(list_id: int) -> dict:
         v.video_id for v in Video.query.filter_by(list_id=list_id).all()
     }
 
-    exclude_shorts = video_list.profile.exclude_shorts
+    include_shorts = video_list.profile.include_shorts
     counters = {"new": 0, "total": 0}
     lock = threading.Lock()
 
@@ -53,7 +53,7 @@ def _execute_sync(list_id: int) -> dict:
         with lock:
             counters["total"] += 1
 
-            if exclude_shorts and "shorts" in video_data.get("url", ""):
+            if not include_shorts and "shorts" in video_data.get("url", ""):
                 return
 
             try:

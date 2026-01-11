@@ -101,7 +101,7 @@ export interface Profile {
   name: string
   embed_metadata: boolean
   embed_thumbnail: boolean
-  exclude_shorts: boolean
+  include_shorts: boolean
   extra_args: string
   download_subtitles: boolean
   embed_subtitles: boolean
@@ -237,7 +237,7 @@ export interface ProfileDefaults {
   output_template: string
   embed_metadata: boolean
   embed_thumbnail: boolean
-  exclude_shorts: boolean
+  include_shorts: boolean
   download_subtitles: boolean
   embed_subtitles: boolean
   auto_generated_subtitles: boolean

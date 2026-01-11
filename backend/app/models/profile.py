@@ -38,7 +38,7 @@ class Profile(db.Model):
     name: str = db.Column(db.String(100), nullable=False, unique=True)
     embed_metadata: bool = db.Column(db.Boolean, default=True)
     embed_thumbnail: bool = db.Column(db.Boolean, default=True)
-    exclude_shorts: bool = db.Column(db.Boolean, default=False)
+    include_shorts: bool = db.Column(db.Boolean, default=True)
     extra_args: str = db.Column(db.Text, default="{}")
 
     # Subtitle options
@@ -78,7 +78,7 @@ class Profile(db.Model):
             "name": self.name,
             "embed_metadata": self.embed_metadata,
             "embed_thumbnail": self.embed_thumbnail,
-            "exclude_shorts": self.exclude_shorts,
+            "include_shorts": self.include_shorts,
             "extra_args": self.extra_args,
             # Subtitle options
             "download_subtitles": self.download_subtitles,
