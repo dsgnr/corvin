@@ -156,7 +156,6 @@ export interface Video {
   thumbnail: string | null
   description: string | null
   extractor: string | null
-  video_type: 'video' | 'short'
   labels: VideoLabels
   list_id: number
   downloaded: boolean
