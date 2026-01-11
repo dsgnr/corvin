@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, VideoList, Video, Profile } from '@/lib/api'
 import { useProgress } from '@/lib/ProgressContext'
+import { useVideoListStream } from '@/lib/useVideoListStream'
 import { formatDuration, formatFileSize } from '@/lib/utils'
 import {
   ArrowLeft,
@@ -85,14 +86,12 @@ export default function ListDetailPage() {
 
   const fetchData = async () => {
     try {
-      const [listData, videosData, profilesData, activeTasks] = await Promise.all([
+      const [listData, profilesData, activeTasks] = await Promise.all([
         api.getList(listId),
-        api.getVideos({ list_id: listId, limit: 500 }),
         api.getProfiles(),
         api.getActiveTasks({ list_id: listId }),
       ])
       setList(listData)
-      setVideos(videosData)
       setProfiles(profilesData)
       
       // Update sync status
@@ -110,46 +109,26 @@ export default function ListDetailPage() {
     }
   }
 
+  // Handle SSE video updates
+  const handleVideoStreamUpdate = useCallback((videos: Video[]) => {
+    setVideos(videos)
+  }, [])
+
+  // Use SSE stream for real-time video updates
+  useVideoListStream(listId, !loading, handleVideoStreamUpdate)
+
   useEffect(() => {
     fetchData()
   }, [listId])
 
-  // Poll download status periodically
+  // Poll for task status (sync/download queue status)
   useEffect(() => {
-    if (queuedDownloadIds.size === 0 && runningDownloadIds.size === 0) return
-    const interval = setInterval(async () => {
-      await checkAllTaskStatus()
-      // Refresh videos to get updated download status
-      api.getVideos({ list_id: listId, limit: 500 }).then(setVideos).catch(() => {})
-    }, 3000)
+    const hasActiveWork = syncStatus !== 'idle' || queuedDownloadIds.size > 0 || runningDownloadIds.size > 0
+    if (!hasActiveWork) return
+    
+    const interval = setInterval(checkAllTaskStatus, 3000)
     return () => clearInterval(interval)
-  }, [queuedDownloadIds.size, runningDownloadIds.size, listId])
-
-  // Poll for sync status while queued or running
-  useEffect(() => {
-    if (syncStatus === 'idle') return
-    const interval = setInterval(async () => {
-      const result = await checkAllTaskStatus()
-      if (result.syncStatus === 'idle') {
-        fetchData()
-      }
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [syncStatus, listId])
-
-  // Refresh videos every second while running
-  useEffect(() => {
-    if (syncStatus !== 'running') return
-    const interval = setInterval(async () => {
-      try {
-        const videosData = await api.getVideos({ list_id: listId, limit: 500 })
-        setVideos(videosData)
-      } catch (err) {
-        console.error('Failed to refresh videos:', err)
-      }
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [syncStatus, listId])
+  }, [syncStatus, queuedDownloadIds.size, runningDownloadIds.size, listId])
 
   const handleSync = async () => {
     setSyncStatus('queued')
