@@ -1,4 +1,5 @@
 import logging
+import os
 
 from flask import Response, json
 from flask_cors import CORS
@@ -66,8 +67,8 @@ def _configure_app(app: OpenAPI, config: dict | None) -> None:
     """Configure application settings."""
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////data/corvin.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["MAX_SYNC_WORKERS"] = 2
-    app.config["MAX_DOWNLOAD_WORKERS"] = 3
+    app.config["MAX_SYNC_WORKERS"] = int(os.getenv("MAX_SYNC_WORKERS", "2"))
+    app.config["MAX_DOWNLOAD_WORKERS"] = int(os.getenv("MAX_DOWNLOAD_WORKERS", "3"))
 
     if config:
         app.config.update(config)
