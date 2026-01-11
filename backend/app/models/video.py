@@ -19,6 +19,9 @@ class Video(db.Model):
     extractor: str | None = db.Column(
         db.String(50), nullable=True
     )  # Platform identifier (e.g., "Youtube", "Vimeo")
+    video_type: str = db.Column(
+        db.String(20), nullable=False, default="video"
+    )  # "video" or "short"
     labels: dict | None = db.Column(
         db.JSON, nullable=True, default=dict
     )  # Video metadata labels (resolution, codec, etc.)
@@ -49,6 +52,7 @@ class Video(db.Model):
             "thumbnail": self.thumbnail,
             "description": self.description,
             "extractor": self.extractor,
+            "video_type": self.video_type,
             "labels": self.labels or {},
             "list_id": self.list_id,
             "downloaded": self.downloaded,

@@ -57,16 +57,19 @@ def _execute_sync(list_id: int) -> dict:
                 return
 
             try:
+                video_url = video_data.get("url", "")
+                video_type = "short" if "shorts" in video_url else "video"
                 db.session.add(
                     Video(
                         video_id=video_data["video_id"],
                         title=video_data["title"],
                         description=video_data["description"],
-                        url=video_data["url"],
+                        url=video_url,
                         duration=video_data.get("duration"),
                         upload_date=video_data.get("upload_date"),
                         thumbnail=video_data.get("thumbnail"),
                         extractor=video_data.get("extractor"),
+                        video_type=video_type,
                         labels=video_data.get("labels", {}),
                         list_id=video_list.id,
                     )
