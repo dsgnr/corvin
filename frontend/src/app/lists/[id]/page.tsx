@@ -546,6 +546,9 @@ function VideoRow({
           {video.title}
         </Link>
         <div className="flex items-center gap-3 mt-1 text-xs text-[var(--muted)]">
+          <span className="px-1.5 py-0.5 bg-[var(--accent)]/20 text-[var(--accent)] rounded text-[10px] font-medium">
+            {video.media_type}
+          </span>
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
             <span>{new Date(video.upload_date).toLocaleDateString()}</span>

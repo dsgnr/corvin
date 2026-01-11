@@ -186,6 +186,10 @@ export default function VideoDetailPage() {
                 </dd>
               </div>
               <div>
+                <dt className="text-[var(--muted)]">Type</dt>
+                <dd className="mt-1 capitalize">{video.media_type}</dd>
+              </div>
+              <div>
                 <dt className="text-[var(--muted)]">Duration</dt>
                 <dd className="mt-1">{video.duration ? formatDuration(video.duration) : 'Unknown'}</dd>
               </div>
