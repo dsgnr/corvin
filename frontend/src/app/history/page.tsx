@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, HistoryEntry } from '@/lib/api'
+import { api, HistoryEntry, getHistoryStreamUrl } from '@/lib/api'
 import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -35,19 +35,30 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
 
-  const fetchData = async () => {
-    try {
-      const data = await api.getHistory({ limit: 200 })
+  useEffect(() => {
+    const eventSource = new EventSource(getHistoryStreamUrl({ limit: 200 }))
+
+    eventSource.onmessage = (event) => {
+      const data: HistoryEntry[] = JSON.parse(event.data)
       setEntries(data)
-    } catch (err) {
-      console.error('Failed to fetch history:', err)
-    } finally {
       setLoading(false)
     }
-  }
 
-  useEffect(() => {
-    fetchData()
+    eventSource.onerror = () => {
+      // Fallback to regular fetch on SSE error
+      api.getHistory({ limit: 200 }).then(data => {
+        setEntries(data)
+        setLoading(false)
+      }).catch(err => {
+        console.error('Failed to fetch history:', err)
+        setLoading(false)
+      })
+      eventSource.close()
+    }
+
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   const filteredEntries = entries.filter(e => {

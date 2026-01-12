@@ -241,6 +241,19 @@ export function getTasksStreamUrl(params?: { type?: string; status?: string; lim
   return `${getApiBase()}/tasks${queryStr ? `?${queryStr}` : ''}`
 }
 
+export function getHistoryStreamUrl(params?: {
+  limit?: number
+  entity_type?: string
+  action?: string
+}): string {
+  const query = new URLSearchParams()
+  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.entity_type) query.set('entity_type', params.entity_type)
+  if (params?.action) query.set('action', params.action)
+  const queryStr = query.toString()
+  return `${getApiBase()}/history${queryStr ? `?${queryStr}` : ''}`
+}
+
 export interface SponsorBlockOptions {
   behaviors: string[]
   categories: string[]
