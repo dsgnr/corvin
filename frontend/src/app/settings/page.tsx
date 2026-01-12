@@ -5,8 +5,8 @@ import { ExternalLink } from 'lucide-react'
 
 export default function SettingsPage() {
   const [apiUrl, setApiUrl] = useState(
-    typeof window !== 'undefined' 
-      ? localStorage.getItem('corvin_api_url') || '' 
+    typeof window !== 'undefined'
+      ? localStorage.getItem('corvin_api_url') || ''
       : ''
   )
   const [saved, setSaved] = useState(false)

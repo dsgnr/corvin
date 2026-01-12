@@ -8,7 +8,7 @@ Schema changes are managed with Flask-Migrate. Fresh databases are created by `d
 # Generate migration after changing models
 flask db migrate -m "Add column to table"
 
-# Apply pending migrations  
+# Apply pending migrations
 flask db upgrade
 ```
 

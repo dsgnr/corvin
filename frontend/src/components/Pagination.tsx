@@ -23,14 +23,14 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
 
     pages.push(1)
     if (showEllipsisStart) pages.push('ellipsis')
-    
+
     const start = Math.max(2, currentPage - 1)
     const end = Math.min(totalPages - 1, currentPage + 1)
-    
+
     for (let i = start; i <= end; i++) {
       if (!pages.includes(i)) pages.push(i)
     }
-    
+
     if (showEllipsisEnd) pages.push('ellipsis')
     if (!pages.includes(totalPages)) pages.push(totalPages)
 
@@ -46,7 +46,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       >
         <ChevronLeft size={16} />
       </button>
-      
+
       {getPageNumbers().map((page, idx) =>
         page === 'ellipsis' ? (
           <span key={`ellipsis-${idx}`} className="px-2 text-[var(--muted)]">…</span>
@@ -65,7 +65,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
           </button>
         )
       )}
-      
+
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
