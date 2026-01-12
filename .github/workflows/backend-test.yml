@@ -1,0 +1,23 @@
+name: Backend Test
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**/*.py'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.13'
+
+      - name: Run tests
+        run: uv run --frozen pytest
