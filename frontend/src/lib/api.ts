@@ -232,6 +232,15 @@ export function getVideoListStreamUrl(listId: number): string {
   return `${getApiBase()}/videos/list/${listId}`
 }
 
+export function getTasksStreamUrl(params?: { type?: string; status?: string; limit?: number }): string {
+  const query = new URLSearchParams()
+  if (params?.type) query.set('type', params.type)
+  if (params?.status) query.set('status', params.status)
+  if (params?.limit) query.set('limit', String(params.limit))
+  const queryStr = query.toString()
+  return `${getApiBase()}/tasks${queryStr ? `?${queryStr}` : ''}`
+}
+
 export interface SponsorBlockOptions {
   behaviors: string[]
   categories: string[]

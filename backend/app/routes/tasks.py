@@ -1,5 +1,9 @@
-from flask import jsonify
+import json
+import time
+
+from flask import Response, current_app, jsonify, request
 from flask_openapi3 import APIBlueprint, Tag
+from sqlalchemy import func
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
@@ -24,20 +28,85 @@ tag = Tag(name="Tasks", description="Background task management")
 bp = APIBlueprint("tasks", __name__, url_prefix="/api/tasks", abp_tags=[tag])
 
 
+def _get_tasks_fingerprint(task_type: str | None, status: str | None) -> tuple:
+    """Get fingerprint for change detection."""
+    q = db.session.query(func.count(Task.id), func.max(Task.created_at))
+    if task_type:
+        q = q.filter(Task.task_type == task_type)
+    if status:
+        q = q.filter(Task.status == status)
+    stats = q.first()
+    return (stats[0], str(stats[1]) if stats[1] else None)
+
+
+def _get_tasks_for_stream(
+    task_type: str | None, status: str | None, limit: int | None
+) -> list[dict]:
+    """Get task data optimised for SSE stream."""
+    q = Task.query.order_by(Task.created_at.desc())
+    if task_type:
+        q = q.filter_by(task_type=task_type)
+    if status:
+        q = q.filter_by(status=status)
+    if limit:
+        q = q.limit(limit)
+    return [t.to_dict() for t in q.all()]
+
+
 @bp.get("/")
 def list_tasks(query: TaskQuery):
-    """List tasks with optional filtering."""
-    q = Task.query.order_by(Task.created_at.desc())
+    """List tasks with optional filtering.
 
-    if query.type:
-        q = q.filter_by(task_type=query.type)
-    if query.status:
-        q = q.filter_by(status=query.status)
+    If Accept header is 'text/event-stream', streams updates via SSE.
+    Otherwise returns JSON array of tasks.
+    """
+    # Regular JSON response (early return)
+    if request.accept_mimetypes.best != "text/event-stream":
+        q = Task.query.order_by(Task.created_at.desc())
+        if query.type:
+            q = q.filter_by(task_type=query.type)
+        if query.status:
+            q = q.filter_by(status=query.status)
+        q = q.offset(query.offset)
+        if query.limit:
+            q = q.limit(query.limit)
+        return jsonify([t.to_dict() for t in q.all()])
 
-    q = q.offset(query.offset)
-    if query.limit:
-        q = q.limit(query.limit)
-    return jsonify([t.to_dict() for t in q.all()])
+    # SSE stream
+    app = current_app._get_current_object()
+    task_type = query.type
+    status = query.status
+    limit = query.limit
+
+    def generate():
+        last_fingerprint = None
+        heartbeat_counter = 0
+
+        while True:
+            with app.app_context():
+                fingerprint = _get_tasks_fingerprint(task_type, status)
+
+                if fingerprint != last_fingerprint:
+                    data = _get_tasks_for_stream(task_type, status, limit)
+                    yield f"data: {json.dumps(data, default=str)}\n\n"
+                    last_fingerprint = fingerprint
+                    heartbeat_counter = 0
+                else:
+                    heartbeat_counter += 1
+                    if heartbeat_counter >= 30:
+                        yield ": heartbeat\n\n"
+                        heartbeat_counter = 0
+
+            time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @bp.get("/<int:task_id>")
