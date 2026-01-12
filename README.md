@@ -9,14 +9,16 @@ The project is API first by design. The included web interface is optional, maki
 ## Features
 
 - Monitor channels and playlists from YouTube and other yt-dlp supported platforms
-- Optimised indexing approach using threads.
+- Optimised indexing approach using threads
 - Automatic syncing on configurable schedules (daily, weekly, monthly)
 - Download profiles with granular control over format, quality, and post-processing
 - SponsorBlock integration to skip or mark sponsored segments
 - Subtitle downloading and embedding
 - Metadata and thumbnail embedding
 - Background task queue with concurrent workers
+- Real-time download progress via SSE
 - Web interface for managing lists, profiles, and monitoring tasks
+- OpenAPI documentation with Scalar UI
 
 ## Installation
 
@@ -24,35 +26,38 @@ The project is API first by design. The included web interface is optional, maki
 > Example docker compose file can be found at [docker-compose.yml](docker-compose.yml)
 > **Be sure to define the volume paths to suit you!**
 
-```
-$ docker compose up
+```bash
+docker compose up
 ```
 
-The front-end will be running at [http://0.0.0.0:3000](http://0.0.0.0:3000) and the API will be running at [http://0.0.0.0:5000](http://0.0.0.0:5000).
+The frontend will be running at [http://localhost](http://localhost) (port 80) and the API at [http://localhost:5000](http://localhost:5000).
 
 ## Configuration
 
 ### Directory Structure
 
 ```
-./data/       # SQLite database
-./downloads/  # Downloaded media files
+./corvin_data/  # SQLite database
+./downloads/    # Downloaded media files
 ```
 
 Both directories are mounted as volumes and persist between container restarts.
 
 ### Environment Variables
 
+#### Backend
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_BASE` | `http://localhost:5000/api` | API URL for the frontend |
+| `TZ` | `UTC` | Timezone for the container |
+| `MAX_SYNC_WORKERS` | `2` | Concurrent list sync operations |
+| `MAX_DOWNLOAD_WORKERS` | `3` | Concurrent video downloads |
 
-### Worker Configuration
+#### Frontend
 
-The backend supports configurable worker pools in `app/__init__.py`:
-
-- `MAX_SYNC_WORKERS`: Concurrent list sync operations (default: 2)
-- `MAX_DOWNLOAD_WORKERS`: Concurrent video downloads (default: 3)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://backend:5000` | Backend API URL (internal Docker network) |
 
 ## API
 
@@ -65,6 +70,8 @@ The REST API is the primary interface. All endpoints are under `/api/`:
 | `/api/videos` | View and manage discovered videos |
 | `/api/tasks` | View task queue and status |
 | `/api/history` | View activity history |
+| `/api/progress` | Real-time download progress (SSE) |
+| `/api/docs` | Interactive API documentation (Scalar) |
 
 Standard REST conventions apply. `GET`, `POST`, `PUT`, `DELETE` where appropriate.
 
@@ -106,7 +113,7 @@ For local development with live reloading:
 docker compose -f docker-compose-dev.yml up
 ```
 
-This mounts source directories and enables debug mode.
+This mounts source directories and enables debug mode. The frontend runs on port 3000 in dev mode.
 
 ### Code Quality
 
@@ -120,34 +127,38 @@ uv run ruff format .
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 
+### Running Tests
+
+```bash
+cd backend
+uv run pytest
+```
+
 ## Architecture
 
-- **Backend**: Flask with SQLAlchemy, APScheduler for periodic tasks, yt-dlp for media extraction
+- **Backend**: Flask, SQLAlchemy, APScheduler for periodic tasks, yt-dlp for media extraction
 - **Frontend**: Next.js with React, Tailwind CSS
-- **Database**: SQLite (stored in `./data/corvin.db`)
+- **Database**: SQLite (stored in `./corvin_data/corvin.db`)
 - **Task Queue**: Custom in-memory queue with persistent task state
+- **Scheduler**: Syncs every 30 minutes, downloads every 5 minutes
+
+## Requirements
+
+- Docker and Docker Compose
+- Python 3.13+ (for local development)
+- Node.js 20+ (for local frontend development)
 
 ## Contributing
 
-I'm thrilled that you’re interested in contributing to this project! Here’s how you can get involved:
+I'm thrilled that you're interested in contributing to this project! Here's how you can get involved:
 
 ### How to Contribute
 
-1. **Submit Issues**:
+1. **Submit Issues**: If you encounter any bugs or have suggestions for improvements, please submit an issue on our [GitHub Issues](https://github.com/dsgnr/corvin/issues) page.
 
-   - If you encounter any bugs or have suggestions for improvements, please submit an issue on our [GitHub Issues](https://github.com/dsgnr/corvin/issues) page.
-   - Provide as much detail as possible, including steps to reproduce and screenshots if applicable.
+2. **Propose Features**: Have a great idea for a new feature? Open a feature request issue in the same [GitHub Issues](https://github.com/dsgnr/corvin/issues) page.
 
-2. **Propose Features**:
-
-   - Have a great idea for a new feature? Open a feature request issue in the same [GitHub Issues](https://github.com/dsgnr/corvin/issues) page.
-   - Describe the feature in detail and explain how it will benefit the project.
-
-3. **Submit Pull Requests**:
-   - Fork the repository and create a new branch for your changes.
-   - Make your modifications and test thoroughly.
-   - Open a pull request against the `devel` branch of the original repository. Include a clear description of your changes and any relevant context.
-
+3. **Submit Pull Requests**: Fork the repository and create a new branch for your changes. Make your modifications and test thoroughly. Open a pull request against the `devel` branch of the original repository.
 
 ## Author
 
