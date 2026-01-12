@@ -1,17 +1,19 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { Video, getVideoListStreamUrl } from './api'
+import { Video, ActiveTasks, getVideoListStreamUrl } from './api'
 
-type VideoListStreamData = Video[] | { status: 'timeout' }
+interface VideoListStreamData {
+  videos: Video[]
+  tasks: ActiveTasks
+}
 
 export function useVideoListStream(
   listId: number,
   enabled: boolean,
-  onUpdate: (videos: Video[]) => void
+  onUpdate: (videos: Video[], tasks: ActiveTasks) => void
 ) {
   const eventSourceRef = useRef<EventSource | null>(null)
   const onUpdateRef = useRef(onUpdate)
 
-  // Keep callback ref updated
   useEffect(() => {
     onUpdateRef.current = onUpdate
   }, [onUpdate])
@@ -19,7 +21,6 @@ export function useVideoListStream(
   const connect = useCallback(() => {
     if (!enabled || !listId) return
 
-    // Close existing connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
     }
@@ -30,14 +31,14 @@ export function useVideoListStream(
 
     eventSource.onmessage = (event) => {
       try {
-        const data: VideoListStreamData = JSON.parse(event.data)
+        const data = JSON.parse(event.data)
         if ('status' in data && data.status === 'timeout') {
-          // Reconnect on timeout
           eventSource.close()
           setTimeout(connect, 1000)
           return
         }
-        onUpdateRef.current(data as Video[])
+        const streamData = data as VideoListStreamData
+        onUpdateRef.current(streamData.videos, streamData.tasks)
       } catch (err) {
         console.error('Failed to parse SSE data:', err)
       }
@@ -45,7 +46,6 @@ export function useVideoListStream(
 
     eventSource.onerror = () => {
       eventSource.close()
-      // Reconnect after a delay
       setTimeout(connect, 3000)
     }
   }, [listId, enabled])

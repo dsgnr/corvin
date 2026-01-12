@@ -229,7 +229,7 @@ export function getProgressStreamUrl(): string {
 }
 
 export function getVideoListStreamUrl(listId: number): string {
-  return `${getApiBase()}/videos/list/${listId}/stream`
+  return `${getApiBase()}/videos/list/${listId}`
 }
 
 export interface SponsorBlockOptions {

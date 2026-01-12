@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { api, VideoList, Video, Profile } from '@/lib/api'
+import { api, VideoList, Video, Profile, ActiveTasks } from '@/lib/api'
 import { useProgress } from '@/lib/ProgressContext'
 import { useVideoListStream } from '@/lib/useVideoListStream'
 import { formatDuration, formatFileSize } from '@/lib/utils'
@@ -35,7 +35,7 @@ function linkifyText(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-  
+
   // Then convert URLs to links
   const urlRegex = /(https?:\/\/[^\s<]+)/g
   return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
@@ -59,49 +59,36 @@ export default function ListDetailPage() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
-  const checkAllTaskStatus = async () => {
-    try {
-      const activeTasks = await api.getActiveTasks({ list_id: listId })
+  // Handle combined SSE stream updates (videos + tasks)
+  const handleStreamUpdate = useCallback((videos: Video[], tasks: ActiveTasks) => {
+    setVideos(videos)
 
-      // Update sync status
-      const isRunning = activeTasks.sync.running.includes(listId)
-      const isQueued = activeTasks.sync.pending.includes(listId)
-      if (isRunning) {
-        setSyncStatus('running')
-      } else if (isQueued) {
-        setSyncStatus('queued')
-      } else {
-        setSyncStatus('idle')
-      }
+    const isRunning = tasks.sync.running.includes(listId)
+    const isQueued = tasks.sync.pending.includes(listId)
 
-      // Update download status (no need to filter by videoIds since backend already did)
-      setRunningDownloadIds(new Set(activeTasks.download.running))
-      setQueuedDownloadIds(new Set(activeTasks.download.pending))
-
-      return { syncStatus: isRunning ? 'running' : isQueued ? 'queued' : 'idle' }
-    } catch {
-      return { syncStatus: 'idle' }
+    if (isRunning) {
+      setSyncStatus('running')
+    } else if (isQueued) {
+      setSyncStatus('queued')
+    } else {
+      setSyncStatus('idle')
     }
-  }
+
+    setRunningDownloadIds(new Set(tasks.download.running))
+    setQueuedDownloadIds(new Set(tasks.download.pending))
+  }, [listId])
+
+  // Use SSE stream for real-time video and task updates
+  useVideoListStream(listId, !loading, handleStreamUpdate)
 
   const fetchData = async () => {
     try {
-      const [listData, profilesData, activeTasks] = await Promise.all([
+      const [listData, profilesData] = await Promise.all([
         api.getList(listId),
         api.getProfiles(),
-        api.getActiveTasks({ list_id: listId }),
       ])
       setList(listData)
       setProfiles(profilesData)
-      
-      // Update sync status
-      const isRunning = activeTasks.sync.running.includes(listId)
-      const isQueued = activeTasks.sync.pending.includes(listId)
-      setSyncStatus(isRunning ? 'running' : isQueued ? 'queued' : 'idle')
-
-      // Update download status (no need to filter since backend already filtered by list_id)
-      setRunningDownloadIds(new Set(activeTasks.download.running))
-      setQueuedDownloadIds(new Set(activeTasks.download.pending))
     } catch (err) {
       console.error('Failed to fetch list:', err)
     } finally {
@@ -109,26 +96,9 @@ export default function ListDetailPage() {
     }
   }
 
-  // Handle SSE video updates
-  const handleVideoStreamUpdate = useCallback((videos: Video[]) => {
-    setVideos(videos)
-  }, [])
-
-  // Use SSE stream for real-time video updates
-  useVideoListStream(listId, !loading, handleVideoStreamUpdate)
-
   useEffect(() => {
     fetchData()
   }, [listId])
-
-  // Poll for task status (sync/download queue status)
-  useEffect(() => {
-    const hasActiveWork = syncStatus !== 'idle' || queuedDownloadIds.size > 0 || runningDownloadIds.size > 0
-    if (!hasActiveWork) return
-    
-    const interval = setInterval(checkAllTaskStatus, 3000)
-    return () => clearInterval(interval)
-  }, [syncStatus, queuedDownloadIds.size, runningDownloadIds.size, listId])
 
   const handleSync = async () => {
     setSyncStatus('queued')
@@ -143,7 +113,7 @@ export default function ListDetailPage() {
   const handleDownloadPending = async () => {
     const pendingVideos = videos.filter(v => !v.downloaded && !v.error_message)
     if (pendingVideos.length === 0) return
-    
+
     setDownloadingPending(true)
     try {
       await Promise.all(pendingVideos.map(v => api.triggerVideoDownload(v.id)))
@@ -157,7 +127,7 @@ export default function ListDetailPage() {
   const handleRetryFailed = async () => {
     const failedVideos = videos.filter(v => !!v.error_message)
     if (failedVideos.length === 0) return
-    
+
     setRetryingFailed(true)
     try {
       await Promise.all(failedVideos.map(v => api.retryVideo(v.id)))
@@ -345,7 +315,7 @@ export default function ListDetailPage() {
           {list.description && (
             <div>
               <h3 className="text-sm font-medium mb-2">Description</h3>
-              <div 
+              <div
                 className="text-sm text-[var(--muted)] whitespace-pre-line prose prose-sm prose-invert max-w-none [&_a]:text-[var(--accent)] [&_a]:underline"
                 dangerouslySetInnerHTML={{ __html: linkifyText(list.description) }}
               />
@@ -601,4 +571,3 @@ function VideoRow({
     </div>
   )
 }
-
