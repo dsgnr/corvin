@@ -209,7 +209,7 @@ export interface HistoryEntry {
   action: string
   entity_type: string
   entity_id: number | null
-  details: string
+  details: Record<string, unknown>
   created_at: string
 }
 

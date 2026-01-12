@@ -1,5 +1,3 @@
-import json
-
 from app.core.logging import get_logger
 from app.extensions import db
 from app.models import History, HistoryAction
@@ -20,7 +18,7 @@ class HistoryService:
             action=action.value,
             entity_type=entity_type,
             entity_id=entity_id,
-            details=json.dumps(details or {}),
+            details=details or {},
         )
         db.session.add(entry)
         db.session.commit()

@@ -32,7 +32,7 @@ class TestHistoryServiceLog:
                 details={"name": "My List", "url": "https://example.com"},
             )
 
-            assert '"name": "My List"' in entry.details
+            assert entry.details.get("name") == "My List"
 
     def test_handles_no_details(self, app):
         """Should handle missing details."""
@@ -43,7 +43,7 @@ class TestHistoryServiceLog:
                 entity_id=1,
             )
 
-            assert entry.details == "{}"
+            assert isinstance(entry.details, dict)
 
     def test_handles_no_entity_id(self, app):
         """Should handle missing entity_id."""

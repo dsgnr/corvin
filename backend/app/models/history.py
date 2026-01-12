@@ -28,7 +28,7 @@ class History(db.Model):
     action: str = db.Column(db.String(50), nullable=False)
     entity_type: str = db.Column(db.String(50), nullable=False)
     entity_id: int | None = db.Column(db.Integer, nullable=True)
-    details: str = db.Column(db.Text, default="{}")
+    details: dict = db.Column(db.JSON, default=dict)
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -37,6 +37,6 @@ class History(db.Model):
             "action": self.action,
             "entity_type": self.entity_type,
             "entity_id": self.entity_id,
-            "details": self.details,
+            "details": self.details or {},
             "created_at": self.created_at.isoformat(),
         }

@@ -78,12 +78,15 @@ export default function HistoryPage() {
     return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
 
-  const parseDetails = (details: string): Record<string, unknown> => {
-    try {
-      return JSON.parse(details)
-    } catch {
-      return {}
+  const getDetails = (details: Record<string, unknown> | string): Record<string, unknown> => {
+    if (typeof details === 'string') {
+      try {
+        return JSON.parse(details)
+      } catch {
+        return {}
+      }
     }
+    return details || {}
   }
 
   if (loading) {
@@ -127,7 +130,7 @@ export default function HistoryPage() {
             paginatedEntries.map(entry => {
               const ActionIcon = actionIcons[entry.action] || RefreshCw
               const EntityIcon = entityIcons[entry.entity_type] || Film
-              const details = parseDetails(entry.details)
+              const details = getDetails(entry.details)
               const isError = entry.action.includes('failed')
               const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
 
