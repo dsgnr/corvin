@@ -78,7 +78,11 @@ def _execute_sync(list_id: int) -> dict:
                 HistoryService.log(
                     HistoryAction.VIDEO_DISCOVERED,
                     "video",
-                    details={"title": video_data["title"], "list_id": video_list.id},
+                    details={
+                        "name": video_list.name,
+                        "title": video_data["title"],
+                        "list_id": video_list.id,
+                    },
                 )
             except Exception:
                 db.session.rollback()
@@ -147,7 +151,7 @@ def _execute_download(video_id: int) -> dict:
         HistoryAction.VIDEO_DOWNLOAD_STARTED,
         "video",
         video.id,
-        {"title": video.title},
+        {"name": video.video_list.name, "title": video.title},
     )
 
     success, result, labels = YtDlpService.download_video(video, profile)
