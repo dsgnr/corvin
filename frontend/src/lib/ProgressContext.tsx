@@ -1,23 +1,51 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  ReactNode,
+} from 'react'
 import { DownloadProgress, ProgressMap, getProgressStreamUrl } from './api'
 
-const ProgressContext = createContext<ProgressMap>({})
+interface ProgressContextValue {
+  progress: ProgressMap
+  subscribe: () => () => void
+}
+
+const ProgressContext = createContext<ProgressContextValue>({
+  progress: {},
+  subscribe: () => () => {},
+})
 
 export function useProgress(videoId: number): DownloadProgress | null {
-  const progress = useContext(ProgressContext)
+  const { progress, subscribe } = useContext(ProgressContext)
+
+  useEffect(() => {
+    return subscribe()
+  }, [subscribe])
+
   return progress[videoId] || null
 }
 
 export function useProgressMap(): ProgressMap {
-  return useContext(ProgressContext)
+  const { progress, subscribe } = useContext(ProgressContext)
+
+  useEffect(() => {
+    return subscribe()
+  }, [subscribe])
+
+  return progress
 }
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState<ProgressMap>({})
   const sourceRef = useRef<EventSource | null>(null)
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const subscriberCount = useRef(0)
 
   const connect = useCallback(() => {
     if (sourceRef.current) return
@@ -29,10 +57,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       try {
         const data = JSON.parse(e.data)
         if (data.status === 'timeout') {
-          // Server timed out, reconnect
           source.close()
           sourceRef.current = null
-          reconnectTimeout.current = setTimeout(connect, 1000)
+          if (subscriberCount.current > 0) {
+            reconnectTimeout.current = setTimeout(connect, 1000)
+          }
         } else {
           setProgress(data as ProgressMap)
         }
@@ -44,20 +73,47 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     source.onerror = () => {
       source.close()
       sourceRef.current = null
-      // Reconnect after a delay
-      reconnectTimeout.current = setTimeout(connect, 2000)
+      if (subscriberCount.current > 0) {
+        reconnectTimeout.current = setTimeout(connect, 2000)
+      }
     }
   }, [])
 
-  useEffect(() => {
-    connect()
-
-    return () => {
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current)
-      sourceRef.current?.close()
+  const disconnect = useCallback(() => {
+    if (reconnectTimeout.current) {
+      clearTimeout(reconnectTimeout.current)
+      reconnectTimeout.current = null
+    }
+    if (sourceRef.current) {
+      sourceRef.current.close()
       sourceRef.current = null
     }
-  }, [connect])
+    setProgress({})
+  }, [])
 
-  return <ProgressContext.Provider value={progress}>{children}</ProgressContext.Provider>
+  const subscribe = useCallback(() => {
+    subscriberCount.current++
+    if (subscriberCount.current === 1) {
+      connect()
+    }
+
+    return () => {
+      subscriberCount.current--
+      if (subscriberCount.current === 0) {
+        disconnect()
+      }
+    }
+  }, [connect, disconnect])
+
+  useEffect(() => {
+    return () => {
+      disconnect()
+    }
+  }, [disconnect])
+
+  return (
+    <ProgressContext.Provider value={{ progress, subscribe }}>
+      {children}
+    </ProgressContext.Provider>
+  )
 }

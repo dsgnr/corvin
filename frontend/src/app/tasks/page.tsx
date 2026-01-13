@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, Task, TaskStats, getTaskStatsStreamUrl } from '@/lib/api'
+import { api, Task, TaskStats, getTaskStatsStreamUrl, getTasksStreamUrl } from '@/lib/api'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, Clock, Play, RotateCcw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -16,21 +16,26 @@ export default function TasksPage() {
   const [triggering, setTriggering] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const fetchTasks = async () => {
-    try {
-      const tasksData = await api.getTasks({ limit: 100 })
-      setTasks(tasksData)
-    } catch (err) {
-      console.error('Failed to fetch tasks:', err)
-    } finally {
+  useEffect(() => {
+    const eventSource = new EventSource(getTasksStreamUrl({ limit: 100 }))
+
+    eventSource.onmessage = (event) => {
+      const data: Task[] = JSON.parse(event.data)
+      setTasks(data)
       setLoading(false)
     }
-  }
 
-  useEffect(() => {
-    fetchTasks()
-    const interval = setInterval(fetchTasks, 5000)
-    return () => clearInterval(interval)
+    eventSource.onerror = () => {
+      api.getTasks({ limit: 100 }).then(data => {
+        setTasks(data)
+        setLoading(false)
+      }).catch(console.error)
+      eventSource.close()
+    }
+
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   useEffect(() => {
@@ -55,7 +60,6 @@ export default function TasksPage() {
     setTriggering(true)
     try {
       await api.triggerPendingDownloads()
-      await fetchTasks()
     } catch (err) {
       console.error('Failed to trigger downloads:', err)
     } finally {
@@ -66,7 +70,6 @@ export default function TasksPage() {
   const handleRetry = async (taskId: number) => {
     try {
       await api.retryTask(taskId)
-      await fetchTasks()
     } catch (err) {
       console.error('Failed to retry task:', err)
     }
