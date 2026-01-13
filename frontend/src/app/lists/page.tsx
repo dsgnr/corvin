@@ -13,6 +13,7 @@ export default function ListsPage() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set())
+  const [syncingAll, setSyncingAll] = useState(false)
   const [search, setSearch] = useState('')
 
   const checkSyncStatus = async () => {
@@ -78,6 +79,18 @@ export default function ListsPage() {
     }
   }
 
+  const handleSyncAll = async () => {
+    setSyncingAll(true)
+    try {
+      await api.triggerAllSyncs()
+      await checkSyncStatus()
+    } catch (err) {
+      console.error('Failed to sync all:', err)
+    } finally {
+      setSyncingAll(false)
+    }
+  }
+
   const handleDelete = async (list: VideoList) => {
     if (!confirm(`Delete "${list.name}"? This will also delete all associated videos.`)) return
     try {
@@ -133,6 +146,16 @@ export default function ListsPage() {
                 className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
               />
             </div>
+            {lists.length > 0 && (
+              <button
+                onClick={handleSyncAll}
+                disabled={syncingAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--foreground)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={syncingAll ? 'animate-spin' : ''} />
+                Sync All
+              </button>
+            )}
             {editingId !== 'new' && (
               <button
                 onClick={() => setEditingId('new')}
