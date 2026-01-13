@@ -18,7 +18,7 @@ class TaskWorker:
         self,
         app: Flask,
         max_sync_workers: int = 2,
-        max_download_workers: int = 3,
+        max_download_workers: int = 2,
         poll_interval: float = 30.0,
     ):
         self.app = app
