@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, TaskStats, Task, VideoList } from '@/lib/api'
+import { api, TaskStats, Task, VideoList, getTaskStatsStreamUrl } from '@/lib/api'
 import { RefreshCw, Play, Download, ListVideo, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -15,12 +15,10 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [statsData, tasksData, listsData] = await Promise.all([
-        api.getTaskStats(),
+      const [tasksData, listsData] = await Promise.all([
         api.getTasks({ limit: 5 }),
         api.getLists(),
       ])
-      setStats(statsData)
       setRecentTasks(tasksData)
       setLists(listsData)
     } catch (err) {
@@ -34,6 +32,24 @@ export default function Dashboard() {
     fetchData()
     const interval = setInterval(fetchData, 10000)
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const eventSource = new EventSource(getTaskStatsStreamUrl())
+
+    eventSource.onmessage = (event) => {
+      const data: TaskStats = JSON.parse(event.data)
+      setStats(data)
+    }
+
+    eventSource.onerror = () => {
+      api.getTaskStats().then(setStats).catch(console.error)
+      eventSource.close()
+    }
+
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   const handleSyncAll = async () => {

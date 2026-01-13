@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, Task, TaskStats } from '@/lib/api'
+import { api, Task, TaskStats, getTaskStatsStreamUrl } from '@/lib/api'
 import { Download, RefreshCw, Loader2, CheckCircle, XCircle, Clock, Play, RotateCcw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -16,14 +16,10 @@ export default function TasksPage() {
   const [triggering, setTriggering] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const fetchData = async () => {
+  const fetchTasks = async () => {
     try {
-      const [tasksData, statsData] = await Promise.all([
-        api.getTasks({ limit: 100 }),
-        api.getTaskStats(),
-      ])
+      const tasksData = await api.getTasks({ limit: 100 })
       setTasks(tasksData)
-      setStats(statsData)
     } catch (err) {
       console.error('Failed to fetch tasks:', err)
     } finally {
@@ -32,16 +28,34 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 5000)
+    fetchTasks()
+    const interval = setInterval(fetchTasks, 5000)
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const eventSource = new EventSource(getTaskStatsStreamUrl())
+
+    eventSource.onmessage = (event) => {
+      const data: TaskStats = JSON.parse(event.data)
+      setStats(data)
+    }
+
+    eventSource.onerror = () => {
+      api.getTaskStats().then(setStats).catch(console.error)
+      eventSource.close()
+    }
+
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   const handleDownloadPending = async () => {
     setTriggering(true)
     try {
       await api.triggerPendingDownloads()
-      await fetchData()
+      await fetchTasks()
     } catch (err) {
       console.error('Failed to trigger downloads:', err)
     } finally {
@@ -52,7 +66,7 @@ export default function TasksPage() {
   const handleRetry = async (taskId: number) => {
     try {
       await api.retryTask(taskId)
-      await fetchData()
+      await fetchTasks()
     } catch (err) {
       console.error('Failed to retry task:', err)
     }

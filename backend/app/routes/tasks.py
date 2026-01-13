@@ -129,29 +129,120 @@ def get_task_logs(path: TaskPath):
     return jsonify([log.to_dict() for log in logs])
 
 
-@bp.get("/stats")
-def task_stats():
-    """Get task queue statistics."""
-    stats = {
-        "pending_sync": Task.query.filter_by(
-            task_type=TaskType.SYNC.value, status=TaskStatus.PENDING.value
-        ).count(),
-        "pending_download": Task.query.filter_by(
-            task_type=TaskType.DOWNLOAD.value, status=TaskStatus.PENDING.value
-        ).count(),
-        "running_sync": Task.query.filter_by(
-            task_type=TaskType.SYNC.value, status=TaskStatus.RUNNING.value
-        ).count(),
-        "running_download": Task.query.filter_by(
-            task_type=TaskType.DOWNLOAD.value, status=TaskStatus.RUNNING.value
-        ).count(),
+def _get_stats_counts() -> dict:
+    """Get all task stats in a single query using conditional aggregation."""
+    result = (
+        db.session.query(
+            func.sum(
+                db.case(
+                    (
+                        db.and_(
+                            Task.task_type == TaskType.SYNC.value,
+                            Task.status == TaskStatus.PENDING.value,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("pending_sync"),
+            func.sum(
+                db.case(
+                    (
+                        db.and_(
+                            Task.task_type == TaskType.DOWNLOAD.value,
+                            Task.status == TaskStatus.PENDING.value,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("pending_download"),
+            func.sum(
+                db.case(
+                    (
+                        db.and_(
+                            Task.task_type == TaskType.SYNC.value,
+                            Task.status == TaskStatus.RUNNING.value,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("running_sync"),
+            func.sum(
+                db.case(
+                    (
+                        db.and_(
+                            Task.task_type == TaskType.DOWNLOAD.value,
+                            Task.status == TaskStatus.RUNNING.value,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("running_download"),
+        )
+        .filter(Task.status.in_([TaskStatus.PENDING.value, TaskStatus.RUNNING.value]))
+        .first()
+    )
+    return {
+        "pending_sync": result.pending_sync or 0,
+        "pending_download": result.pending_download or 0,
+        "running_sync": result.running_sync or 0,
+        "running_download": result.running_download or 0,
     }
 
-    worker = get_worker()
-    if worker:
-        stats["worker"] = worker.get_stats()
 
-    return jsonify(stats)
+@bp.get("/stats")
+def task_stats():
+    """Get task queue statistics.
+
+    If Accept header is 'text/event-stream', streams updates via SSE.
+    Otherwise returns JSON object of stats.
+    """
+    # Regular JSON response (early return)
+    if request.accept_mimetypes.best != "text/event-stream":
+        stats = _get_stats_counts()
+        worker = get_worker()
+        if worker:
+            stats["worker"] = worker.get_stats()
+        return jsonify(stats)
+
+    # SSE stream
+    app = current_app._get_current_object()
+
+    def generate():
+        last_counts = None
+        heartbeat_counter = 0
+
+        while True:
+            with app.app_context():
+                counts = _get_stats_counts()
+                fingerprint = tuple(counts.values())
+
+                if fingerprint != last_counts:
+                    worker = get_worker()
+                    if worker:
+                        counts["worker"] = worker.get_stats()
+                    yield f"data: {json.dumps(counts, default=str)}\n\n"
+                    last_counts = fingerprint
+                    heartbeat_counter = 0
+                else:
+                    heartbeat_counter += 1
+                    if heartbeat_counter >= 30:
+                        yield ": heartbeat\n\n"
+                        heartbeat_counter = 0
+
+            time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @bp.get("/active")

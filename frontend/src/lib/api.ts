@@ -254,6 +254,10 @@ export function getHistoryStreamUrl(params?: {
   return `${getApiBase()}/history${queryStr ? `?${queryStr}` : ''}`
 }
 
+export function getTaskStatsStreamUrl(): string {
+  return `${getApiBase()}/tasks/stats`
+}
+
 export interface SponsorBlockOptions {
   behaviors: string[]
   categories: string[]
