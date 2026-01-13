@@ -51,7 +51,7 @@ Both directories are mounted as volumes and persist between container restarts.
 |----------|---------|-------------|
 | `TZ` | `UTC` | Timezone for the container |
 | `MAX_SYNC_WORKERS` | `2` | Concurrent list sync operations |
-| `MAX_DOWNLOAD_WORKERS` | `3` | Concurrent video downloads |
+| `MAX_DOWNLOAD_WORKERS` | `2` | Concurrent video downloads |
 
 #### Frontend
 

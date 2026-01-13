@@ -68,7 +68,7 @@ def _configure_app(app: OpenAPI, config: dict | None) -> None:
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////data/corvin.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_SYNC_WORKERS"] = int(os.getenv("MAX_SYNC_WORKERS", "2"))
-    app.config["MAX_DOWNLOAD_WORKERS"] = int(os.getenv("MAX_DOWNLOAD_WORKERS", "3"))
+    app.config["MAX_DOWNLOAD_WORKERS"] = int(os.getenv("MAX_DOWNLOAD_WORKERS", "2"))
 
     if config:
         app.config.update(config)
