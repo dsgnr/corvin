@@ -225,7 +225,7 @@ export interface DownloadProgress {
 export type ProgressMap = Record<number, DownloadProgress>
 
 export function getProgressStreamUrl(): string {
-  return `${getApiBase()}/progress/stream`
+  return `${getApiBase()}/progress`
 }
 
 export function getVideoListStreamUrl(listId: number): string {
