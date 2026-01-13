@@ -42,7 +42,7 @@ def create_app(config: dict | None = None) -> OpenAPI:
     app.url_map.strict_slashes = False
     _configure_app(app, config)
 
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {"origins": "*", "max_age": 86400}})
     db.init_app(app)
     migrate.init_app(app, db)
     init_metrics(app)
