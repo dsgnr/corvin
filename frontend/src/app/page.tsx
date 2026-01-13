@@ -138,7 +138,7 @@ export default function Dashboard() {
                       {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name}
                     </p>
                     <p className="text-xs text-[var(--muted)]">
-                      {new Date(task.created_at).toLocaleString()}
+                      {new Date(task.created_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}
                     </p>
                   </div>
                 </div>

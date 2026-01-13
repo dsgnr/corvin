@@ -500,7 +500,7 @@ function VideoRow({
           </span>
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
-            <span>{new Date(video.upload_date).toLocaleDateString()}</span>
+            <span>{new Date(video.upload_date).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
           )}
           {hasLabels && (
             <div className="flex items-center gap-1.5">

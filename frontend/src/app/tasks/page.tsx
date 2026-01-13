@@ -183,8 +183,9 @@ function TaskRow({ task, onRetry }: { task: Task; onRetry: () => void }) {
               {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name || `#${task.entity_id}`}
             </p>
             <p className="text-xs text-[var(--muted)]">
-              {new Date(task.created_at).toLocaleString()}
-              {task.completed_at && ` • Completed ${new Date(task.completed_at).toLocaleString()}`}
+              Started {new Date(task.created_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}
+
+              {task.completed_at && ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}`}
             </p>
           </div>
         </div>

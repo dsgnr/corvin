@@ -159,13 +159,13 @@ export default function HistoryPage() {
                     </div>
                     {Object.keys(details).length > 0 && (
                       <p className="text-xs text-[var(--muted)] mt-1">
-                        {'name' in details && <span>{String(details.name)}</span>}
+                        {'name' in details && <span className="pr-1 after:content-['•'] after:ml-1">{String(details.name)}</span>}
                         {'title' in details && <span>{String(details.title)}</span>}
                         {'url' in details && <span className="truncate block">{String(details.url)}</span>}
                       </p>
                     )}
                     <p className="text-xs text-[var(--muted)] mt-1">
-                      {new Date(entry.created_at).toLocaleString()}
+                      {new Date(entry.created_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}
                     </p>
                   </div>
                 </div>
