@@ -19,6 +19,8 @@ import {
   CircleSlash,
   Edit2,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
@@ -58,6 +60,7 @@ export default function ListDetailPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
 
   // Handle combined SSE stream updates (videos + tasks)
   const handleStreamUpdate = useCallback((videos: Video[], tasks: ActiveTasks) => {
@@ -315,10 +318,33 @@ export default function ListDetailPage() {
           {list.description && (
             <div>
               <h3 className="text-sm font-medium mb-2">Description</h3>
-              <div
-                className="text-sm text-[var(--muted)] whitespace-pre-line prose prose-sm prose-invert max-w-none [&_a]:text-[var(--accent)] [&_a]:underline"
-                dangerouslySetInnerHTML={{ __html: linkifyText(list.description) }}
-              />
+              <div className="relative">
+                <div
+                  className={clsx(
+                    'text-sm text-[var(--muted)] whitespace-pre-line prose prose-sm prose-invert max-w-none [&_a]:text-[var(--accent)] [&_a]:underline overflow-hidden transition-all',
+                    !descriptionExpanded && 'max-h-[3em]'
+                  )}
+                  dangerouslySetInnerHTML={{ __html: linkifyText(list.description) }}
+                />
+                {list.description.split('\n').length > 3 || list.description.length > 300 ? (
+                  <button
+                    onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                    className="flex items-center gap-1 text-xs text-[var(--accent)] hover:underline mt-2"
+                  >
+                    {descriptionExpanded ? (
+                      <>
+                        <ChevronUp size={14} />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={14} />
+                        Show more
+                      </>
+                    )}
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
           {list.tags && list.tags.length > 0 && (
