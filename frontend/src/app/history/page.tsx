@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { api, HistoryEntry, getHistoryStreamUrl } from '@/lib/api'
-import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2 } from 'lucide-react'
+import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   profile_created: Plus,
@@ -33,6 +33,8 @@ export default function HistoryPage() {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [search, setSearch] = useState('')
+  const [pageSize, setPageSize] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
@@ -62,17 +64,26 @@ export default function HistoryPage() {
   }, [])
 
   const filteredEntries = entries.filter(e => {
-    if (filter === 'all') return true
-    return e.entity_type === filter
+    if (filter !== 'all' && e.entity_type !== filter) return false
+    if (search) {
+      const searchLower = search.toLowerCase()
+      const details = typeof e.details === 'string' ? e.details : JSON.stringify(e.details)
+      return (
+        e.action.toLowerCase().includes(searchLower) ||
+        e.entity_type.toLowerCase().includes(searchLower) ||
+        details.toLowerCase().includes(searchLower)
+      )
+    }
+    return true
   })
 
-  const totalPages = Math.ceil(filteredEntries.length / PAGE_SIZE)
-  const paginatedEntries = filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.ceil(filteredEntries.length / pageSize)
+  const paginatedEntries = filteredEntries.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-  // Reset to page 1 when filter changes
+  // Reset to page 1 when filter or search changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [filter])
+  }, [filter, search])
 
   const formatAction = (action: string) => {
     return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -104,21 +115,47 @@ export default function HistoryPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2">
-        {['all', 'profile', 'list', 'video'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={clsx(
-              'px-3 py-1.5 text-sm rounded-md transition-colors',
-              filter === f
-                ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)] border border-[var(--border)]'
-            )}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex gap-2">
+          {['all', 'profile', 'list', 'video'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={clsx(
+                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                filter === f
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)] border border-[var(--border)]'
+              )}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              type="text"
+              placeholder="Search history..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+            />
+          </div>
+          <select
+            value={pageSize}
+            onChange={e => {
+              setPageSize(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-3 py-1.5 text-sm bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] cursor-pointer appearance-none pr-8 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M3%204.5L6%208l3-3.5H3z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
           >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size} rows</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Entries */}

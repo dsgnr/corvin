@@ -13,17 +13,23 @@ export default function ListsPage() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set())
+  const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [syncingAll, setSyncingAll] = useState(false)
   const [search, setSearch] = useState('')
 
   const checkSyncStatus = async () => {
     try {
-      const tasks = await api.getTasks({ type: 'sync', status: 'running' })
-      const runningIds = new Set(tasks.map(t => t.entity_id))
+      const [runningTasks, pendingTasks] = await Promise.all([
+        api.getTasks({ type: 'sync', status: 'running' }),
+        api.getTasks({ type: 'sync', status: 'pending' }),
+      ])
+      const runningIds = new Set(runningTasks.map(t => t.entity_id))
+      const pendingIds = new Set(pendingTasks.map(t => t.entity_id))
       setSyncingIds(runningIds)
-      return runningIds
+      setQueuedIds(pendingIds)
+      return { runningIds, pendingIds }
     } catch {
-      return new Set<number>()
+      return { runningIds: new Set<number>(), pendingIds: new Set<number>() }
     }
   }
 
@@ -47,12 +53,12 @@ export default function ListsPage() {
     fetchData()
   }, [])
 
-  // Poll for sync status while any list is syncing
+  // Poll for sync status while any list is syncing or queued
   useEffect(() => {
-    if (syncingIds.size === 0) return
+    if (syncingIds.size === 0 && queuedIds.size === 0) return
     const interval = setInterval(async () => {
-      const stillRunning = await checkSyncStatus()
-      if (stillRunning.size === 0) {
+      const { runningIds, pendingIds } = await checkSyncStatus()
+      if (runningIds.size === 0 && pendingIds.size === 0) {
         // Only refetch lists data, not profiles (they don't change during sync)
         const listsData = await api.getLists()
         setLists(prev => {
@@ -63,15 +69,16 @@ export default function ListsPage() {
       }
     }, 3000)
     return () => clearInterval(interval)
-  }, [syncingIds.size])
+  }, [syncingIds.size, queuedIds.size])
 
   const handleSync = async (listId: number) => {
-    setSyncingIds(prev => new Set(prev).add(listId))
+    setQueuedIds(prev => new Set(prev).add(listId))
     try {
       await api.triggerListSync(listId)
+      await checkSyncStatus()
     } catch (err) {
       console.error('Failed to sync:', err)
-      setSyncingIds(prev => {
+      setQueuedIds(prev => {
         const next = new Set(prev)
         next.delete(listId)
         return next
@@ -116,11 +123,13 @@ export default function ListsPage() {
     }
   }
 
-  const filteredLists = lists.filter(list => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return list.name?.toLowerCase().includes(searchLower)
-  })
+  const filteredLists = lists
+    .filter(list => {
+      if (!search) return true
+      const searchLower = search.toLowerCase()
+      return list.name?.toLowerCase().includes(searchLower)
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
   if (loading) {
     return (
@@ -206,6 +215,7 @@ export default function ListsPage() {
                   list={list}
                   profiles={profiles}
                   syncing={syncingIds.has(list.id)}
+                  queued={queuedIds.has(list.id)}
                   onSync={() => handleSync(list.id)}
                   onEdit={() => setEditingId(list.id)}
                   onDelete={() => handleDelete(list)}
@@ -219,10 +229,11 @@ export default function ListsPage() {
   )
 }
 
-function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
+function ListCard({ list, profiles, syncing, queued, onSync, onEdit, onDelete }: {
   list: VideoList
   profiles: Profile[]
   syncing: boolean
+  queued: boolean
   onSync: () => void
   onEdit: () => void
   onDelete: () => void
@@ -280,23 +291,24 @@ function ListCard({ list, profiles, syncing, onSync, onEdit, onDelete }: {
                 {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
                 <ExternalLink size={12} />
               </a>
-              <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted)]">
-                <span>Profile: {profile?.name || 'Unknown'}</span>
+              <div className="flex items-center mt-2 text-xs text-[var(--muted)]">
+                <span className="after:content-['•'] after:ml-2 mr-2">Profile: {profile?.name || 'Unknown'}</span>
                 <span className="capitalize">Sync: {list.sync_frequency}</span>
                 {list.last_synced && (
-                  <span>Last synced: {new Date(list.last_synced).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
+                  <span className="before:content-['•'] before:ml-2 before:mr-2 capitalize">Last synced: {new Date(list.last_synced).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2 ml-4">
               <button
                 onClick={onSync}
-                disabled={syncing}
+                disabled={syncing || queued}
                 className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
                 title="Sync now"
               >
                 <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
                 {syncing && <span className="text-xs">Syncing</span>}
+                {queued && !syncing && <span className="text-xs">Queued</span>}
               </button>
               <button
                 onClick={onEdit}

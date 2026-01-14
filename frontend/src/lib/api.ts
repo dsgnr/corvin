@@ -84,6 +84,22 @@ export const api = {
   triggerPendingDownloads: () =>
     request<{ queued: number; skipped: number }>('/tasks/download/pending', { method: 'POST' }),
   retryTask: (id: number) => request<Task>(`/tasks/${id}/retry`, { method: 'POST' }),
+  pauseTask: (id: number) => request<Task>(`/tasks/${id}/pause`, { method: 'POST' }),
+  resumeTask: (id: number) => request<Task>(`/tasks/${id}/resume`, { method: 'POST' }),
+  cancelTask: (id: number) => request<Task>(`/tasks/${id}/cancel`, { method: 'POST' }),
+  pauseTasks: (taskIds: number[]) =>
+    request<BulkTaskResult>('/tasks/pause', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
+  resumeTasks: (taskIds: number[]) =>
+    request<BulkTaskResult>('/tasks/resume', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
+  cancelTasks: (taskIds: number[]) =>
+    request<BulkTaskResult>('/tasks/cancel', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
+  pauseAllTasks: () => request<BulkTaskResult>('/tasks/pause/all', { method: 'POST' }),
+  resumeAllTasks: () => request<BulkTaskResult>('/tasks/resume/all', { method: 'POST' }),
+  cancelAllTasks: () => request<BulkTaskResult>('/tasks/cancel/all', { method: 'POST' }),
+  pauseSyncTasks: () => request<BulkTaskResult>('/tasks/pause/sync', { method: 'POST' }),
+  resumeSyncTasks: () => request<BulkTaskResult>('/tasks/resume/sync', { method: 'POST' }),
+  pauseDownloadTasks: () => request<BulkTaskResult>('/tasks/pause/download', { method: 'POST' }),
+  resumeDownloadTasks: () => request<BulkTaskResult>('/tasks/resume/download', { method: 'POST' }),
 
   // History
   getHistory: (params?: { limit?: number; entity_type?: string; action?: string }) => {
@@ -196,12 +212,25 @@ export interface TaskStats {
   pending_download: number
   running_sync: number
   running_download: number
-  worker?: Record<string, unknown>
+  worker?: {
+    running_sync: number
+    running_download: number
+    max_sync_workers: number
+    max_download_workers: number
+    paused: boolean
+    sync_paused: boolean
+    download_paused: boolean
+  }
 }
 
 export interface ActiveTasks {
   sync: { pending: number[]; running: number[] }
   download: { pending: number[]; running: number[] }
+}
+
+export interface BulkTaskResult {
+  affected: number
+  skipped: number
 }
 
 export interface HistoryEntry {

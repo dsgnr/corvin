@@ -92,7 +92,7 @@ export default function Dashboard() {
           <button
             onClick={handleSyncAll}
             disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--foreground)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sync All
@@ -160,9 +160,11 @@ export default function Dashboard() {
                 </div>
                 <span className={clsx(
                   'text-xs px-2 py-1 rounded',
+                  task.status === 'cancelled' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
                   task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
                   task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
                   task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
+                  task.status === 'paused' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
                   task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]'
                 )}>
                   {task.status === 'pending' ? 'queued' : task.status}
@@ -204,6 +206,8 @@ function TaskStatusIcon({ status }: { status: string }) {
       return <XCircle size={18} className="text-[var(--error)]" />
     case 'running':
       return <Loader2 size={18} className="text-[var(--accent)] animate-spin" />
+    case 'cancelled':
+      return <XCircle size={18} className="text-[var(--muted)]" />
     default:
       return <Clock size={18} className="text-[var(--warning)]" />
   }
