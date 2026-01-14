@@ -328,8 +328,8 @@ def trigger_lists_sync(body: BulkSyncRequest):
 @bp.post("/sync/all")
 def trigger_all_syncs():
     """Trigger sync for all enabled lists."""
-    result = schedule_syncs()
-    logger.info("Triggered sync for all lists: %d queued", result["queued"])
+    result = schedule_syncs(force=True)
+    logger.info("Force triggered a sync for all lists: %d queued", result["queued"])
     return jsonify({"queued": result["queued"], "skipped": result["skipped"]}), 202
 
 

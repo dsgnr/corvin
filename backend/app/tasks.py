@@ -304,7 +304,7 @@ def enqueue_tasks_bulk(
     }
 
 
-def schedule_syncs(list_ids: list[int] | None = None) -> dict:
+def schedule_syncs(list_ids: list[int] | None = None, force: bool = False) -> dict:
     """
     Queue sync tasks for specified lists or all enabled lists that are due.
     Returns dict with queued/skipped counts.
@@ -317,12 +317,15 @@ def schedule_syncs(list_ids: list[int] | None = None) -> dict:
         lists = VideoList.query.filter(
             VideoList.id.in_(list_ids), VideoList.enabled.is_(True)
         ).all()
-        ids_to_queue = [vl.id for vl in lists]
     else:
         # All enabled lists that are due for sync based on their frequency
         lists = VideoList.query.filter_by(enabled=True).all()
-        ids_to_queue = [vl.id for vl in lists if vl.is_due_for_sync()]
 
+    if force:
+        ids_to_queue = [vl.id for vl in lists]
+    else:
+        ids_to_queue = [vl.id for vl in lists if vl.is_due_for_sync()]
+    print(ids_to_queue)
     if not ids_to_queue:
         return {"queued": 0, "skipped": 0, "tasks": []}
 
