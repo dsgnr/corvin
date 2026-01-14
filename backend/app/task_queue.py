@@ -11,6 +11,11 @@ from app.core.logging import get_logger
 logger = get_logger("task_queue")
 
 
+SETTING_WORKER_PAUSED = "worker_paused"
+SETTING_SYNC_PAUSED = "sync_paused"
+SETTING_DOWNLOAD_PAUSED = "download_paused"
+
+
 class TaskWorker:
     """Task queue with thread pool workers. Uses SQLite for backend"""
 
@@ -76,6 +81,63 @@ class TaskWorker:
         """Signal that new tasks are available for processing."""
         self._task_event.set()
 
+    def pause(self, task_type: str | None = None) -> None:
+        """Pause the worker from picking up new tasks (persisted to DB).
+
+        Args:
+            task_type: 'sync', 'download', or None for all
+        """
+        from app.models.settings import Settings
+
+        with self.app.app_context():
+            if task_type == "sync":
+                Settings.set_bool(SETTING_SYNC_PAUSED, True)
+                logger.info("Sync tasks paused")
+            elif task_type == "download":
+                Settings.set_bool(SETTING_DOWNLOAD_PAUSED, True)
+                logger.info("Download tasks paused")
+            else:
+                Settings.set_bool(SETTING_WORKER_PAUSED, True)
+                logger.info("All tasks paused")
+
+    def resume(self, task_type: str | None = None) -> None:
+        """Resume the worker to pick up new tasks (persisted to DB).
+
+        Args:
+            task_type: 'sync', 'download', or None for all
+        """
+        from app.models.settings import Settings
+
+        with self.app.app_context():
+            if task_type == "sync":
+                Settings.set_bool(SETTING_SYNC_PAUSED, False)
+                logger.info("Sync tasks resumed")
+            elif task_type == "download":
+                Settings.set_bool(SETTING_DOWNLOAD_PAUSED, False)
+                logger.info("Download tasks resumed")
+            else:
+                Settings.set_bool(SETTING_WORKER_PAUSED, False)
+                logger.info("All tasks resumed")
+        self._task_event.set()  # Wake up to process pending tasks
+
+    def is_paused(self, task_type: str | None = None) -> bool:
+        """Check if the worker is paused (from DB).
+
+        Args:
+            task_type: 'sync', 'download', or None for global pause
+        """
+        from app.models.settings import Settings
+
+        with self.app.app_context():
+            # Global pause takes precedence
+            if Settings.get_bool(SETTING_WORKER_PAUSED, False):
+                return True
+            if task_type == "sync":
+                return Settings.get_bool(SETTING_SYNC_PAUSED, False)
+            if task_type == "download":
+                return Settings.get_bool(SETTING_DOWNLOAD_PAUSED, False)
+            return False
+
     def _poll_loop(self) -> None:
         """Main loop that waits for task notifications or periodic fallback."""
         while not self._shutdown:
@@ -90,10 +152,14 @@ class TaskWorker:
     def _process_pending_tasks(self) -> None:
         """Check for pending tasks and submit to executors."""
         with self.app.app_context():
-            self._process_task_type("sync", self._sync_executor, self.max_sync_workers)
-            self._process_task_type(
-                "download", self._download_executor, self.max_download_workers
-            )
+            if not self.is_paused("sync"):
+                self._process_task_type(
+                    "sync", self._sync_executor, self.max_sync_workers
+                )
+            if not self.is_paused("download"):
+                self._process_task_type(
+                    "download", self._download_executor, self.max_download_workers
+                )
 
     def _process_task_type(
         self,
@@ -254,6 +320,9 @@ class TaskWorker:
                 "running_download": self._running_download,
                 "max_sync_workers": self.max_sync_workers,
                 "max_download_workers": self.max_download_workers,
+                "paused": self.is_paused(),
+                "sync_paused": self.is_paused("sync"),
+                "download_paused": self.is_paused("download"),
             }
 
 

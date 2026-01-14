@@ -8,9 +8,11 @@ from app.models.video_list import VideoList
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
+    PAUSED = "paused"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class TaskType(str, Enum):

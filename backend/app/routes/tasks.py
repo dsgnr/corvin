@@ -14,6 +14,7 @@ from app.schemas.tasks import (
     ActiveTasksQuery,
     BulkDownloadRequest,
     BulkSyncRequest,
+    BulkTaskIdsRequest,
     ListIdPath,
     TaskLogsQuery,
     TaskPath,
@@ -28,15 +29,20 @@ tag = Tag(name="Tasks", description="Background task management")
 bp = APIBlueprint("tasks", __name__, url_prefix="/api/tasks", abp_tags=[tag])
 
 
-def _get_tasks_fingerprint(task_type: str | None, status: str | None) -> tuple:
-    """Get fingerprint for change detection."""
-    q = db.session.query(func.count(Task.id), func.max(Task.created_at))
+def _get_tasks_fingerprint(
+    task_type: str | None, status: str | None, limit: int | None
+) -> str:
+    """Get fingerprint for change detection based on task statuses."""
+    q = Task.query.order_by(Task.created_at.desc())
     if task_type:
-        q = q.filter(Task.task_type == task_type)
+        q = q.filter_by(task_type=task_type)
     if status:
-        q = q.filter(Task.status == status)
-    stats = q.first()
-    return (stats[0], str(stats[1]) if stats[1] else None)
+        q = q.filter_by(status=status)
+    if limit:
+        q = q.limit(limit)
+    # Create fingerprint from id:status pairs
+    tasks = q.with_entities(Task.id, Task.status).all()
+    return ",".join(f"{t.id}:{t.status}" for t in tasks)
 
 
 def _get_tasks_for_stream(
@@ -84,7 +90,7 @@ def list_tasks(query: TaskQuery):
 
         while True:
             with app.app_context():
-                fingerprint = _get_tasks_fingerprint(task_type, status)
+                fingerprint = _get_tasks_fingerprint(task_type, status, limit)
 
                 if fingerprint != last_fingerprint:
                     data = _get_tasks_for_stream(task_type, status, limit)
@@ -212,20 +218,27 @@ def task_stats():
     app = current_app._get_current_object()
 
     def generate():
-        last_counts = None
+        last_fingerprint = None
         heartbeat_counter = 0
 
         while True:
             with app.app_context():
                 counts = _get_stats_counts()
-                fingerprint = tuple(counts.values())
+                worker = get_worker()
+                worker_stats = worker.get_stats() if worker else {}
+                # Include pause states in fingerprint
+                fingerprint = (
+                    tuple(counts.values()),
+                    worker_stats.get("paused"),
+                    worker_stats.get("sync_paused"),
+                    worker_stats.get("download_paused"),
+                )
 
-                if fingerprint != last_counts:
-                    worker = get_worker()
+                if fingerprint != last_fingerprint:
                     if worker:
-                        counts["worker"] = worker.get_stats()
+                        counts["worker"] = worker_stats
                     yield f"data: {json.dumps(counts, default=str)}\n\n"
-                    last_counts = fingerprint
+                    last_fingerprint = fingerprint
                     heartbeat_counter = 0
                 else:
                     heartbeat_counter += 1
@@ -359,8 +372,12 @@ def retry_task(path: TaskPath):
     if not task:
         raise NotFoundError("Task", path.task_id)
 
-    if task.status not in (TaskStatus.FAILED.value, TaskStatus.COMPLETED.value):
-        raise ValidationError("Can only retry failed or completed tasks")
+    if task.status not in (
+        TaskStatus.FAILED.value,
+        TaskStatus.COMPLETED.value,
+        TaskStatus.CANCELLED.value,
+    ):
+        raise ValidationError("Can only retry failed, completed, or cancelled tasks")
 
     task.status = TaskStatus.PENDING.value
     task.error = None
@@ -369,5 +386,225 @@ def retry_task(path: TaskPath):
     task.retry_count = 0
     db.session.commit()
 
+    worker = get_worker()
+    if worker:
+        worker.notify()
+
     logger.info("Task %d reset for retry", path.task_id)
     return jsonify(task.to_dict())
+
+
+@bp.post("/<int:task_id>/pause")
+def pause_task(path: TaskPath):
+    """Pause a pending task."""
+    task = Task.query.get(path.task_id)
+    if not task:
+        raise NotFoundError("Task", path.task_id)
+
+    if task.status != TaskStatus.PENDING.value:
+        raise ValidationError("Can only pause pending tasks")
+
+    task.status = TaskStatus.PAUSED.value
+    db.session.commit()
+
+    logger.info("Task %d paused", path.task_id)
+    return jsonify(task.to_dict())
+
+
+@bp.post("/<int:task_id>/resume")
+def resume_task(path: TaskPath):
+    """Resume a paused task."""
+    task = Task.query.get(path.task_id)
+    if not task:
+        raise NotFoundError("Task", path.task_id)
+
+    if task.status != TaskStatus.PAUSED.value:
+        raise ValidationError("Can only resume paused tasks")
+
+    task.status = TaskStatus.PENDING.value
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.notify()
+
+    logger.info("Task %d resumed", path.task_id)
+    return jsonify(task.to_dict())
+
+
+@bp.post("/<int:task_id>/cancel")
+def cancel_task(path: TaskPath):
+    """Cancel a pending or paused task."""
+    task = Task.query.get(path.task_id)
+    if not task:
+        raise NotFoundError("Task", path.task_id)
+
+    if task.status not in (TaskStatus.PENDING.value, TaskStatus.PAUSED.value):
+        raise ValidationError("Can only cancel pending or paused tasks")
+
+    task.status = TaskStatus.CANCELLED.value
+    task.completed_at = db.func.now()
+    db.session.commit()
+
+    logger.info("Task %d cancelled", path.task_id)
+    return jsonify(task.to_dict())
+
+
+@bp.post("/pause")
+def pause_tasks(body: BulkTaskIdsRequest):
+    """Pause multiple pending tasks."""
+    affected = Task.query.filter(
+        Task.id.in_(body.task_ids), Task.status == TaskStatus.PENDING.value
+    ).update({"status": TaskStatus.PAUSED.value}, synchronize_session=False)
+    db.session.commit()
+
+    skipped = len(body.task_ids) - affected
+    logger.info("Paused %d tasks, skipped %d", affected, skipped)
+    return jsonify({"affected": affected, "skipped": skipped})
+
+
+@bp.post("/resume")
+def resume_tasks(body: BulkTaskIdsRequest):
+    """Resume multiple paused tasks."""
+    affected = Task.query.filter(
+        Task.id.in_(body.task_ids), Task.status == TaskStatus.PAUSED.value
+    ).update({"status": TaskStatus.PENDING.value}, synchronize_session=False)
+    db.session.commit()
+
+    worker = get_worker()
+    if worker and affected > 0:
+        worker.notify()
+
+    skipped = len(body.task_ids) - affected
+    logger.info("Resumed %d tasks, skipped %d", affected, skipped)
+    return jsonify({"affected": affected, "skipped": skipped})
+
+
+@bp.post("/cancel")
+def cancel_tasks(body: BulkTaskIdsRequest):
+    """Cancel multiple pending or paused tasks."""
+    affected = Task.query.filter(
+        Task.id.in_(body.task_ids),
+        Task.status.in_([TaskStatus.PENDING.value, TaskStatus.PAUSED.value]),
+    ).update(
+        {"status": TaskStatus.CANCELLED.value, "completed_at": db.func.now()},
+        synchronize_session=False,
+    )
+    db.session.commit()
+
+    skipped = len(body.task_ids) - affected
+    logger.info("Cancelled %d tasks, skipped %d", affected, skipped)
+    return jsonify({"affected": affected, "skipped": skipped})
+
+
+@bp.post("/pause/all")
+def pause_all_tasks():
+    """Pause all pending tasks and stop the worker from picking up new tasks."""
+    affected = Task.query.filter(Task.status == TaskStatus.PENDING.value).update(
+        {"status": TaskStatus.PAUSED.value}, synchronize_session=False
+    )
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.pause()
+
+    logger.info("Paused all %d pending tasks and worker", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/resume/all")
+def resume_all_tasks():
+    """Resume all paused tasks and the worker."""
+    affected = Task.query.filter(Task.status == TaskStatus.PAUSED.value).update(
+        {"status": TaskStatus.PENDING.value}, synchronize_session=False
+    )
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.resume()
+
+    logger.info("Resumed all %d paused tasks and worker", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/pause/sync")
+def pause_sync_tasks():
+    """Pause all pending sync tasks and stop the worker from picking up new syncs."""
+    affected = Task.query.filter(
+        Task.task_type == TaskType.SYNC.value, Task.status == TaskStatus.PENDING.value
+    ).update({"status": TaskStatus.PAUSED.value}, synchronize_session=False)
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.pause("sync")
+
+    logger.info("Paused all %d pending sync tasks", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/resume/sync")
+def resume_sync_tasks():
+    """Resume all paused sync tasks and the sync worker."""
+    affected = Task.query.filter(
+        Task.task_type == TaskType.SYNC.value, Task.status == TaskStatus.PAUSED.value
+    ).update({"status": TaskStatus.PENDING.value}, synchronize_session=False)
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.resume("sync")
+
+    logger.info("Resumed all %d paused sync tasks", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/pause/download")
+def pause_download_tasks():
+    """Pause all pending download tasks and stop the worker from picking up new downloads."""
+    affected = Task.query.filter(
+        Task.task_type == TaskType.DOWNLOAD.value,
+        Task.status == TaskStatus.PENDING.value,
+    ).update({"status": TaskStatus.PAUSED.value}, synchronize_session=False)
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.pause("download")
+
+    logger.info("Paused all %d pending download tasks", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/resume/download")
+def resume_download_tasks():
+    """Resume all paused download tasks and the download worker."""
+    affected = Task.query.filter(
+        Task.task_type == TaskType.DOWNLOAD.value,
+        Task.status == TaskStatus.PAUSED.value,
+    ).update({"status": TaskStatus.PENDING.value}, synchronize_session=False)
+    db.session.commit()
+
+    worker = get_worker()
+    if worker:
+        worker.resume("download")
+
+    logger.info("Resumed all %d paused download tasks", affected)
+    return jsonify({"affected": affected, "skipped": 0})
+
+
+@bp.post("/cancel/all")
+def cancel_all_tasks():
+    """Cancel all pending and paused tasks."""
+    affected = Task.query.filter(
+        Task.status.in_([TaskStatus.PENDING.value, TaskStatus.PAUSED.value])
+    ).update(
+        {"status": TaskStatus.CANCELLED.value, "completed_at": db.func.now()},
+        synchronize_session=False,
+    )
+    db.session.commit()
+
+    logger.info("Cancelled all %d pending/paused tasks", affected)
+    return jsonify({"affected": affected, "skipped": 0})

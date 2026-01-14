@@ -106,8 +106,21 @@ class BulkDownloadRequest(BaseModel):
     video_ids: list[int] = Field(..., min_length=1, description="Video IDs to download")
 
 
+class BulkTaskIdsRequest(BaseModel):
+    """Bulk task IDs request."""
+
+    task_ids: list[int] = Field(..., min_length=1, description="Task IDs to operate on")
+
+
 class BulkResultResponse(BaseModel):
     """Bulk operation result."""
 
     queued: int
+    skipped: int
+
+
+class BulkTaskResultResponse(BaseModel):
+    """Bulk task operation result."""
+
+    affected: int
     skipped: int
