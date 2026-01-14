@@ -39,7 +39,16 @@ class Video(db.Model):
 
     video_list = db.relationship("VideoList", back_populates="videos")
 
-    __table_args__ = (db.UniqueConstraint("video_id", "list_id", name="uq_video_list"),)
+    __table_args__ = (
+        db.UniqueConstraint("video_id", "list_id", name="uq_video_list"),
+        db.Index("ix_videos_list_id", "list_id"),
+        db.Index("ix_videos_downloaded", "downloaded"),
+        db.Index("ix_videos_list_downloaded", "list_id", "downloaded"),
+        db.Index("ix_videos_list_created", "list_id", "created_at"),  # For ORDER BY
+        db.Index(
+            "ix_videos_list_updated", "list_id", "updated_at"
+        ),  # For incremental SSE
+    )
 
     def to_dict(self) -> dict:
         return {
