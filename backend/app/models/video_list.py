@@ -104,9 +104,9 @@ class VideoList(db.Model):
                 func.sum(db.case((Video.downloaded.is_(True), 1), else_=0)).label(
                     "downloaded"
                 ),
-                func.sum(
-                    db.case((Video.error_message.isnot(None), 1), else_=0)
-                ).label("failed"),
+                func.sum(db.case((Video.error_message.isnot(None), 1), else_=0)).label(
+                    "failed"
+                ),
             )
             .filter(Video.list_id == self.id)
             .first()

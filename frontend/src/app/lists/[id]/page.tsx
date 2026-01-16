@@ -3,7 +3,17 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { api, VideoList, Video, Profile, ActiveTasks } from '@/lib/api'
+import {
+  api,
+  VideoList,
+  Video,
+  Profile,
+  ActiveTasks,
+  Task,
+  HistoryEntry,
+  getListTasksStreamUrl,
+  getListHistoryStreamUrl,
+} from '@/lib/api'
 import { useProgress } from '@/lib/ProgressContext'
 import { useVideoListStream } from '@/lib/useVideoListStream'
 import { formatDuration, formatFileSize } from '@/lib/utils'
@@ -21,13 +31,20 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Pause,
+  ListVideo,
+  Film,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { DownloadProgress } from '@/components/DownloadProgress'
 import { ListForm } from '@/components/ListForm'
+import { Select } from '@/components/Select'
 
 const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 // Convert URLs in text to clickable links and escape HTML
 function linkifyText(text: string): string {
@@ -62,34 +79,90 @@ export default function ListDetailPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
 
+  // Tasks state
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksSearch, setTasksSearch] = useState('')
+  const [tasksPageSize, setTasksPageSize] = useState(20)
+  const [tasksCurrentPage, setTasksCurrentPage] = useState(1)
+
+  // History state
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyPageSize, setHistoryPageSize] = useState(20)
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1)
+
   // Handle combined SSE stream updates (videos + tasks)
-  const handleStreamUpdate = useCallback((videos: Video[], tasks: ActiveTasks) => {
-    setVideos(videos)
+  const handleStreamUpdate = useCallback(
+    (videos: Video[], tasks: ActiveTasks) => {
+      setVideos(videos)
 
-    const isRunning = tasks.sync.running.includes(listId)
-    const isQueued = tasks.sync.pending.includes(listId)
+      const isRunning = tasks.sync.running.includes(listId)
+      const isQueued = tasks.sync.pending.includes(listId)
 
-    if (isRunning) {
-      setSyncStatus('running')
-    } else if (isQueued) {
-      setSyncStatus('queued')
-    } else {
-      setSyncStatus('idle')
-    }
+      if (isRunning) {
+        setSyncStatus('running')
+      } else if (isQueued) {
+        setSyncStatus('queued')
+      } else {
+        setSyncStatus('idle')
+      }
 
-    setRunningDownloadIds(new Set(tasks.download.running))
-    setQueuedDownloadIds(new Set(tasks.download.pending))
-  }, [listId])
+      setRunningDownloadIds(new Set(tasks.download.running))
+      setQueuedDownloadIds(new Set(tasks.download.pending))
+    },
+    [listId]
+  )
 
   // Use SSE stream for real-time video and task updates
   useVideoListStream(listId, !loading, handleStreamUpdate)
 
+  // SSE stream for tasks
+  useEffect(() => {
+    if (loading) return
+
+    const eventSource = new EventSource(getListTasksStreamUrl(listId, { limit: 200 }))
+
+    eventSource.onmessage = (event) => {
+      const data: Task[] = JSON.parse(event.data)
+      setTasks(data)
+    }
+
+    eventSource.onerror = () => {
+      api
+        .getListTasks(listId, { limit: 200 })
+        .then(setTasks)
+        .catch(console.error)
+      eventSource.close()
+    }
+
+    return () => eventSource.close()
+  }, [listId, loading])
+
+  // SSE stream for history
+  useEffect(() => {
+    if (loading) return
+
+    const eventSource = new EventSource(getListHistoryStreamUrl(listId, { limit: 200 }))
+
+    eventSource.onmessage = (event) => {
+      const data: HistoryEntry[] = JSON.parse(event.data)
+      setHistory(data)
+    }
+
+    eventSource.onerror = () => {
+      api
+        .getListHistory(listId, { limit: 200 })
+        .then(setHistory)
+        .catch(console.error)
+      eventSource.close()
+    }
+
+    return () => eventSource.close()
+  }, [listId, loading])
+
   const fetchData = async () => {
     try {
-      const [listData, profilesData] = await Promise.all([
-        api.getList(listId),
-        api.getProfiles(),
-      ])
+      const [listData, profilesData] = await Promise.all([api.getList(listId), api.getProfiles()])
       setList(listData)
       setProfiles(profilesData)
     } catch (err) {
@@ -194,6 +267,54 @@ export default function ListDetailPage() {
   useEffect(() => {
     setCurrentPage(1)
   }, [filter, search])
+
+  // Reset tasks page when search changes
+  useEffect(() => {
+    setTasksCurrentPage(1)
+  }, [tasksSearch])
+
+  // Reset history page when search changes
+  useEffect(() => {
+    setHistoryCurrentPage(1)
+  }, [historySearch])
+
+  // Filtered and paginated tasks
+  const filteredTasks = tasks
+    .filter(t => {
+      if (!tasksSearch) return true
+      const searchLower = tasksSearch.toLowerCase()
+      return (
+        t.task_type.toLowerCase().includes(searchLower) ||
+        t.status.toLowerCase().includes(searchLower) ||
+        t.entity_name?.toLowerCase().includes(searchLower)
+      )
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const tasksTotalPages = Math.ceil(filteredTasks.length / tasksPageSize)
+  const paginatedTasks = filteredTasks.slice(
+    (tasksCurrentPage - 1) * tasksPageSize,
+    tasksCurrentPage * tasksPageSize
+  )
+
+  // Filtered and paginated history
+  const filteredHistory = history
+    .filter(e => {
+      if (!historySearch) return true
+      const searchLower = historySearch.toLowerCase()
+      const details = typeof e.details === 'string' ? e.details : JSON.stringify(e.details)
+      return (
+        e.action.toLowerCase().includes(searchLower) ||
+        e.entity_type.toLowerCase().includes(searchLower) ||
+        details.toLowerCase().includes(searchLower)
+      )
+    })
+
+  const historyTotalPages = Math.ceil(filteredHistory.length / historyPageSize)
+  const paginatedHistory = filteredHistory.slice(
+    (historyCurrentPage - 1) * historyPageSize,
+    historyCurrentPage * historyPageSize
+  )
 
   const stats = {
     total: videos.length,
@@ -447,6 +568,88 @@ export default function ListDetailPage() {
         </div>
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
+
+      {/* Tasks */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
+          <h2 className="font-medium">Tasks ({filteredTasks.length})</h2>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={tasksSearch}
+                onChange={e => setTasksSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              />
+            </div>
+            <Select
+              value={tasksPageSize}
+              onChange={e => {
+                setTasksPageSize(Number(e.target.value))
+                setTasksCurrentPage(1)
+              }}
+              fullWidth={false}
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size} rows</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="divide-y divide-[var(--border)]">
+          {paginatedTasks.length === 0 ? (
+            <p className="p-4 text-[var(--muted)] text-sm">No tasks found</p>
+          ) : (
+            paginatedTasks.map(task => (
+              <TaskRow key={task.id} task={task} />
+            ))
+          )}
+        </div>
+        <Pagination currentPage={tasksCurrentPage} totalPages={tasksTotalPages} onPageChange={setTasksCurrentPage} />
+      </div>
+
+      {/* History */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
+          <h2 className="font-medium">History ({filteredHistory.length})</h2>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                placeholder="Search history..."
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              />
+            </div>
+            <Select
+              value={historyPageSize}
+              onChange={e => {
+                setHistoryPageSize(Number(e.target.value))
+                setHistoryCurrentPage(1)
+              }}
+              fullWidth={false}
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size} rows</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="divide-y divide-[var(--border)]">
+          {paginatedHistory.length === 0 ? (
+            <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
+          ) : (
+            paginatedHistory.map(entry => (
+              <HistoryRow key={entry.id} entry={entry} />
+            ))
+          )}
+        </div>
+        <Pagination currentPage={historyCurrentPage} totalPages={historyTotalPages} onPageChange={setHistoryCurrentPage} />
+      </div>
     </div>
   )
 }
@@ -593,6 +796,130 @@ function VideoRow({
             )}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+function TaskRow({ task }: { task: Task }) {
+  const TaskStatusIcon = ({ status }: { status: string }) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle size={16} className="text-[var(--success)]" />
+      case 'failed':
+        return <XCircle size={16} className="text-[var(--error)]" />
+      case 'running':
+        return <Loader2 size={16} className="text-[var(--accent)] animate-spin" />
+      case 'paused':
+        return <Pause size={16} className="text-[var(--muted)]" />
+      case 'cancelled':
+        return <XCircle size={16} className="text-[var(--muted)]" />
+      default:
+        return <Clock size={16} className="text-[var(--warning)]" />
+    }
+  }
+
+  return (
+    <div className="p-4 flex items-center gap-3">
+      <TaskStatusIcon status={task.status} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">
+          {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name || `#${task.entity_id}`}
+        </p>
+        <p className="text-xs text-[var(--muted)]">
+          {new Date(task.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+          {task.completed_at && ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+        </p>
+        {task.error && (
+          <p className="text-xs text-[var(--error)] mt-1 line-clamp-1">{task.error}</p>
+        )}
+      </div>
+      <span className={clsx(
+        'text-xs px-2 py-1 rounded',
+        task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
+        task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
+        task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
+        task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
+        task.status === 'paused' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
+        task.status === 'cancelled' && 'bg-[var(--border)] text-[var(--muted)]'
+      )}>
+        {task.status === 'pending' ? 'queued' : task.status}
+      </span>
+    </div>
+  )
+}
+
+function HistoryRow({ entry }: { entry: HistoryEntry }) {
+  const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    list_created: Plus,
+    list_updated: Edit2,
+    list_deleted: Trash2,
+    list_synced: RefreshCw,
+    video_discovered: Film,
+    video_download_started: Download,
+    video_download_completed: Download,
+    video_download_failed: Download,
+    video_retry: RefreshCw,
+  }
+
+  const entityIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    list: ListVideo,
+    video: Film,
+  }
+
+  const formatAction = (action: string) => {
+    return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  }
+
+  const getDetails = (details: Record<string, unknown> | string): Record<string, unknown> => {
+    if (typeof details === 'string') {
+      try {
+        return JSON.parse(details)
+      } catch {
+        return {}
+      }
+    }
+    return details || {}
+  }
+
+  const ActionIcon = actionIcons[entry.action] || RefreshCw
+  const EntityIcon = entityIcons[entry.entity_type] || Film
+  const details = getDetails(entry.details)
+  const isError = entry.action.includes('failed')
+  const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
+
+  return (
+    <div className="p-4 flex items-start gap-3">
+      <div className={clsx(
+        'p-2 rounded-md',
+        isError && 'bg-[var(--error)]/10',
+        isSuccess && 'bg-[var(--success)]/10',
+        !isError && !isSuccess && 'bg-[var(--border)]'
+      )}>
+        <ActionIcon size={14} className={clsx(
+          isError && 'text-[var(--error)]',
+          isSuccess && 'text-[var(--success)]',
+          !isError && !isSuccess && 'text-[var(--muted)]'
+        )} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{formatAction(entry.action)}</span>
+          <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
+            <EntityIcon size={12} />
+            {entry.entity_type}
+            {entry.entity_id && ` #${entry.entity_id}`}
+          </span>
+        </div>
+        {Object.keys(details).length > 0 && (
+          <p className="text-xs text-[var(--muted)] mt-1">
+            {'name' in details && <span className="pr-1 after:content-['•'] after:ml-1">{String(details.name)}</span>}
+            {'title' in details && <span>{String(details.title)}</span>}
+          </p>
+        )}
+        <p className="text-xs text-[var(--muted)] mt-1">
+          {new Date(entry.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+        </p>
       </div>
     </div>
   )

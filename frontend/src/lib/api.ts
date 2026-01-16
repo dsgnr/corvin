@@ -109,6 +109,19 @@ export const api = {
     if (params?.action) query.set('action', params.action)
     return request<HistoryEntry[]>(`/history?${query}`)
   },
+
+  // List-specific tasks and history
+  getListTasks: (listId: number, params?: { limit?: number }) => {
+    const query = new URLSearchParams()
+    query.set('list_id', String(listId))
+    if (params?.limit) query.set('limit', String(params.limit))
+    return request<Task[]>(`/lists/${listId}/tasks?${query}`)
+  },
+  getListHistory: (listId: number, params?: { limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.limit) query.set('limit', String(params.limit))
+    return request<HistoryEntry[]>(`/lists/${listId}/history?${query}`)
+  },
 }
 
 // Types
@@ -285,6 +298,20 @@ export function getHistoryStreamUrl(params?: {
 
 export function getTaskStatsStreamUrl(): string {
   return `${getApiBase()}/tasks/stats`
+}
+
+export function getListTasksStreamUrl(listId: number, params?: { limit?: number }): string {
+  const query = new URLSearchParams()
+  if (params?.limit) query.set('limit', String(params.limit))
+  const queryStr = query.toString()
+  return `${getApiBase()}/lists/${listId}/tasks${queryStr ? `?${queryStr}` : ''}`
+}
+
+export function getListHistoryStreamUrl(listId: number, params?: { limit?: number }): string {
+  const query = new URLSearchParams()
+  if (params?.limit) query.set('limit', String(params.limit))
+  const queryStr = query.toString()
+  return `${getApiBase()}/lists/${listId}/history${queryStr ? `?${queryStr}` : ''}`
 }
 
 export interface SponsorBlockOptions {

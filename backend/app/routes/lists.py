@@ -1,14 +1,24 @@
+import json
+import time
 from datetime import datetime
 
-from flask import jsonify
+from flask import Response, current_app, jsonify, request
 from flask_openapi3 import APIBlueprint, Tag
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.extensions import db
 from app.models import HistoryAction, Profile, VideoList
-from app.models.task import TaskType
-from app.schemas.lists import ListCreate, ListPath, ListQuery, ListUpdate
+from app.models.history import History
+from app.models.task import Task, TaskType
+from app.models.video import Video
+from app.schemas.lists import (
+    ListCreate,
+    ListPath,
+    ListQuery,
+    ListTasksQuery,
+    ListUpdate,
+)
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService
 from app.tasks import enqueue_task
@@ -177,3 +187,117 @@ def delete_list(path: ListPath):
 
     logger.info("Deleted list: %s (with %d videos)", list_name, video_count)
     return "", 204
+
+
+def _build_list_tasks_query(list_id: int, limit: int | None):
+    """Build query for tasks related to a list."""
+    video_ids = [v.id for v in Video.query.filter_by(list_id=list_id).all()]
+    q = Task.query.filter(
+        db.or_(
+            db.and_(Task.task_type == TaskType.SYNC.value, Task.entity_id == list_id),
+            db.and_(
+                Task.task_type == TaskType.DOWNLOAD.value, Task.entity_id.in_(video_ids)
+            )
+            if video_ids
+            else db.false(),
+        )
+    ).order_by(Task.created_at.desc())
+    return q.limit(limit) if limit else q
+
+
+def _get_list_tasks_data(list_id: int, limit: int | None) -> list[dict]:
+    """Get task data for a list."""
+    tasks = _build_list_tasks_query(list_id, limit).all()
+    entity_names = Task.batch_get_entity_names(tasks)
+    return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
+
+
+def _get_list_tasks_fingerprint(list_id: int, limit: int | None) -> str:
+    """Get fingerprint for task change detection."""
+    tasks = (
+        _build_list_tasks_query(list_id, limit)
+        .with_entities(Task.id, Task.status)
+        .all()
+    )
+    return ",".join(f"{t.id}:{t.status}" for t in tasks)
+
+
+def _get_list_history_data(list_id: int, limit: int | None) -> list[dict]:
+    """Get history data for a list."""
+    q = History.query.filter(
+        History.entity_type == "list", History.entity_id == list_id
+    ).order_by(History.created_at.desc())
+    if limit:
+        q = q.limit(limit)
+    return [e.to_dict() for e in q.all()]
+
+
+def _get_list_history_fingerprint(list_id: int) -> tuple:
+    """Get fingerprint for history change detection."""
+    from sqlalchemy import func
+
+    result = (
+        db.session.query(func.count(History.id), func.max(History.created_at))
+        .filter(History.entity_type == "list", History.entity_id == list_id)
+        .first()
+    )
+    return (result[0], str(result[1]) if result[1] else None)
+
+
+def _sse_stream(get_data, get_fingerprint):
+    """Create an SSE stream generator."""
+    app = current_app._get_current_object()
+
+    def generate():
+        last_fingerprint = None
+        heartbeat_counter = 0
+
+        while True:
+            with app.app_context():
+                fingerprint = get_fingerprint()
+                if fingerprint != last_fingerprint:
+                    yield f"data: {json.dumps(get_data(), default=str)}\n\n"
+                    last_fingerprint = fingerprint
+                    heartbeat_counter = 0
+                else:
+                    heartbeat_counter += 1
+                    if heartbeat_counter >= 30:
+                        yield ": heartbeat\n\n"
+                        heartbeat_counter = 0
+            time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@bp.get("/<int:list_id>/tasks")
+def get_list_tasks(path: ListPath, query: ListTasksQuery):
+    """Get tasks for a list. Supports SSE streaming."""
+    if not VideoList.query.get(path.list_id):
+        raise NotFoundError("VideoList", path.list_id)
+
+    if request.accept_mimetypes.best != "text/event-stream":
+        return jsonify(_get_list_tasks_data(path.list_id, query.limit))
+
+    return _sse_stream(
+        lambda: _get_list_tasks_data(path.list_id, query.limit),
+        lambda: _get_list_tasks_fingerprint(path.list_id, query.limit),
+    )
+
+
+@bp.get("/<int:list_id>/history")
+def get_list_history(path: ListPath, query: ListTasksQuery):
+    """Get history for a list. Supports SSE streaming."""
+    if not VideoList.query.get(path.list_id):
+        raise NotFoundError("VideoList", path.list_id)
+
+    if request.accept_mimetypes.best != "text/event-stream":
+        return jsonify(_get_list_history_data(path.list_id, query.limit))
+
+    return _sse_stream(
+        lambda: _get_list_history_data(path.list_id, query.limit),
+        lambda: _get_list_history_fingerprint(path.list_id),
+    )

@@ -16,6 +16,12 @@ class ListQuery(BaseModel):
     include_stats: bool = Field(False, description="Include video statistics")
 
 
+class ListTasksQuery(BaseModel):
+    """Query parameters for list tasks and history."""
+
+    limit: int | None = Field(100, description="Maximum number of results")
+
+
 class ListCreate(BaseModel):
     """List creation request."""
 
