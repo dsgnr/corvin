@@ -57,8 +57,17 @@ def create_app(config: dict | None = None) -> OpenAPI:
         if not app.config.get("TESTING"):
             upgrade()  # Schema migrations
             _reset_stale_tasks()
-            _init_worker(app)
-            _setup_scheduler(app)
+
+            # Flask's debug reloader spawns two processes - skip the parent to avoid
+            # duplicate workers. Gunicorn doesn't set FLASK_DEBUG so this is a no-op.
+            in_reloader_parent = (
+                os.environ.get("FLASK_DEBUG") == "1"
+                and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+            )
+
+            if not in_reloader_parent:
+                _init_worker(app)
+                _setup_scheduler(app)
 
     logger.info("Application initialised")
     return app

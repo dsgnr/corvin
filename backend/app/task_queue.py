@@ -177,26 +177,44 @@ class TaskWorker:
             else:
                 available = max_workers - self._running_download
 
-        if available <= 0:
-            return
+            if available <= 0:
+                return
 
-        tasks = (
-            Task.query.filter_by(task_type=task_type, status=TaskStatus.PENDING.value)
-            .order_by(Task.created_at.asc())
-            .limit(available)
-            .all()
-        )
+            tasks = (
+                Task.query.filter_by(
+                    task_type=task_type, status=TaskStatus.PENDING.value
+                )
+                .order_by(Task.created_at.asc())
+                .limit(available)
+                .all()
+            )
 
+            if not tasks:
+                return
+
+            # Increment counters while holding lock to prevent race conditions
+            if task_type == "sync":
+                self._running_sync += len(tasks)
+                logger.info(
+                    "Picked up %d sync tasks, running_sync now %d (max %d)",
+                    len(tasks),
+                    self._running_sync,
+                    max_workers,
+                )
+            else:
+                self._running_download += len(tasks)
+                logger.info(
+                    "Picked up %d download tasks, running_download now %d (max %d)",
+                    len(tasks),
+                    self._running_download,
+                    max_workers,
+                )
+
+        # Now process tasks outside the lock
         for task in tasks:
             task.status = TaskStatus.RUNNING.value
             task.started_at = datetime.utcnow()
             db.session.commit()
-
-            with self._lock:
-                if task_type == "sync":
-                    self._running_sync += 1
-                else:
-                    self._running_download += 1
 
             logger.info(
                 "Starting task %d (%s) for entity %d",
