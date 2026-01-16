@@ -56,7 +56,11 @@ def _get_tasks_for_stream(
         q = q.filter_by(status=status)
     if limit:
         q = q.limit(limit)
-    return [t.to_dict() for t in q.all()]
+    tasks = q.all()
+
+    # Batch fetch entity names to avoid N+1 queries
+    entity_names = Task.batch_get_entity_names(tasks)
+    return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
 
 
 @bp.get("/")
@@ -76,7 +80,11 @@ def list_tasks(query: TaskQuery):
         q = q.offset(query.offset)
         if query.limit:
             q = q.limit(query.limit)
-        return jsonify([t.to_dict() for t in q.all()])
+        tasks = q.all()
+
+        # Batch fetch entity names to avoid N+1 queries
+        entity_names = Task.batch_get_entity_names(tasks)
+        return jsonify([t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks])
 
     # SSE stream
     app = current_app._get_current_object()
@@ -269,36 +277,54 @@ def get_active_tasks(query: ActiveTasksQuery):
     }
 
     if query.list_id:
-        sync_tasks = Task.query.filter(
-            Task.task_type == TaskType.SYNC.value,
-            Task.status.in_(active_statuses),
-            Task.entity_id == query.list_id,
-        ).all()
-
-        video_ids = [
-            v.id
-            for v in Video.query.filter_by(list_id=query.list_id)
-            .with_entities(Video.id)
+        # Get sync tasks for this list
+        sync_tasks = (
+            db.session.query(Task.status, Task.entity_id)
+            .filter(
+                Task.task_type == TaskType.SYNC.value,
+                Task.status.in_(active_statuses),
+                Task.entity_id == query.list_id,
+            )
             .all()
-        ]
+        )
 
-        download_tasks = []
-        if video_ids:
-            download_tasks = Task.query.filter(
+        for status, entity_id in sync_tasks:
+            if status in result["sync"]:
+                result["sync"][status].append(entity_id)
+
+        # Get all active download tasks then filter in Python
+        # Faster than subquery for SQLite
+        download_tasks = (
+            db.session.query(Task.status, Task.entity_id)
+            .filter(
                 Task.task_type == TaskType.DOWNLOAD.value,
                 Task.status.in_(active_statuses),
-                Task.entity_id.in_(video_ids),
-            ).all()
+            )
+            .all()
+        )
 
-        tasks = sync_tasks + download_tasks
+        if download_tasks:
+            video_ids = {
+                v[0]
+                for v in db.session.query(Video.id)
+                .filter(Video.list_id == query.list_id)
+                .all()
+            }
+
+            for status, entity_id in download_tasks:
+                if entity_id in video_ids and status in result["download"]:
+                    result["download"][status].append(entity_id)
     else:
-        tasks = Task.query.filter(Task.status.in_(active_statuses)).all()
+        # Get all active tasks with only needed columns
+        tasks = (
+            db.session.query(Task.task_type, Task.status, Task.entity_id)
+            .filter(Task.status.in_(active_statuses))
+            .all()
+        )
 
-    for task in tasks:
-        task_type = task.task_type
-        status = task.status
-        if task_type in result and status in result[task_type]:
-            result[task_type][status].append(task.entity_id)
+        for task_type, status, entity_id in tasks:
+            if task_type in result and status in result[task_type]:
+                result[task_type][status].append(entity_id)
 
     return jsonify(result)
 

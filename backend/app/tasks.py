@@ -38,9 +38,9 @@ def _execute_sync(list_id: int) -> dict:
     if not video_list.profile.include_shorts:
         url = _append_videos_path(url)
 
-    # Get existing video IDs to skip during extraction
+    # Get existing video IDs to skip during extraction - only fetch the video_id column
     existing_video_ids = {
-        v.video_id for v in Video.query.filter_by(list_id=list_id).all()
+        v[0] for v in db.session.query(Video.video_id).filter_by(list_id=list_id).all()
     }
 
     include_shorts = video_list.profile.include_shorts
@@ -48,8 +48,7 @@ def _execute_sync(list_id: int) -> dict:
     lock = threading.Lock()
 
     def on_video_fetched(video_data: dict) -> None:
-        # We're adding to the db here, so make sure we don't have
-        # multiple threads writing to the db at any one time!
+        # Commit per video for real-time UI updates via SSE
         with lock:
             counters["total"] += 1
 
@@ -116,13 +115,6 @@ def _append_videos_path(url: str) -> str:
     if "/videos" not in url and "/shorts" not in url and "/streams" not in url:
         return f"{url}/videos"
     return url
-
-
-def _video_exists(video_id: str, list_id: int) -> bool:
-    """Check if a video already exists in the database."""
-    from app.models import Video
-
-    return Video.query.filter_by(video_id=video_id, list_id=list_id).first() is not None
 
 
 def download_single_video(app: Flask, video_id: int) -> dict:

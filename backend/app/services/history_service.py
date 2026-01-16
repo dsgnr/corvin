@@ -12,6 +12,7 @@ class HistoryService:
         entity_type: str,
         entity_id: int | None = None,
         details: dict | None = None,
+        commit: bool = True,
     ) -> History:
         """Log an action to history."""
         entry = History(
@@ -21,7 +22,8 @@ class HistoryService:
             details=details or {},
         )
         db.session.add(entry)
-        db.session.commit()
+        if commit:
+            db.session.commit()
 
         logger.debug(
             "History: %s %s/%s %s",

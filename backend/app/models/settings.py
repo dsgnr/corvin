@@ -24,7 +24,7 @@ class Settings(db.Model):
         return value.lower() in ("true", "1", "yes")
 
     @classmethod
-    def set(cls, key: str, value: str) -> None:
+    def set(cls, key: str, value: str, commit: bool = True) -> None:
         """Set a setting value."""
         setting = cls.query.get(key)
         if setting:
@@ -32,9 +32,10 @@ class Settings(db.Model):
         else:
             setting = cls(key=key, value=value)
             db.session.add(setting)
-        db.session.commit()
+        if commit:
+            db.session.commit()
 
     @classmethod
-    def set_bool(cls, key: str, value: bool) -> None:
+    def set_bool(cls, key: str, value: bool, commit: bool = True) -> None:
         """Set a boolean setting value."""
-        cls.set(key, "true" if value else "false")
+        cls.set(key, "true" if value else "false", commit=commit)

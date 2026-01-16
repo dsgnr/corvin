@@ -5,7 +5,6 @@ from app.models import Video, VideoList
 from app.models.task import TaskStatus, TaskType
 from app.tasks import (
     _append_videos_path,
-    _video_exists,
     enqueue_task,
     enqueue_tasks_bulk,
     schedule_downloads,
@@ -193,21 +192,3 @@ class TestAppendVideosPath:
         result = _append_videos_path(url)
 
         assert result == "https://vimeo.com/channel/test"
-
-
-class TestVideoExists:
-    """Tests for _video_exists helper."""
-
-    def test_returns_true_if_exists(self, app, sample_video, sample_list):
-        """Should return True if video exists."""
-        with app.app_context():
-            result = _video_exists("abc123", sample_list)
-
-            assert result is True
-
-    def test_returns_false_if_not_exists(self, app, sample_list):
-        """Should return False if video doesn't exist."""
-        with app.app_context():
-            result = _video_exists("nonexistent", sample_list)
-
-            assert result is False

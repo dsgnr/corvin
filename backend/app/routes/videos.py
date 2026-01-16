@@ -3,7 +3,7 @@ import time
 
 from flask import Response, current_app, jsonify, request
 from flask_openapi3 import APIBlueprint, Tag
-from sqlalchemy import func, select
+from sqlalchemy import func
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
@@ -21,22 +21,25 @@ ACTIVE_STATUSES = [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]
 
 
 def _get_list_fingerprint(list_id: int) -> tuple:
-    """Get combined fingerprint from videos and tasks for change detection."""
+    """Get fingerprint for change detection.
+
+    Uses video count + max updated_at as a lightweight change indicator.
+    """
     video_stats = (
         db.session.query(func.count(Video.id), func.max(Video.updated_at))
         .filter(Video.list_id == list_id)
         .first()
     )
-    task_stats = (
-        db.session.query(func.count(Task.id), func.max(Task.started_at))
+    # Also check active task count to detect when downloads complete
+    active_task_count = (
+        db.session.query(func.count(Task.id))
         .filter(Task.status.in_(ACTIVE_STATUSES))
-        .first()
+        .scalar()
     )
     return (
         video_stats[0],
         str(video_stats[1]) if video_stats[1] else None,
-        task_stats[0],
-        str(task_stats[1]) if task_stats[1] else None,
+        active_task_count,
     )
 
 
@@ -47,65 +50,87 @@ def _get_active_tasks_for_list(list_id: int) -> dict:
         "download": {"pending": [], "running": []},
     }
 
-    video_ids_subq = select(Video.id).where(Video.list_id == list_id)
-
-    tasks = (
-        db.session.query(Task.task_type, Task.status, Task.entity_id)
-        .filter(Task.status.in_(ACTIVE_STATUSES))
+    # Get sync tasks for this list (usually 0-1)
+    sync_tasks = (
+        db.session.query(Task.status, Task.entity_id)
         .filter(
-            db.or_(
-                db.and_(
-                    Task.task_type == TaskType.SYNC.value,
-                    Task.entity_id == list_id,
-                ),
-                db.and_(
-                    Task.task_type == TaskType.DOWNLOAD.value,
-                    Task.entity_id.in_(video_ids_subq),
-                ),
-            )
+            Task.task_type == TaskType.SYNC.value,
+            Task.status.in_(ACTIVE_STATUSES),
+            Task.entity_id == list_id,
         )
         .all()
     )
 
-    for task_type, status, entity_id in tasks:
-        if task_type in result and status in result[task_type]:
-            result[task_type][status].append(entity_id)
+    for status, entity_id in sync_tasks:
+        if status in result["sync"]:
+            result["sync"][status].append(entity_id)
+
+    # Get all active download tasks (usually a small number)
+    # Then filter in Python - faster than subquery for SQLite
+    download_tasks = (
+        db.session.query(Task.status, Task.entity_id)
+        .filter(
+            Task.task_type == TaskType.DOWNLOAD.value,
+            Task.status.in_(ACTIVE_STATUSES),
+        )
+        .all()
+    )
+
+    if download_tasks:
+        # Get video IDs for this list to filter download tasks
+        video_ids = {
+            v[0]
+            for v in db.session.query(Video.id).filter(Video.list_id == list_id).all()
+        }
+
+        for status, entity_id in download_tasks:
+            if entity_id in video_ids and status in result["download"]:
+                result["download"][status].append(entity_id)
 
     return result
 
 
-def _get_videos_for_stream(list_id: int) -> list[dict]:
-    """Get video data optimized for SSE stream (minimal fields)."""
-    videos = (
-        db.session.query(
-            Video.id,
-            Video.title,
-            Video.thumbnail,
-            Video.media_type,
-            Video.duration,
-            Video.upload_date,
-            Video.downloaded,
-            Video.error_message,
-            Video.labels,
+def _get_videos_for_stream(list_id: int, since: str | None = None) -> list[dict]:
+    """Get video data optimised for SSE stream (minimal fields for display)."""
+    from datetime import datetime
+
+    q = db.session.query(
+        Video.id,
+        Video.title,
+        Video.thumbnail,
+        Video.media_type,
+        Video.duration,
+        Video.upload_date,
+        Video.downloaded,
+        Video.error_message,
+        Video.created_at,
+    ).filter(Video.list_id == list_id)
+
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            q = q.filter(Video.updated_at > since_dt)
+        except ValueError:
+            pass  # Invalid timestamp, return all
+
+    videos = q.order_by(Video.created_at.desc()).all()
+
+    result = []
+    for v in videos:
+        result.append(
+            {
+                "id": v[0],
+                "title": v[1],
+                "thumbnail": v[2],
+                "media_type": v[3],
+                "duration": v[4],
+                "upload_date": v[5].isoformat() if v[5] else None,
+                "downloaded": v[6],
+                "error_message": v[7],
+                "created_at": v[8].isoformat() if v[8] else None,
+            }
         )
-        .filter(Video.list_id == list_id)
-        .order_by(Video.created_at.desc())
-        .all()
-    )
-    return [
-        {
-            "id": v.id,
-            "title": v.title,
-            "thumbnail": v.thumbnail,
-            "media_type": v.media_type,
-            "duration": v.duration,
-            "upload_date": v.upload_date.isoformat() if v.upload_date else None,
-            "downloaded": v.downloaded,
-            "error_message": v.error_message,
-            "labels": v.labels or {},
-        }
-        for v in videos
-    ]
+    return result
 
 
 @bp.get("/")
@@ -156,21 +181,37 @@ def get_videos_by_list(path: VideoListPath, query: VideoQuery):
             q = q.limit(query.limit)
         return jsonify([v.to_dict() for v in q.all()])
 
-    # SSE stream
+    # SSE stream with incremental updates
     app = current_app._get_current_object()
     list_id = path.list_id
 
     def generate():
         last_fingerprint = None
+        last_update_time = None
         heartbeat_counter = 0
+        is_first_message = True
 
         while True:
             with app.app_context():
                 fingerprint = _get_list_fingerprint(list_id)
 
                 if fingerprint != last_fingerprint:
+                    if is_first_message:
+                        # First message: send full list
+                        videos = _get_videos_for_stream(list_id)
+                        is_first_message = False
+                    else:
+                        # Subsequent messages: only send changed videos
+                        videos = _get_videos_for_stream(list_id, since=last_update_time)
+
+                    # Track the current time for next incremental update
+                    from datetime import datetime
+
+                    last_update_time = datetime.utcnow().isoformat()
+
                     data = {
-                        "videos": _get_videos_for_stream(list_id),
+                        "type": "full" if len(videos) > 100 else "incremental",
+                        "videos": videos,
                         "tasks": _get_active_tasks_for_list(list_id),
                     }
                     yield f"data: {json.dumps(data, default=str)}\n\n"

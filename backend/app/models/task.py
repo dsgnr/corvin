@@ -68,12 +68,16 @@ class Task(db.Model):
         db.session.add(log)
         return log
 
-    def to_dict(self, include_logs: bool = False) -> dict:
+    def to_dict(
+        self, include_logs: bool = False, entity_name: str | None = None
+    ) -> dict:
         data = {
             "id": self.id,
             "task_type": self.task_type,
             "entity_id": self.entity_id,
-            "entity_name": self._get_entity_name(),
+            "entity_name": entity_name
+            if entity_name is not None
+            else self._get_entity_name(),
             "status": self.status,
             "result": self.result,
             "error": self.error,
@@ -94,12 +98,60 @@ class Task(db.Model):
     def _get_entity_name(self) -> str | None:
         """Get the name/title of the related entity."""
         if self.task_type == TaskType.SYNC.value:
-            video_list = VideoList.query.get(self.entity_id)
-            return video_list.name if video_list else None
+            video_list = (
+                db.session.query(VideoList.name).filter_by(id=self.entity_id).first()
+            )
+            return video_list[0] if video_list else None
         if self.task_type == TaskType.DOWNLOAD.value:
-            video = Video.query.get(self.entity_id)
-            return video.title if video else None
+            video = db.session.query(Video.title).filter_by(id=self.entity_id).first()
+            return video[0] if video else None
         return None
+
+    @staticmethod
+    def batch_get_entity_names(tasks: list["Task"]) -> dict[int, str]:
+        """Batch fetch entity names for multiple tasks to avoid N+1 queries."""
+        if not tasks:
+            return {}
+
+        # Group tasks by type
+        sync_entity_ids = [
+            t.entity_id for t in tasks if t.task_type == TaskType.SYNC.value
+        ]
+        download_entity_ids = [
+            t.entity_id for t in tasks if t.task_type == TaskType.DOWNLOAD.value
+        ]
+
+        # Batch fetch names
+        list_names = {}
+        video_titles = {}
+
+        if sync_entity_ids:
+            results = (
+                db.session.query(VideoList.id, VideoList.name)
+                .filter(VideoList.id.in_(sync_entity_ids))
+                .all()
+            )
+            list_names = {r[0]: r[1] for r in results}
+
+        if download_entity_ids:
+            results = (
+                db.session.query(Video.id, Video.title)
+                .filter(Video.id.in_(download_entity_ids))
+                .all()
+            )
+            video_titles = {r[0]: r[1] for r in results}
+
+        # Build result mapping task_id -> entity_name
+        result = {}
+        for task in tasks:
+            if task.task_type == TaskType.SYNC.value:
+                result[task.id] = list_names.get(task.entity_id)
+            elif task.task_type == TaskType.DOWNLOAD.value:
+                result[task.id] = video_titles.get(task.entity_id)
+            else:
+                result[task.id] = None
+
+        return result
 
 
 class TaskLog(db.Model):
