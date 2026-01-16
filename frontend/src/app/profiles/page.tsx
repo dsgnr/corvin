@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api, Profile, ProfileOptions } from '@/lib/api'
 import { Plus, Trash2, Edit2, Loader2, Copy, X, Check } from 'lucide-react'
+import { Select } from '@/components/Select'
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -253,16 +254,15 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
       <div>
         <label className="block text-sm font-medium mb-1">Output Format</label>
         <p className="text-xs text-[var(--muted)] mb-2">Remux video to a specific container format (leave empty to keep original)</p>
-        <select
+        <Select
           value={form.output_format}
           onChange={e => setForm({ ...form, output_format: e.target.value })}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
         >
           <option value="">Keep original</option>
           {outputFormats.map((fmt: string) => (
             <option key={fmt} value={fmt}>{fmt}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="space-y-4 pt-4 border-t border-[var(--border)]">
@@ -343,15 +343,14 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         <div>
           <label className="block text-sm font-medium mb-1">SponsorBlock</label>
           <p className="text-xs text-[var(--muted)] mb-2">Automatically handle sponsored segments using SponsorBlock data</p>
-          <select
+          <Select
             value={form.sponsorblock_behavior}
             onChange={e => setForm({ ...form, sponsorblock_behavior: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="disabled">Disabled</option>
             <option value="delete">Remove segments</option>
             <option value="mark_chapter">Mark as chapters</option>
-          </select>
+          </Select>
           {form.sponsorblock_behavior !== 'disabled' && (
             <div className="flex flex-wrap gap-2 mt-3">
               {sponsorBlockOpts.categories.map((cat: string) => (

@@ -5,6 +5,7 @@ import { api, HistoryEntry, getHistoryStreamUrl } from '@/lib/api'
 import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
+import { Select } from '@/components/Select'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
@@ -143,18 +144,18 @@ export default function HistoryPage() {
               className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
             />
           </div>
-          <select
+          <Select
             value={pageSize}
             onChange={e => {
               setPageSize(Number(e.target.value))
               setCurrentPage(1)
             }}
-            className="px-3 py-1.5 text-sm bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] cursor-pointer appearance-none pr-8 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M3%204.5L6%208l3-3.5H3z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
+            fullWidth={false}
           >
             {PAGE_SIZE_OPTIONS.map(size => (
               <option key={size} value={size}>{size} rows</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

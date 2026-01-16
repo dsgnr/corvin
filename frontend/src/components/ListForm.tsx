@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { VideoList, Profile } from '@/lib/api'
 import { X, Check } from 'lucide-react'
+import { Select } from '@/components/Select'
 
 interface ListFormProps {
   list?: VideoList
@@ -65,35 +66,32 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
         <div>
           <label className="block text-sm font-medium mb-1">Type</label>
           <p className="text-xs text-[var(--muted)] mb-2">Whether this is a channel or playlist</p>
-          <select
+          <Select
             value={form.list_type}
             onChange={e => setForm({ ...form, list_type: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="channel">Channel</option>
             <option value="playlist">Playlist</option>
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Profile</label>
           <p className="text-xs text-[var(--muted)] mb-2">Download settings to use for this list</p>
-          <select
+          <Select
             value={form.profile_id}
             onChange={e => setForm({ ...form, profile_id: Number(e.target.value) })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
             {profiles.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Sync Frequency</label>
           <p className="text-xs text-[var(--muted)] mb-2">How often to check for new videos</p>
-          <select
+          <Select
             value={form.sync_frequency}
             onChange={e => setForm({ ...form, sync_frequency: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="hourly">Hourly</option>
             <option value="6h">Every 6 hours</option>
@@ -101,7 +99,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">From Date</label>
