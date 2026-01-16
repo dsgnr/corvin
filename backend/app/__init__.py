@@ -1,3 +1,4 @@
+import atexit
 import logging
 import os
 
@@ -145,3 +146,4 @@ def _setup_scheduler(app: OpenAPI) -> None:
     if not scheduler.running:
         scheduler.start()
         logger.info("Scheduler started")
+        atexit.register(lambda: scheduler.shutdown(wait=False))
