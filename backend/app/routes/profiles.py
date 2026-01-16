@@ -175,9 +175,10 @@ def delete_profile(path: ProfilePath):
     if not profile:
         raise NotFoundError("Profile", path.profile_id)
 
-    if profile.lists.count() > 0:
+    list_count = profile.lists.count()
+    if list_count > 0:
         raise ConflictError(
-            f"Cannot delete profile '{profile.name}' - it has {profile.lists.count()} associated list(s)"
+            f"Cannot delete profile '{profile.name}' - it has {list_count} associated list(s)"
         )
 
     profile_name = profile.name
