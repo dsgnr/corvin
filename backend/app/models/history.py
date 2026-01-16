@@ -31,6 +31,12 @@ class History(db.Model):
     details: dict = db.Column(db.JSON, default=dict)
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
 
+    __table_args__ = (
+        db.Index("ix_history_entity_type", "entity_type"),
+        db.Index("ix_history_action", "action"),
+        db.Index("ix_history_created_at", "created_at"),
+    )
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
