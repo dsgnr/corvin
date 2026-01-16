@@ -111,7 +111,10 @@ def get_list(path: ListPath, query: ListQuery):
     video_list = VideoList.query.get(path.list_id)
     if not video_list:
         raise NotFoundError("VideoList", path.list_id)
-    return jsonify(video_list.to_dict(include_videos=query.include_videos))
+    data = video_list.to_dict(include_videos=query.include_videos)
+    if query.include_stats:
+        data["stats"] = video_list.get_video_stats()
+    return jsonify(data)
 
 
 @bp.put("/<int:list_id>")

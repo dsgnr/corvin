@@ -13,6 +13,7 @@ class ListQuery(BaseModel):
     """List query parameters."""
 
     include_videos: bool = Field(False, description="Include videos in response")
+    include_stats: bool = Field(False, description="Include video statistics")
 
 
 class ListCreate(BaseModel):

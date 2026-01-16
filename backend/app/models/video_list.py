@@ -90,3 +90,33 @@ class VideoList(db.Model):
         if include_videos:
             data["videos"] = [v.to_dict() for v in self.videos]
         return data
+
+    def get_video_stats(self) -> dict:
+        """Get video statistics using efficient COUNT queries."""
+        from sqlalchemy import func
+
+        from app.extensions import db
+        from app.models.video import Video
+
+        stats = (
+            db.session.query(
+                func.count(Video.id).label("total"),
+                func.sum(db.case((Video.downloaded.is_(True), 1), else_=0)).label(
+                    "downloaded"
+                ),
+                func.sum(
+                    db.case((Video.error_message.isnot(None), 1), else_=0)
+                ).label("failed"),
+            )
+            .filter(Video.list_id == self.id)
+            .first()
+        )
+
+        return {
+            "total": stats.total or 0,
+            "downloaded": stats.downloaded or 0,
+            "failed": stats.failed or 0,
+            "pending": (stats.total or 0)
+            - (stats.downloaded or 0)
+            - (stats.failed or 0),
+        }
