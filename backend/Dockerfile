@@ -29,7 +29,7 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--access-logfile", "-", "--capture-output", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--worker-class", "gevent", "--worker-connections", "100", "--timeout", "120", "--access-logfile", "-", "--capture-output", "run:app"]
 
 HEALTHCHECK --interval=15s --timeout=10s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://0.0.0.0:5000/api/tasks/stats || exit 1
