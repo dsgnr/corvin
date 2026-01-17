@@ -41,36 +41,31 @@ def create_app(config: dict | None = None) -> OpenAPI:
         validation_error_callback=_validation_error_callback,
     )
     app.url_map.strict_slashes = False
+
     _configure_app(app, config)
-
-    CORS(app, resources={r"/*": {"origins": "*", "max_age": 86400}})
-    db.init_app(app)
-    migrate.init_app(app, db)
-    init_metrics(app)
-
+    _init_extensions(app)
     _register_blueprints(app)
 
     with app.app_context():
-        from flask_migrate import upgrade
-
-        db.create_all()  # Fresh DBs
-        if not app.config.get("TESTING"):
-            upgrade()  # Schema migrations
-            _reset_stale_tasks()
-
-            # Flask's debug reloader spawns two processes - skip the parent to avoid
-            # duplicate workers. Gunicorn doesn't set FLASK_DEBUG so this is a no-op.
-            in_reloader_parent = (
-                os.environ.get("FLASK_DEBUG") == "1"
-                and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
-            )
-
-            if not in_reloader_parent:
-                _init_worker(app)
-                _setup_scheduler(app)
+        _init_database(app)
+        if not app.config.get("TESTING") and not _in_reloader_parent():
+            _init_worker(app)
+            _setup_scheduler(app)
 
     logger.info("Application initialised")
     return app
+
+
+def _in_reloader_parent() -> bool:
+    """Check if running in Flask's debug reloader parent process.
+
+    Flask's debug reloader spawns two processes - skip the parent to avoid
+    duplicate workers. Gunicorn doesn't set FLASK_DEBUG so this is a no-op.
+    """
+    return (
+        os.environ.get("FLASK_DEBUG") == "1"
+        and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+    )
 
 
 def _configure_app(app: OpenAPI, config: dict | None) -> None:
@@ -82,6 +77,14 @@ def _configure_app(app: OpenAPI, config: dict | None) -> None:
 
     if config:
         app.config.update(config)
+
+
+def _init_extensions(app: OpenAPI) -> None:
+    """Initialise Flask extensions."""
+    CORS(app, resources={r"/*": {"origins": "*", "max_age": 86400}})
+    db.init_app(app)
+    migrate.init_app(app, db)
+    init_metrics(app)
 
 
 def _register_blueprints(app: OpenAPI) -> None:
@@ -97,17 +100,24 @@ def _register_blueprints(app: OpenAPI) -> None:
     app.register_blueprint(errors.bp)
 
 
-def _reset_stale_tasks() -> None:
-    """Reset any tasks stuck in RUNNING state from previous run."""
+def _init_database(app: OpenAPI) -> None:
+    """Initialise database schema and reset stale tasks."""
+    from flask_migrate import upgrade
+
     from app.models.task import Task, TaskStatus
 
-    count = Task.query.filter_by(status=TaskStatus.RUNNING.value).update(
-        {"status": TaskStatus.PENDING.value, "started_at": None}
-    )
-    db.session.commit()
+    db.create_all()
 
-    if count:
-        logger.info("Reset %d stale tasks to pending", count)
+    if not app.config.get("TESTING"):
+        upgrade()
+
+        # Reset any tasks stuck in RUNNING state from previous run
+        count = Task.query.filter_by(status=TaskStatus.RUNNING.value).update(
+            {"status": TaskStatus.PENDING.value, "started_at": None}
+        )
+        db.session.commit()
+        if count:
+            logger.info("Reset %d stale tasks to pending", count)
 
 
 def _init_worker(app: OpenAPI) -> None:
