@@ -138,6 +138,7 @@ def _init_worker(app: OpenAPI) -> None:
 
 def _setup_scheduler(app: OpenAPI) -> None:
     """Set up periodic task scheduling for syncs and downloads."""
+    from app.task_queue import get_worker
     from app.tasks import schedule_all_syncs, schedule_downloads
 
     def run_in_context(func):
@@ -146,6 +147,14 @@ def _setup_scheduler(app: OpenAPI) -> None:
                 func()
 
         return wrapper
+
+    def shutdown():
+        """Gracefully shut down scheduler and worker."""
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+        worker = get_worker()
+        if worker:
+            worker.stop()
 
     scheduler.add_job(
         func=run_in_context(schedule_all_syncs),
@@ -165,4 +174,4 @@ def _setup_scheduler(app: OpenAPI) -> None:
     if not scheduler.running:
         scheduler.start()
         logger.info("Scheduler started")
-        atexit.register(lambda: scheduler.shutdown(wait=False))
+        atexit.register(shutdown)
