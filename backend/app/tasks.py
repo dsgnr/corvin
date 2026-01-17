@@ -28,6 +28,13 @@ def _execute_sync(list_id: int) -> dict:
 
     logger.info("Syncing list: %s", video_list.name)
 
+    HistoryService.log(
+        HistoryAction.LIST_SYNC_STARTED,
+        "list",
+        video_list.id,
+        {"name": video_list.name},
+    )
+
     from_date = (
         datetime.strptime(video_list.from_date, "%Y%m%d")
         if video_list.from_date
@@ -56,28 +63,28 @@ def _execute_sync(list_id: int) -> dict:
                 return
 
             try:
-                db.session.add(
-                    Video(
-                        video_id=video_data["video_id"],
-                        title=video_data["title"],
-                        description=video_data["description"],
-                        url=video_data.get("url", ""),
-                        duration=video_data.get("duration"),
-                        upload_date=video_data.get("upload_date"),
-                        thumbnail=video_data.get("thumbnail"),
-                        extractor=video_data.get("extractor"),
-                        media_type=video_data.get("media_type"),
-                        labels=video_data.get("labels", {}),
-                        list_id=video_list.id,
-                    )
+                video = Video(
+                    video_id=video_data["video_id"],
+                    title=video_data["title"],
+                    description=video_data["description"],
+                    url=video_data.get("url", ""),
+                    duration=video_data.get("duration"),
+                    upload_date=video_data.get("upload_date"),
+                    thumbnail=video_data.get("thumbnail"),
+                    extractor=video_data.get("extractor"),
+                    media_type=video_data.get("media_type"),
+                    labels=video_data.get("labels", {}),
+                    list_id=video_list.id,
                 )
+                db.session.add(video)
                 db.session.commit()
                 counters["new"] += 1
 
                 HistoryService.log(
                     HistoryAction.VIDEO_DISCOVERED,
                     "video",
-                    details={
+                    video.id,
+                    {
                         "name": video_list.name,
                         "title": video_data["title"],
                         "list_id": video_list.id,

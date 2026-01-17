@@ -11,6 +11,7 @@ class HistoryAction(str, Enum):
     LIST_CREATED = "list_created"
     LIST_UPDATED = "list_updated"
     LIST_DELETED = "list_deleted"
+    LIST_SYNC_STARTED = "list_sync_started"
     LIST_SYNCED = "list_synced"
     VIDEO_DISCOVERED = "video_discovered"
     VIDEO_DOWNLOAD_STARTED = "video_download_started"

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { api, TaskStats, Task, VideoList, getTaskStatsStreamUrl } from '@/lib/api'
 import { RefreshCw, Play, Download, ListVideo, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
+import Link from 'next/link'
 
 export default function Dashboard() {
   const [stats, setStats] = useState<TaskStats | null>(null)
@@ -16,7 +17,7 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const [tasksData, listsData] = await Promise.all([
-        api.getTasks({ limit: 5 }),
+        api.getTasks({ limit: 10 }),
         api.getLists(),
       ])
       setRecentTasks(tasksData)
@@ -145,13 +146,18 @@ export default function Dashboard() {
           {recentTasks.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No recent tasks</p>
           ) : (
-            recentTasks.map(task => (
+            recentTasks.map(task => {
+              const linkHref = task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
+              return (
               <div key={task.id} className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <TaskStatusIcon status={task.status} />
                   <div>
                     <p className="text-sm font-medium">
-                      {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name}
+                      {task.task_type === 'sync' ? 'Sync' : 'Download'} •{' '}
+                      <Link href={linkHref} className="hover:text-[var(--accent)] transition-colors">
+                        {task.entity_name || `#${task.entity_id}`}
+                      </Link>
                     </p>
                     <p className="text-xs text-[var(--muted)]">
                       {new Date(task.created_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}
@@ -170,7 +176,8 @@ export default function Dashboard() {
                   {task.status === 'pending' ? 'queued' : task.status}
                 </span>
               </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

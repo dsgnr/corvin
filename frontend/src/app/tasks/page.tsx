@@ -17,14 +17,17 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
+import { Select } from '@/components/Select'
+import Link from 'next/link'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
@@ -157,8 +160,8 @@ export default function TasksPage() {
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE)
-  const paginatedTasks = filteredTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.ceil(filteredTasks.length / pageSize)
+  const paginatedTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const hasPendingTasks = tasks.some((t) => t.status === 'pending')
   const hasPausedTasks = tasks.some((t) => t.status === 'paused')
@@ -237,21 +240,37 @@ export default function TasksPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {['all', 'sync', 'download', 'queued', 'paused', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={clsx(
-              'px-3 py-1.5 text-sm rounded-md transition-colors',
-              filter === f
-                ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
-            )}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {['all', 'sync', 'download', 'queued', 'paused', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={clsx(
+                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                filter === f
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+              )}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+        <Select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value))
+            setCurrentPage(1)
+          }}
+          fullWidth={false}
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size} rows
+            </option>
+          ))}
+        </Select>
       </div>
 
       {/* Tasks */}
@@ -349,14 +368,27 @@ function TaskRow({
 }) {
   const [expanded, setExpanded] = useState(false)
 
+  // Determine link target based on task type
+  const linkHref = task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-          <TaskStatusIcon status={task.status} />
+        <div className="flex items-center gap-3">
+          <div onClick={() => setExpanded(!expanded)}>
+            <TaskStatusIcon status={task.status} />
+          </div>
           <div>
             <p className="text-sm font-medium">
-              {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name || `#${task.entity_id}`}
+              <span className="cursor-default" onClick={() => setExpanded(!expanded)}>
+                {task.task_type === 'sync' ? 'Sync' : 'Download'} •
+              </span>{' '}
+              <Link
+                href={linkHref}
+                className="hover:text-[var(--accent)] transition-colors"
+              >
+                {task.entity_name || `#${task.entity_id}`}
+              </Link>
             </p>
             <p className="text-xs text-[var(--muted)]">
               Started{' '}
@@ -369,7 +401,7 @@ function TaskRow({
         <div className="flex items-center gap-2">
           <span
             className={clsx(
-              'text-xs px-2 py-1 rounded',
+              'text-xs px-2 py-1 rounded cursor-default',
               task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
               task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
               task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',

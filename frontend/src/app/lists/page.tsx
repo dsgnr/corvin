@@ -20,7 +20,7 @@ export default function ListsPage() {
   const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [syncingAll, setSyncingAll] = useState(false)
   const [search, setSearch] = useState('')
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {

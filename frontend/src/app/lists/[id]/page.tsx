@@ -43,8 +43,8 @@ import { DownloadProgress } from '@/components/DownloadProgress'
 import { ListForm } from '@/components/ListForm'
 import { Select } from '@/components/Select'
 
-const PAGE_SIZE = 20
-const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
 
 // Convert URLs in text to clickable links and escape HTML
 function linkifyText(text: string): string {
@@ -76,19 +76,20 @@ export default function ListDetailPage() {
   const [runningDownloadIds, setRunningDownloadIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
   const [search, setSearch] = useState('')
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [currentPage, setCurrentPage] = useState(1)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
 
   // Tasks state
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksSearch, setTasksSearch] = useState('')
-  const [tasksPageSize, setTasksPageSize] = useState(20)
+  const [tasksPageSize, setTasksPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [tasksCurrentPage, setTasksCurrentPage] = useState(1)
 
   // History state
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [historySearch, setHistorySearch] = useState('')
-  const [historyPageSize, setHistoryPageSize] = useState(20)
+  const [historyPageSize, setHistoryPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1)
 
   // Handle combined SSE stream updates (videos + tasks)
@@ -260,8 +261,8 @@ export default function ListDetailPage() {
       return dateB - dateA
     })
 
-  const totalPages = Math.ceil(filteredVideos.length / PAGE_SIZE)
-  const paginatedVideos = filteredVideos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.ceil(filteredVideos.length / pageSize)
+  const paginatedVideos = filteredVideos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   // Reset to page 1 when filter or search changes
   useEffect(() => {
@@ -538,15 +539,29 @@ export default function ListDetailPage() {
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
           <h2 className="font-medium">Videos ({filteredVideos.length})</h2>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-            <input
-              type="text"
-              placeholder="Search videos..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                placeholder="Search videos..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              />
+            </div>
+            <Select
+              value={pageSize}
+              onChange={e => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              fullWidth={false}
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size} rows</option>
+              ))}
+            </Select>
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">

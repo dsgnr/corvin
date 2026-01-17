@@ -6,8 +6,9 @@ import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus,
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
+import Link from 'next/link'
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   profile_created: Plus,
@@ -16,6 +17,7 @@ const actionIcons: Record<string, React.ComponentType<{ size?: number; className
   list_created: Plus,
   list_updated: Edit2,
   list_deleted: Trash2,
+  list_sync_started: RefreshCw,
   list_synced: RefreshCw,
   video_discovered: Film,
   video_download_started: Download,
@@ -35,7 +37,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
@@ -172,6 +174,11 @@ export default function HistoryPage() {
               const isError = entry.action.includes('failed')
               const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
 
+              // Determine link targets based on entity type and details
+              const listId = entry.entity_type === 'list' ? entry.entity_id : (details.list_id as number | undefined)
+              // For video entities, use entity_id; for video_discovered, entity_id may be null
+              const videoId = entry.entity_type === 'video' && entry.entity_id ? entry.entity_id : undefined
+
               return (
                 <div key={entry.id} className="p-4 flex items-start gap-3">
                   <div className={clsx(
@@ -197,8 +204,30 @@ export default function HistoryPage() {
                     </div>
                     {Object.keys(details).length > 0 && (
                       <p className="text-xs text-[var(--muted)] mt-1">
-                        {'name' in details && <span className="pr-1 after:content-['•'] after:ml-1">{String(details.name)}</span>}
-                        {'title' in details && <span>{String(details.title)}</span>}
+                        {'name' in details && listId && (
+                          <Link href={`/lists/${listId}`} className="hover:text-[var(--accent)] transition-colors">
+                            {String(details.name)}
+                          </Link>
+                        )}
+                        {'name' in details && !listId && (
+                          <span>{String(details.name)}</span>
+                        )}
+                        {'name' in details && 'title' in details && (
+                          <span className="mx-1">•</span>
+                        )}
+                        {'title' in details && videoId && (
+                          <Link href={`/videos/${videoId}`} className="hover:text-[var(--accent)] transition-colors">
+                            {String(details.title)}
+                          </Link>
+                        )}
+                        {'title' in details && !videoId && listId && (
+                          <Link href={`/lists/${listId}`} className="hover:text-[var(--accent)] transition-colors">
+                            {String(details.title)}
+                          </Link>
+                        )}
+                        {'title' in details && !videoId && !listId && (
+                          <span>{String(details.title)}</span>
+                        )}
                         {'url' in details && <span className="truncate block">{String(details.url)}</span>}
                       </p>
                     )}
