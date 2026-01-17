@@ -110,9 +110,32 @@ def _parse_from_date(date_str: str | None) -> str | None:
 
 @bp.get("/")
 def list_all():
-    """List all video lists."""
-    lists = VideoList.query.all()
-    return jsonify([vl.to_dict() for vl in lists])
+    """List all video lists. Supports SSE streaming."""
+    if request.accept_mimetypes.best != "text/event-stream":
+        lists = VideoList.query.all()
+        return jsonify([vl.to_dict() for vl in lists])
+
+    # SSE stream
+    return _sse_stream(
+        lambda: [vl.to_dict() for vl in VideoList.query.all()],
+        lambda: _get_lists_fingerprint(),
+    )
+
+
+def _get_lists_fingerprint() -> tuple:
+    """Get fingerprint for lists change detection."""
+    from sqlalchemy import func
+
+    result = db.session.query(
+        func.count(VideoList.id),
+        func.max(VideoList.created_at),
+        func.max(VideoList.updated_at),
+    ).first()
+    return (
+        result[0],
+        str(result[1]) if result[1] else None,
+        str(result[2]) if result[2] else None,
+    )
 
 
 @bp.get("/<int:list_id>")

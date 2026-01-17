@@ -314,6 +314,10 @@ export function getListHistoryStreamUrl(listId: number, params?: { limit?: numbe
   return `${getApiBase()}/lists/${listId}/history${queryStr ? `?${queryStr}` : ''}`
 }
 
+export function getListsStreamUrl(): string {
+  return `${getApiBase()}/lists`
+}
+
 export interface SponsorBlockOptions {
   behaviors: string[]
   categories: string[]

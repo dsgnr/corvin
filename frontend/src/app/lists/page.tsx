@@ -1,11 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, VideoList, Profile } from '@/lib/api'
+import { api, VideoList, Profile, Task, getListsStreamUrl, getTasksStreamUrl } from '@/lib/api'
 import { Plus, RefreshCw, Trash2, Edit2, ExternalLink, Loader2, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import Link from 'next/link'
 import { ListForm } from '@/components/ListForm'
+import { Pagination } from '@/components/Pagination'
+import { Select } from '@/components/Select'
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50]
 
 export default function ListsPage() {
   const [lists, setLists] = useState<VideoList[]>([])
@@ -16,66 +20,74 @@ export default function ListsPage() {
   const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [syncingAll, setSyncingAll] = useState(false)
   const [search, setSearch] = useState('')
+  const [pageSize, setPageSize] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
 
-  const checkSyncStatus = async () => {
-    try {
-      const [runningTasks, pendingTasks] = await Promise.all([
-        api.getTasks({ type: 'sync', status: 'running' }),
-        api.getTasks({ type: 'sync', status: 'pending' }),
-      ])
-      const runningIds = new Set(runningTasks.map(t => t.entity_id))
-      const pendingIds = new Set(pendingTasks.map(t => t.entity_id))
-      setSyncingIds(runningIds)
-      setQueuedIds(pendingIds)
-      return { runningIds, pendingIds }
-    } catch {
-      return { runningIds: new Set<number>(), pendingIds: new Set<number>() }
-    }
-  }
+  useEffect(() => {
+    // Set up SSE stream for lists
+    const listsSource = new EventSource(getListsStreamUrl())
 
-  const fetchData = async () => {
-    try {
-      const [listsData, profilesData] = await Promise.all([
-        api.getLists(),
-        api.getProfiles(),
-      ])
-      setLists(listsData)
-      setProfiles(profilesData)
-      await checkSyncStatus()
-    } catch (err) {
-      console.error('Failed to fetch lists:', err)
-    } finally {
+    listsSource.onmessage = (event) => {
+      const data: VideoList[] = JSON.parse(event.data)
+      setLists(data)
       setLoading(false)
     }
-  }
 
-  useEffect(() => {
-    fetchData()
+    listsSource.onerror = () => {
+      // Fallback to regular fetch on SSE error
+      api.getLists().then(data => {
+        setLists(data)
+        setLoading(false)
+      }).catch(err => {
+        console.error('Failed to fetch lists:', err)
+        setLoading(false)
+      })
+      listsSource.close()
+    }
+
+    // Set up SSE stream for sync tasks
+    const tasksSource = new EventSource(getTasksStreamUrl({ type: 'sync' }))
+
+    tasksSource.onmessage = (event) => {
+      const tasks: Task[] = JSON.parse(event.data)
+      const runningIds = new Set(tasks.filter(t => t.status === 'running').map(t => t.entity_id))
+      const pendingIds = new Set(tasks.filter(t => t.status === 'pending').map(t => t.entity_id))
+      setSyncingIds(runningIds)
+      setQueuedIds(pendingIds)
+    }
+
+    tasksSource.onerror = () => {
+      tasksSource.close()
+    }
+
+    return () => {
+      listsSource.close()
+      tasksSource.close()
+    }
   }, [])
 
-  // Poll for sync status while any list is syncing or queued
+  // Fetch profiles and poll for changes (they may be added via API)
   useEffect(() => {
-    if (syncingIds.size === 0 && queuedIds.size === 0) return
-    const interval = setInterval(async () => {
-      const { runningIds, pendingIds } = await checkSyncStatus()
-      if (runningIds.size === 0 && pendingIds.size === 0) {
-        // Only refetch lists data, not profiles (they don't change during sync)
-        const listsData = await api.getLists()
-        setLists(prev => {
-          // Only update if data actually changed to prevent unnecessary re-renders
-          if (JSON.stringify(prev) === JSON.stringify(listsData)) return prev
-          return listsData
-        })
+    const fetchProfiles = () => {
+      api.getProfiles().then(setProfiles).catch(console.error)
+    }
+
+    fetchProfiles()
+
+    // Poll for profile changes every 5 seconds if no profiles exist
+    const interval = setInterval(() => {
+      if (profiles.length === 0) {
+        fetchProfiles()
       }
-    }, 3000)
+    }, 5000)
+
     return () => clearInterval(interval)
-  }, [syncingIds.size, queuedIds.size])
+  }, [profiles.length])
 
   const handleSync = async (listId: number) => {
     setQueuedIds(prev => new Set(prev).add(listId))
     try {
       await api.triggerListSync(listId)
-      await checkSyncStatus()
     } catch (err) {
       console.error('Failed to sync:', err)
       setQueuedIds(prev => {
@@ -90,7 +102,6 @@ export default function ListsPage() {
     setSyncingAll(true)
     try {
       await api.triggerAllSyncs()
-      await checkSyncStatus()
     } catch (err) {
       console.error('Failed to sync all:', err)
     } finally {
@@ -131,6 +142,14 @@ export default function ListsPage() {
     })
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
+  const totalPages = Math.ceil(filteredLists.length / pageSize)
+  const paginatedLists = filteredLists.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -155,6 +174,18 @@ export default function ListsPage() {
                 className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
               />
             </div>
+            <Select
+              value={pageSize}
+              onChange={e => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              fullWidth={false}
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size} rows</option>
+              ))}
+            </Select>
             {lists.length > 0 && (
               <button
                 onClick={handleSyncAll}
@@ -186,7 +217,7 @@ export default function ListsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {editingId === 'new' && (
             <ListForm
               profiles={profiles}
@@ -200,28 +231,37 @@ export default function ListsPage() {
               <p className="text-[var(--muted)]">{search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'}</p>
             </div>
           ) : (
-            filteredLists.map(list => (
-              editingId === list.id ? (
-                <ListForm
-                  key={list.id}
-                  list={list}
-                  profiles={profiles}
-                  onSave={(data) => handleSave(data, list.id)}
-                  onCancel={() => setEditingId(null)}
-                />
-              ) : (
-                <ListCard
-                  key={list.id}
-                  list={list}
-                  profiles={profiles}
-                  syncing={syncingIds.has(list.id)}
-                  queued={queuedIds.has(list.id)}
-                  onSync={() => handleSync(list.id)}
-                  onEdit={() => setEditingId(list.id)}
-                  onDelete={() => handleDelete(list)}
-                />
-              )
-            ))
+            <>
+              <div className="grid gap-4">
+                {paginatedLists.map(list => (
+                  editingId === list.id ? (
+                    <ListForm
+                      key={list.id}
+                      list={list}
+                      profiles={profiles}
+                      onSave={(data) => handleSave(data, list.id)}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <ListCard
+                      key={list.id}
+                      list={list}
+                      profiles={profiles}
+                      syncing={syncingIds.has(list.id)}
+                      queued={queuedIds.has(list.id)}
+                      onSync={() => handleSync(list.id)}
+                      onEdit={() => setEditingId(list.id)}
+                      onDelete={() => handleDelete(list)}
+                    />
+                  )
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
