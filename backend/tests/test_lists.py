@@ -260,3 +260,60 @@ class TestDeleteList:
         # Verify video is gone
         video_response = client.get(f"/api/videos/{sample_video}")
         assert video_response.status_code == 404
+
+
+class TestGetListTasks:
+    """Tests for GET /api/lists/<id>/tasks."""
+
+    def test_get_list_tasks_success(self, client, sample_list, sample_task):
+        """Should return tasks for a list."""
+        response = client.get(f"/api/lists/{sample_list}/tasks")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+
+    def test_get_list_tasks_not_found(self, client):
+        """Should return 404 for non-existent list."""
+        response = client.get("/api/lists/9999/tasks")
+
+        assert response.status_code == 404
+
+    def test_get_list_tasks_with_limit(self, client, sample_list):
+        """Should respect limit parameter."""
+        response = client.get(f"/api/lists/{sample_list}/tasks?limit=5")
+
+        assert response.status_code == 200
+
+
+class TestGetListHistory:
+    """Tests for GET /api/lists/<id>/history."""
+
+    def test_get_list_history_success(self, client, sample_list):
+        """Should return history for a list."""
+        response = client.get(f"/api/lists/{sample_list}/history")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+
+    def test_get_list_history_not_found(self, client):
+        """Should return 404 for non-existent list."""
+        response = client.get("/api/lists/9999/history")
+
+        assert response.status_code == 404
+
+
+class TestGetListWithStats:
+    """Tests for GET /api/lists/<id> with stats."""
+
+    def test_get_list_with_stats(self, client, sample_list, sample_video):
+        """Should include stats when requested."""
+        response = client.get(f"/api/lists/{sample_list}?include_stats=true")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "stats" in data
+        assert "total" in data["stats"]
+        assert "downloaded" in data["stats"]
+        assert "pending" in data["stats"]

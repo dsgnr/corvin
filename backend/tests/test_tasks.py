@@ -278,3 +278,270 @@ class TestRetryTask:
         response = client.post(f"/api/tasks/{sample_task}/retry")
 
         assert response.status_code == 400
+
+
+class TestPauseTask:
+    """Tests for POST /api/tasks/<id>/pause."""
+
+    def test_pause_pending_task(self, client, sample_task):
+        """Should pause a pending task."""
+        response = client.post(f"/api/tasks/{sample_task}/pause")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "paused"
+
+    def test_pause_task_not_found(self, client):
+        """Should return 404 for non-existent task."""
+        response = client.post("/api/tasks/9999/pause")
+
+        assert response.status_code == 404
+
+    def test_pause_non_pending_task(self, client, app, sample_task):
+        """Should reject pause for non-pending task."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.RUNNING.value
+            db.session.commit()
+
+        response = client.post(f"/api/tasks/{sample_task}/pause")
+
+        assert response.status_code == 400
+
+
+class TestResumeTask:
+    """Tests for POST /api/tasks/<id>/resume."""
+
+    def test_resume_paused_task(self, client, app, sample_task):
+        """Should resume a paused task."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.PAUSED.value
+            db.session.commit()
+
+        response = client.post(f"/api/tasks/{sample_task}/resume")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "pending"
+
+    def test_resume_task_not_found(self, client):
+        """Should return 404 for non-existent task."""
+        response = client.post("/api/tasks/9999/resume")
+
+        assert response.status_code == 404
+
+    def test_resume_non_paused_task(self, client, sample_task):
+        """Should reject resume for non-paused task."""
+        response = client.post(f"/api/tasks/{sample_task}/resume")
+
+        assert response.status_code == 400
+
+
+class TestCancelTask:
+    """Tests for POST /api/tasks/<id>/cancel."""
+
+    def test_cancel_pending_task(self, client, sample_task):
+        """Should cancel a pending task."""
+        response = client.post(f"/api/tasks/{sample_task}/cancel")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "cancelled"
+
+    def test_cancel_paused_task(self, client, app, sample_task):
+        """Should cancel a paused task."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.PAUSED.value
+            db.session.commit()
+
+        response = client.post(f"/api/tasks/{sample_task}/cancel")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "cancelled"
+
+    def test_cancel_task_not_found(self, client):
+        """Should return 404 for non-existent task."""
+        response = client.post("/api/tasks/9999/cancel")
+
+        assert response.status_code == 404
+
+    def test_cancel_running_task(self, client, app, sample_task):
+        """Should reject cancel for running task."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.RUNNING.value
+            db.session.commit()
+
+        response = client.post(f"/api/tasks/{sample_task}/cancel")
+
+        assert response.status_code == 400
+
+
+class TestBulkPauseTasks:
+    """Tests for POST /api/tasks/pause."""
+
+    def test_pause_multiple_tasks(self, client, app, sample_task):
+        """Should pause multiple pending tasks."""
+        response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["affected"] == 1
+        assert data["skipped"] == 0
+
+    def test_pause_skips_non_pending(self, client, app, sample_task):
+        """Should skip non-pending tasks."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.RUNNING.value
+            db.session.commit()
+
+        response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["affected"] == 0
+        assert data["skipped"] == 1
+
+
+class TestBulkResumeTasks:
+    """Tests for POST /api/tasks/resume."""
+
+    def test_resume_multiple_tasks(self, client, app, sample_task):
+        """Should resume multiple paused tasks."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.PAUSED.value
+            db.session.commit()
+
+        response = client.post("/api/tasks/resume", json={"task_ids": [sample_task]})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["affected"] == 1
+
+
+class TestBulkCancelTasks:
+    """Tests for POST /api/tasks/cancel."""
+
+    def test_cancel_multiple_tasks(self, client, sample_task):
+        """Should cancel multiple pending/paused tasks."""
+        response = client.post("/api/tasks/cancel", json={"task_ids": [sample_task]})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["affected"] == 1
+
+
+class TestPauseAllTasks:
+    """Tests for POST /api/tasks/pause/all."""
+
+    def test_pause_all_pending_tasks(self, client, sample_task):
+        """Should pause all pending tasks."""
+        response = client.post("/api/tasks/pause/all")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "affected" in data
+
+
+class TestResumeAllTasks:
+    """Tests for POST /api/tasks/resume/all."""
+
+    def test_resume_all_paused_tasks(self, client, app, sample_task):
+        """Should resume all paused tasks."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.PAUSED.value
+            db.session.commit()
+
+        response = client.post("/api/tasks/resume/all")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["affected"] == 1
+
+
+class TestCancelAllTasks:
+    """Tests for POST /api/tasks/cancel/all."""
+
+    def test_cancel_all_tasks(self, client, sample_task):
+        """Should cancel all pending/paused tasks."""
+        response = client.post("/api/tasks/cancel/all")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "affected" in data
+
+
+class TestPauseSyncTasks:
+    """Tests for POST /api/tasks/pause/sync."""
+
+    def test_pause_sync_tasks(self, client, sample_task):
+        """Should pause all pending sync tasks."""
+        response = client.post("/api/tasks/pause/sync")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "affected" in data
+
+
+class TestResumeSyncTasks:
+    """Tests for POST /api/tasks/resume/sync."""
+
+    def test_resume_sync_tasks(self, client, app, sample_task):
+        """Should resume all paused sync tasks."""
+        with app.app_context():
+            task = db.session.get(Task, sample_task)
+            task.status = TaskStatus.PAUSED.value
+            db.session.commit()
+
+        response = client.post("/api/tasks/resume/sync")
+
+        assert response.status_code == 200
+
+
+class TestPauseDownloadTasks:
+    """Tests for POST /api/tasks/pause/download."""
+
+    def test_pause_download_tasks(self, client):
+        """Should pause all pending download tasks."""
+        response = client.post("/api/tasks/pause/download")
+
+        assert response.status_code == 200
+
+
+class TestResumeDownloadTasks:
+    """Tests for POST /api/tasks/resume/download."""
+
+    def test_resume_download_tasks(self, client):
+        """Should resume all paused download tasks."""
+        response = client.post("/api/tasks/resume/download")
+
+        assert response.status_code == 200
+
+
+class TestGetActiveTasks:
+    """Tests for GET /api/tasks/active."""
+
+    def test_get_active_tasks(self, client, sample_task):
+        """Should return active tasks grouped by type and status."""
+        response = client.get("/api/tasks/active")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "sync" in data
+        assert "download" in data
+        assert "pending" in data["sync"]
+        assert "running" in data["sync"]
+
+    def test_get_active_tasks_for_list(self, client, sample_task, sample_list):
+        """Should filter active tasks by list_id."""
+        response = client.get(f"/api/tasks/active?list_id={sample_list}")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "sync" in data
