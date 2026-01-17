@@ -1,25 +1,6 @@
 """List schemas."""
 
-from pydantic import BaseModel, Field
-
-
-class ListPath(BaseModel):
-    """List path parameter."""
-
-    list_id: int = Field(..., description="List ID")
-
-
-class ListQuery(BaseModel):
-    """List query parameters."""
-
-    include_videos: bool = Field(False, description="Include videos in response")
-    include_stats: bool = Field(False, description="Include video statistics")
-
-
-class ListTasksQuery(BaseModel):
-    """Query parameters for list tasks and history."""
-
-    limit: int | None = Field(100, description="Maximum number of results")
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ListCreate(BaseModel):
@@ -55,6 +36,8 @@ class ListUpdate(BaseModel):
 class ListResponse(BaseModel):
     """List response."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     url: str
@@ -72,6 +55,3 @@ class ListResponse(BaseModel):
     tags: list[str] = []
     created_at: str
     updated_at: str
-
-    class Config:
-        from_attributes = True

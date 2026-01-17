@@ -11,9 +11,9 @@ services:
       - ./downloads:/downloads
     environment:
       - TZ=UTC
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
+      - DEBUG=true
       - DEBUG_METRICS=1
+      - DEV_MODE=true
 
   frontend:
     build:

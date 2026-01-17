@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-from app.extensions import db
 from app.models.task import Task, TaskStatus
 
 
@@ -14,14 +13,14 @@ class TestListTasks:
         response = client.get("/api/tasks")
 
         assert response.status_code == 200
-        assert response.get_json() == []
+        assert response.json() == []
 
     def test_list_tasks_with_data(self, client, sample_task):
         """Should return all tasks."""
         response = client.get("/api/tasks")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
 
     def test_list_tasks_filter_by_type(self, client, sample_task):
@@ -29,7 +28,7 @@ class TestListTasks:
         response = client.get("/api/tasks?type=sync")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
 
     def test_list_tasks_filter_by_status(self, client, sample_task):
@@ -37,7 +36,7 @@ class TestListTasks:
         response = client.get("/api/tasks?status=pending")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
 
     def test_list_tasks_pagination(self, client, sample_task):
@@ -55,7 +54,7 @@ class TestGetTask:
         response = client.get(f"/api/tasks/{sample_task}")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["id"] == sample_task
 
     def test_get_task_not_found(self, client):
@@ -69,7 +68,7 @@ class TestGetTask:
         response = client.get(f"/api/tasks/{sample_task}?include_logs=false")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "logs" not in data
 
 
@@ -81,7 +80,7 @@ class TestGetTaskLogs:
         response = client.get(f"/api/tasks/{sample_task}/logs")
 
         assert response.status_code == 200
-        assert response.get_json() == []
+        assert response.json() == []
 
     def test_get_task_logs_not_found(self, client):
         """Should return 404 for non-existent task."""
@@ -98,7 +97,7 @@ class TestTaskStats:
         response = client.get("/api/tasks/stats")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "pending_sync" in data
         assert "pending_download" in data
 
@@ -145,7 +144,7 @@ class TestTriggerListsSync:
         )
 
         assert response.status_code == 202
-        data = response.get_json()
+        data = response.json()
         assert data["queued"] == 1
 
     def test_trigger_lists_sync_missing_ids(self, client):
@@ -243,25 +242,23 @@ class TestTriggerPendingDownloads:
 class TestRetryTask:
     """Tests for POST /api/tasks/<id>/retry."""
 
-    def test_retry_failed_task(self, client, app, sample_task):
+    def test_retry_failed_task(self, client, db_session, sample_task):
         """Should retry a failed task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.FAILED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.FAILED.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/retry")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["status"] == "pending"
 
-    def test_retry_completed_task(self, client, app, sample_task):
+    def test_retry_completed_task(self, client, db_session, sample_task):
         """Should retry a completed task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.COMPLETED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.COMPLETED.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/retry")
 
@@ -288,7 +285,7 @@ class TestPauseTask:
         response = client.post(f"/api/tasks/{sample_task}/pause")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["status"] == "paused"
 
     def test_pause_task_not_found(self, client):
@@ -297,12 +294,11 @@ class TestPauseTask:
 
         assert response.status_code == 404
 
-    def test_pause_non_pending_task(self, client, app, sample_task):
+    def test_pause_non_pending_task(self, client, db_session, sample_task):
         """Should reject pause for non-pending task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.RUNNING.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.RUNNING.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/pause")
 
@@ -312,17 +308,16 @@ class TestPauseTask:
 class TestResumeTask:
     """Tests for POST /api/tasks/<id>/resume."""
 
-    def test_resume_paused_task(self, client, app, sample_task):
+    def test_resume_paused_task(self, client, db_session, sample_task):
         """Should resume a paused task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.PAUSED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.PAUSED.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/resume")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["status"] == "pending"
 
     def test_resume_task_not_found(self, client):
@@ -346,20 +341,19 @@ class TestCancelTask:
         response = client.post(f"/api/tasks/{sample_task}/cancel")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["status"] == "cancelled"
 
-    def test_cancel_paused_task(self, client, app, sample_task):
+    def test_cancel_paused_task(self, client, db_session, sample_task):
         """Should cancel a paused task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.PAUSED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.PAUSED.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/cancel")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["status"] == "cancelled"
 
     def test_cancel_task_not_found(self, client):
@@ -368,12 +362,11 @@ class TestCancelTask:
 
         assert response.status_code == 404
 
-    def test_cancel_running_task(self, client, app, sample_task):
+    def test_cancel_running_task(self, client, db_session, sample_task):
         """Should reject cancel for running task."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.RUNNING.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.RUNNING.value
+        db_session.commit()
 
         response = client.post(f"/api/tasks/{sample_task}/cancel")
 
@@ -383,26 +376,25 @@ class TestCancelTask:
 class TestBulkPauseTasks:
     """Tests for POST /api/tasks/pause."""
 
-    def test_pause_multiple_tasks(self, client, app, sample_task):
+    def test_pause_multiple_tasks(self, client, sample_task):
         """Should pause multiple pending tasks."""
         response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["affected"] == 1
         assert data["skipped"] == 0
 
-    def test_pause_skips_non_pending(self, client, app, sample_task):
+    def test_pause_skips_non_pending(self, client, db_session, sample_task):
         """Should skip non-pending tasks."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.RUNNING.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.RUNNING.value
+        db_session.commit()
 
         response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["affected"] == 0
         assert data["skipped"] == 1
 
@@ -410,17 +402,16 @@ class TestBulkPauseTasks:
 class TestBulkResumeTasks:
     """Tests for POST /api/tasks/resume."""
 
-    def test_resume_multiple_tasks(self, client, app, sample_task):
+    def test_resume_multiple_tasks(self, client, db_session, sample_task):
         """Should resume multiple paused tasks."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.PAUSED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.PAUSED.value
+        db_session.commit()
 
         response = client.post("/api/tasks/resume", json={"task_ids": [sample_task]})
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["affected"] == 1
 
 
@@ -432,7 +423,7 @@ class TestBulkCancelTasks:
         response = client.post("/api/tasks/cancel", json={"task_ids": [sample_task]})
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["affected"] == 1
 
 
@@ -444,24 +435,23 @@ class TestPauseAllTasks:
         response = client.post("/api/tasks/pause/all")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "affected" in data
 
 
 class TestResumeAllTasks:
     """Tests for POST /api/tasks/resume/all."""
 
-    def test_resume_all_paused_tasks(self, client, app, sample_task):
+    def test_resume_all_paused_tasks(self, client, db_session, sample_task):
         """Should resume all paused tasks."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.PAUSED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.PAUSED.value
+        db_session.commit()
 
         response = client.post("/api/tasks/resume/all")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["affected"] == 1
 
 
@@ -473,7 +463,7 @@ class TestCancelAllTasks:
         response = client.post("/api/tasks/cancel/all")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "affected" in data
 
 
@@ -485,19 +475,18 @@ class TestPauseSyncTasks:
         response = client.post("/api/tasks/pause/sync")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "affected" in data
 
 
 class TestResumeSyncTasks:
     """Tests for POST /api/tasks/resume/sync."""
 
-    def test_resume_sync_tasks(self, client, app, sample_task):
+    def test_resume_sync_tasks(self, client, db_session, sample_task):
         """Should resume all paused sync tasks."""
-        with app.app_context():
-            task = db.session.get(Task, sample_task)
-            task.status = TaskStatus.PAUSED.value
-            db.session.commit()
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.PAUSED.value
+        db_session.commit()
 
         response = client.post("/api/tasks/resume/sync")
 
@@ -532,7 +521,7 @@ class TestGetActiveTasks:
         response = client.get("/api/tasks/active")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "sync" in data
         assert "download" in data
         assert "pending" in data["sync"]
@@ -543,5 +532,5 @@ class TestGetActiveTasks:
         response = client.get(f"/api/tasks/active?list_id={sample_list}")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "sync" in data

@@ -1,7 +1,10 @@
 from datetime import datetime
 from enum import Enum
 
-from app.extensions import db
+from sqlalchemy import Column, DateTime, Index, Integer, String
+from sqlalchemy.dialects.sqlite import JSON
+
+from app.models import Base
 
 
 class HistoryAction(str, Enum):
@@ -20,22 +23,22 @@ class HistoryAction(str, Enum):
     VIDEO_RETRY = "video_retry"
 
 
-class History(db.Model):
+class History(Base):
     """Audit log of actions performed in the system."""
 
     __tablename__ = "history"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    action: str = db.Column(db.String(50), nullable=False)
-    entity_type: str = db.Column(db.String(50), nullable=False)
-    entity_id: int | None = db.Column(db.Integer, nullable=True)
-    details: dict = db.Column(db.JSON, default=dict)
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    action = Column(String(50), nullable=False)
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=True)
+    details = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        db.Index("ix_history_entity_type", "entity_type"),
-        db.Index("ix_history_action", "action"),
-        db.Index("ix_history_created_at", "created_at"),
+        Index("ix_history_entity_type", "entity_type"),
+        Index("ix_history_action", "action"),
+        Index("ix_history_created_at", "created_at"),
     )
 
     def to_dict(self) -> dict:

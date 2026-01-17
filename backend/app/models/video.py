@@ -1,53 +1,61 @@
 from datetime import datetime
 
-from app.extensions import db
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy.orm import relationship
+
+from app.models import Base
 
 
-class Video(db.Model):
+class Video(Base):
     """An individual video discovered from a list."""
 
     __tablename__ = "videos"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    video_id: str = db.Column(db.String(50), nullable=False)
-    title: str = db.Column(db.String(500), nullable=False)
-    url: str = db.Column(db.String(500), nullable=False)
-    duration: int | None = db.Column(db.Integer, nullable=True)
-    upload_date: datetime | None = db.Column(db.DateTime, nullable=True)
-    thumbnail: str | None = db.Column(db.String(500), nullable=True)
-    description: str | None = db.Column(db.Text, nullable=True)
-    extractor: str | None = db.Column(
-        db.String(50), nullable=True
+    id = Column(Integer, primary_key=True)
+    video_id = Column(String(50), nullable=False)
+    title = Column(String(500), nullable=False)
+    url = Column(String(500), nullable=False)
+    duration = Column(Integer, nullable=True)
+    upload_date = Column(DateTime, nullable=True)
+    thumbnail = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    extractor = Column(
+        String(50), nullable=True
     )  # Platform identifier (e.g., "Youtube", "Vimeo")
-    media_type: str = db.Column(
-        db.String(20), nullable=False, default="video"
+    media_type = Column(
+        String(20), nullable=False, default="video"
     )  # "video" or "short"
-    labels: dict | None = db.Column(
-        db.JSON, nullable=True, default=dict
+    labels = Column(
+        JSON, nullable=True, default=dict
     )  # Video metadata labels (resolution, codec, etc.)
-    list_id: int = db.Column(
-        db.Integer, db.ForeignKey("video_lists.id"), nullable=False
-    )
-    downloaded: bool = db.Column(db.Boolean, default=False)
-    download_path: str | None = db.Column(db.String(500), nullable=True)
-    error_message: str | None = db.Column(db.Text, nullable=True)
-    retry_count: int = db.Column(db.Integer, default=0)
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    list_id = Column(Integer, ForeignKey("video_lists.id"), nullable=False)
+    downloaded = Column(Boolean, default=False)
+    download_path = Column(String(500), nullable=True)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    video_list = db.relationship("VideoList", back_populates="videos")
+    video_list = relationship("VideoList", back_populates="videos")
 
     __table_args__ = (
-        db.UniqueConstraint("video_id", "list_id", name="uq_video_list"),
-        db.Index("ix_videos_list_id", "list_id"),
-        db.Index("ix_videos_downloaded", "downloaded"),
-        db.Index("ix_videos_list_downloaded", "list_id", "downloaded"),
-        db.Index("ix_videos_list_created", "list_id", "created_at"),  # For ORDER BY
-        db.Index(
-            "ix_videos_list_updated", "list_id", "updated_at"
-        ),  # For incremental SSE
+        UniqueConstraint("video_id", "list_id", name="uq_video_list"),
+        Index("ix_videos_list_id", "list_id"),
+        Index("ix_videos_downloaded", "downloaded"),
+        Index("ix_videos_list_downloaded", "list_id", "downloaded"),
+        Index("ix_videos_list_created", "list_id", "created_at"),  # For ORDER BY
+        Index("ix_videos_list_updated", "list_id", "updated_at"),  # For incremental SSE
     )
 
     def to_dict(self) -> dict:

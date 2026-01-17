@@ -1,12 +1,6 @@
 """Profile schemas."""
 
-from pydantic import BaseModel, Field
-
-
-class ProfilePath(BaseModel):
-    """Profile path parameter."""
-
-    profile_id: int = Field(..., description="Profile ID")
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProfileCreate(BaseModel):
@@ -31,7 +25,9 @@ class ProfileCreate(BaseModel):
     audio_track_language: str = Field(
         "en", description="Preferred audio track language"
     )
-    sponsorblock_behavior: str = Field("disabled", description="SponsorBlock behavior")
+    sponsorblock_behaviour: str = Field(
+        "disabled", description="SponsorBlock behaviour"
+    )
     sponsorblock_categories: str = Field(
         "", description="SponsorBlock categories (comma-separated)"
     )
@@ -58,7 +54,9 @@ class ProfileUpdate(BaseModel):
     audio_track_language: str | None = Field(
         None, description="Preferred audio track language"
     )
-    sponsorblock_behavior: str | None = Field(None, description="SponsorBlock behavior")
+    sponsorblock_behaviour: str | None = Field(
+        None, description="SponsorBlock behaviour"
+    )
     sponsorblock_categories: str | None = Field(
         None, description="SponsorBlock categories (comma-separated)"
     )
@@ -68,6 +66,8 @@ class ProfileUpdate(BaseModel):
 
 class ProfileResponse(BaseModel):
     """Profile response matching Profile.to_dict() output."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
@@ -83,11 +83,8 @@ class ProfileResponse(BaseModel):
     output_template: str = (
         "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
     )
-    sponsorblock_behavior: str = "disabled"
+    sponsorblock_behaviour: str = "disabled"
     sponsorblock_categories: str = ""
     output_format: str = "mp4"
     created_at: str
     updated_at: str
-
-    class Config:
-        from_attributes = True

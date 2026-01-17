@@ -1,21 +1,20 @@
-from flask import jsonify
-from flask_openapi3 import APIBlueprint, Tag
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.extensions import db
+from app.extensions import get_db
 from app.models import HistoryAction, Profile
 from app.models.profile import (
     OUTPUT_FORMATS,
     SPONSORBLOCK_CATEGORIES,
-    SponsorBlockBehavior,
+    SponsorBlockBehaviour,
 )
-from app.schemas.profiles import ProfileCreate, ProfilePath, ProfileUpdate
+from app.schemas.profiles import ProfileCreate, ProfileUpdate
 from app.services import HistoryService
 
 logger = get_logger("routes.profiles")
-tag = Tag(name="Profiles", description="Download profile management")
-bp = APIBlueprint("profiles", __name__, url_prefix="/api/profiles", abp_tags=[tag])
+router = APIRouter(prefix="/api/profiles", tags=["Profiles"])
 
 
 def _validate_sponsorblock_categories(categories_str: str) -> None:
@@ -31,61 +30,59 @@ def _validate_sponsorblock_categories(categories_str: str) -> None:
         )
 
 
-def _validate_sponsorblock_behavior(behavior: str) -> None:
-    """Validate SponsorBlock behavior."""
-    if behavior and behavior not in SponsorBlockBehavior.ALL:
+def _validate_sponsorblock_behaviour(behaviour: str) -> None:
+    """Validate SponsorBlock behaviour."""
+    if behaviour and behaviour not in SponsorBlockBehaviour.ALL:
         raise ValidationError(
-            f"Invalid SponsorBlock behavior: {behavior}. "
-            f"Valid options: {SponsorBlockBehavior.ALL}"
+            f"Invalid SponsorBlock behaviour: {behaviour}. "
+            f"Valid options: {SponsorBlockBehaviour.ALL}"
         )
 
 
-@bp.get("/options")
+@router.get("/options")
 def get_profile_options():
     """Get profile options including defaults and SponsorBlock config."""
-    return jsonify(
-        {
-            "defaults": {
-                "output_template": Profile.output_template.default.arg,
-                "embed_metadata": Profile.embed_metadata.default.arg,
-                "embed_thumbnail": Profile.embed_thumbnail.default.arg,
-                "include_shorts": Profile.include_shorts.default.arg,
-                "download_subtitles": Profile.download_subtitles.default.arg,
-                "embed_subtitles": Profile.embed_subtitles.default.arg,
-                "auto_generated_subtitles": Profile.auto_generated_subtitles.default.arg,
-                "subtitle_languages": Profile.subtitle_languages.default.arg,
-                "audio_track_language": Profile.audio_track_language.default.arg,
-                "sponsorblock_behavior": Profile.sponsorblock_behavior.default.arg,
-                "sponsorblock_categories": Profile.sponsorblock_categories.default.arg,
-                "output_format": Profile.output_format.default.arg,
-                "extra_args": Profile.extra_args.default.arg,
+    return {
+        "defaults": {
+            "output_template": "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
+            "embed_metadata": True,
+            "embed_thumbnail": True,
+            "include_shorts": True,
+            "download_subtitles": False,
+            "embed_subtitles": False,
+            "auto_generated_subtitles": False,
+            "subtitle_languages": "en",
+            "audio_track_language": "en",
+            "sponsorblock_behaviour": SponsorBlockBehaviour.DISABLED,
+            "sponsorblock_categories": "",
+            "output_format": "mp4",
+            "extra_args": "{}",
+        },
+        "sponsorblock": {
+            "behaviours": SponsorBlockBehaviour.ALL,
+            "categories": SPONSORBLOCK_CATEGORIES,
+            "category_labels": {
+                "sponsor": "Sponsor",
+                "intro": "Intro/Intermission",
+                "outro": "Outro/Credits",
+                "selfpromo": "Unpaid/Self Promotion",
+                "preview": "Preview/Recap",
+                "interaction": "Interaction Reminder (Subscribe)",
+                "music_offtopic": "Music: Non-Music Section",
+                "filler": "Tangents/Jokes",
             },
-            "sponsorblock": {
-                "behaviors": SponsorBlockBehavior.ALL,
-                "categories": SPONSORBLOCK_CATEGORIES,
-                "category_labels": {
-                    "sponsor": "Sponsor",
-                    "intro": "Intro/Intermission",
-                    "outro": "Outro/Credits",
-                    "selfpromo": "Unpaid/Self Promotion",
-                    "preview": "Preview/Recap",
-                    "interaction": "Interaction Reminder (Subscribe)",
-                    "music_offtopic": "Music: Non-Music Section",
-                    "filler": "Tangents/Jokes",
-                },
-            },
-            "output_formats": OUTPUT_FORMATS,
-        }
-    )
+        },
+        "output_formats": OUTPUT_FORMATS,
+    }
 
 
-@bp.post("/")
-def create_profile(body: ProfileCreate):
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_profile(body: ProfileCreate, db: Session = Depends(get_db)):
     """Create a new profile."""
-    if Profile.query.filter_by(name=body.name).first():
+    if db.query(Profile).filter_by(name=body.name).first():
         raise ConflictError(f"Profile '{body.name}' already exists")
 
-    _validate_sponsorblock_behavior(body.sponsorblock_behavior)
+    _validate_sponsorblock_behaviour(body.sponsorblock_behaviour)
     _validate_sponsorblock_categories(body.sponsorblock_categories)
 
     profile = Profile(
@@ -99,65 +96,72 @@ def create_profile(body: ProfileCreate):
         auto_generated_subtitles=body.auto_generated_subtitles,
         subtitle_languages=body.subtitle_languages,
         audio_track_language=body.audio_track_language,
-        sponsorblock_behavior=body.sponsorblock_behavior,
+        sponsorblock_behaviour=body.sponsorblock_behaviour,
         sponsorblock_categories=body.sponsorblock_categories,
         output_format=body.output_format,
         extra_args=body.extra_args,
     )
 
-    db.session.add(profile)
-    db.session.commit()
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
 
     HistoryService.log(
-        HistoryAction.PROFILE_CREATED, "profile", profile.id, {"name": profile.name}
+        db,
+        HistoryAction.PROFILE_CREATED,
+        "profile",
+        profile.id,
+        {"name": profile.name},
     )
 
     logger.info("Created profile: %s", profile.name)
-    return jsonify(profile.to_dict()), 201
+    return profile.to_dict()
 
 
-@bp.get("/")
-def list_profiles():
+@router.get("/")
+def list_profiles(db: Session = Depends(get_db)):
     """List all profiles."""
-    profiles = Profile.query.all()
-    return jsonify([p.to_dict() for p in profiles])
+    profiles = db.query(Profile).all()
+    return [p.to_dict() for p in profiles]
 
 
-@bp.get("/<int:profile_id>")
-def get_profile(path: ProfilePath):
+@router.get("/{profile_id}")
+def get_profile(profile_id: int, db: Session = Depends(get_db)):
     """Get a profile by ID."""
-    profile = Profile.query.get(path.profile_id)
+    profile = db.query(Profile).get(profile_id)
     if not profile:
-        raise NotFoundError("Profile", path.profile_id)
-    return jsonify(profile.to_dict())
+        raise NotFoundError("Profile", profile_id)
+    return profile.to_dict()
 
 
-@bp.put("/<int:profile_id>")
-def update_profile(path: ProfilePath, body: ProfileUpdate):
+@router.put("/{profile_id}")
+def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(get_db)):
     """Update a profile."""
-    profile = Profile.query.get(path.profile_id)
+    profile = db.query(Profile).get(profile_id)
     if not profile:
-        raise NotFoundError("Profile", path.profile_id)
+        raise NotFoundError("Profile", profile_id)
 
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise ValidationError("No data provided")
 
     if "name" in data and data["name"] != profile.name:
-        if Profile.query.filter_by(name=data["name"]).first():
+        if db.query(Profile).filter_by(name=data["name"]).first():
             raise ConflictError(f"Profile '{data['name']}' already exists")
 
-    if "sponsorblock_behavior" in data:
-        _validate_sponsorblock_behavior(data["sponsorblock_behavior"])
+    if "sponsorblock_behaviour" in data:
+        _validate_sponsorblock_behaviour(data["sponsorblock_behaviour"])
     if "sponsorblock_categories" in data:
         _validate_sponsorblock_categories(data["sponsorblock_categories"])
 
     for field, value in data.items():
         setattr(profile, field, value)
 
-    db.session.commit()
+    db.commit()
+    db.refresh(profile)
 
     HistoryService.log(
+        db,
         HistoryAction.PROFILE_UPDATED,
         "profile",
         profile.id,
@@ -165,15 +169,15 @@ def update_profile(path: ProfilePath, body: ProfileUpdate):
     )
 
     logger.info("Updated profile: %s", profile.name)
-    return jsonify(profile.to_dict())
+    return profile.to_dict()
 
 
-@bp.delete("/<int:profile_id>")
-def delete_profile(path: ProfilePath):
+@router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     """Delete a profile."""
-    profile = Profile.query.get(path.profile_id)
+    profile = db.query(Profile).get(profile_id)
     if not profile:
-        raise NotFoundError("Profile", path.profile_id)
+        raise NotFoundError("Profile", profile_id)
 
     list_count = profile.lists.count()
     if list_count > 0:
@@ -182,15 +186,15 @@ def delete_profile(path: ProfilePath):
         )
 
     profile_name = profile.name
-    db.session.delete(profile)
-    db.session.commit()
+    db.delete(profile)
+    db.commit()
 
     HistoryService.log(
+        db,
         HistoryAction.PROFILE_DELETED,
         "profile",
-        path.profile_id,
+        profile_id,
         {"name": profile_name},
     )
 
     logger.info("Deleted profile: %s", profile_name)
-    return "", 204

@@ -16,7 +16,7 @@ class TestGetProgress:
         response = client.get("/api/progress")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "1" in data or 1 in data
 
     @patch("app.services.progress_service.get_all")
@@ -27,4 +27,4 @@ class TestGetProgress:
         response = client.get("/api/progress")
 
         assert response.status_code == 200
-        assert response.get_json() == {}
+        assert response.json() == {}

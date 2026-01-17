@@ -1,177 +1,211 @@
-import atexit
-import logging
 import os
+from contextlib import asynccontextmanager
 
-from flask import Response, json
-from flask_cors import CORS
-from flask_openapi3 import Info, OpenAPI
-from pydantic import ValidationError
-
-from app.core.helpers import _get_pyproject_attr
 from app.core.logging import get_logger, setup_logging
-from app.extensions import db, migrate, scheduler
-from app.metrics import init_metrics
 
+setup_logging()
 logger = get_logger("app")
 
-info = Info(
-    title=_get_pyproject_attr("name"),
-    version=_get_pyproject_attr("version"),
-    description=_get_pyproject_attr("description"),
-)
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from scalar_fastapi import get_scalar_api_reference  # noqa: E402
+
+from app.core.helpers import _get_pyproject_attr  # noqa: E402
+from app.extensions import SessionLocal, engine  # noqa: E402
+from app.metrics import init_metrics  # noqa: E402
+from app.models import Base  # noqa: E402
 
 
-def _validation_error_callback(e: ValidationError) -> Response:
-    """Return 400 instead of 422 for Pydantic validation errors."""
-    return Response(
-        json.dumps({"message": "Validation error", "errors": e.errors()}),
-        status=400,
-        mimetype="application/json",
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup and shutdown."""
+    logger.info("Application starting up...")
+    _init_database(app)
+
+    if not app.state.testing:
+        _init_worker(app)
+        _setup_scheduler(app)
+
+    logger.info("Application ready")
+    yield
+
+    logger.info("Application shutting down...")
+    _shutdown(app)
+
+
+def create_app(config: dict | None = None) -> FastAPI:
+    """Create and configure the FastAPI application."""
+    debug = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
+
+    app = FastAPI(
+        title=_get_pyproject_attr("name"),
+        version=_get_pyproject_attr("version"),
+        description=_get_pyproject_attr("description"),
+        docs_url=None,
+        redoc_url=None,
+        openapi_url="/api/openapi.json",
+        lifespan=lifespan,
+        debug=debug,
     )
 
+    app.state.testing = config.get("TESTING", False) if config else False
+    app.state.config = _build_config(config)
 
-def create_app(config: dict | None = None) -> OpenAPI:
-    """Create and configure the Flask application."""
-    setup_logging(level=logging.INFO)
+    _add_middleware(app)
+    _register_routes(app)
+    _register_exception_handlers(app)
+    _register_scalar_docs(app)
+    init_metrics(app)
 
-    app = OpenAPI(
-        __name__,
-        info=info,
-        doc_prefix="/api/docs",
-        validation_error_callback=_validation_error_callback,
-    )
-    app.url_map.strict_slashes = False
-
-    _configure_app(app, config)
-    _init_extensions(app)
-    _register_blueprints(app)
-
-    with app.app_context():
-        _init_database(app)
-        if not app.config.get("TESTING") and not _in_reloader_parent():
-            _init_worker(app)
-            _setup_scheduler(app)
-
-    logger.info("Application initialised")
     return app
 
 
-def _in_reloader_parent() -> bool:
-    """Check if running in Flask's debug reloader parent process.
+def _build_config(config: dict | None) -> dict:
+    """Build application configuration."""
+    default_config = {
+        "SQLALCHEMY_DATABASE_URI": "sqlite:////data/corvin.db",
+        "MAX_SYNC_WORKERS": int(os.getenv("MAX_SYNC_WORKERS", "2")),
+        "MAX_DOWNLOAD_WORKERS": int(os.getenv("MAX_DOWNLOAD_WORKERS", "2")),
+    }
+    if config:
+        default_config.update(config)
+    return default_config
 
-    Flask's debug reloader spawns two processes - skip the parent to avoid
-    duplicate workers. Gunicorn doesn't set FLASK_DEBUG so this is a no-op.
-    """
-    return (
-        os.environ.get("FLASK_DEBUG") == "1"
-        and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+
+def _add_middleware(app: FastAPI) -> None:
+    """Add middleware to the application."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        max_age=86400,
     )
 
 
-def _configure_app(app: OpenAPI, config: dict | None) -> None:
-    """Configure application settings."""
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////data/corvin.db"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["MAX_SYNC_WORKERS"] = int(os.getenv("MAX_SYNC_WORKERS", "2"))
-    app.config["MAX_DOWNLOAD_WORKERS"] = int(os.getenv("MAX_DOWNLOAD_WORKERS", "2"))
-
-    if config:
-        app.config.update(config)
-
-
-def _init_extensions(app: OpenAPI) -> None:
-    """Initialise Flask extensions."""
-    CORS(app, resources={r"/*": {"origins": "*", "max_age": 86400}})
-    db.init_app(app)
-    migrate.init_app(app, db)
-    init_metrics(app)
-
-
-def _register_blueprints(app: OpenAPI) -> None:
-    """Register all route blueprints."""
+def _register_routes(app: FastAPI) -> None:
+    """Register all route routers."""
     from app.routes import errors, history, lists, profiles, progress, tasks, videos
 
-    app.register_api(profiles.bp)
-    app.register_api(lists.bp)
-    app.register_api(videos.bp)
-    app.register_api(history.bp)
-    app.register_api(tasks.bp)
-    app.register_api(progress.bp)
-    app.register_blueprint(errors.bp)
+    app.include_router(profiles.router)
+    app.include_router(lists.router)
+    app.include_router(videos.router)
+    app.include_router(history.router)
+    app.include_router(tasks.router)
+    app.include_router(progress.router)
+    errors.register_exception_handlers(app)
+
+    @app.get("/health", tags=["Health"])
+    def health_check():
+        return {"status": "healthy"}
 
 
-def _init_database(app: OpenAPI) -> None:
+def _register_scalar_docs(app: FastAPI) -> None:
+    """Register Scalar API documentation."""
+
+    @app.get("/api/docs", include_in_schema=False)
+    async def scalar_docs():
+        return get_scalar_api_reference(
+            openapi_url=app.openapi_url,
+            title=app.title,
+        )
+
+
+def _register_exception_handlers(app: FastAPI) -> None:
+    """Register exception handlers."""
+    from app.core.exceptions import AppError
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.to_dict(),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(request: Request, exc: RequestValidationError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Validation error", "details": exc.errors()},
+        )
+
+
+def _init_database(app: FastAPI) -> None:
     """Initialise database schema and reset stale tasks."""
-    from flask_migrate import upgrade
-
     from app.models.task import Task, TaskStatus
 
-    db.create_all()
+    Base.metadata.create_all(bind=engine)
 
-    if not app.config.get("TESTING"):
-        upgrade()
+    if not app.state.testing:
+        from alembic import command
+        from alembic.config import Config
 
-        # Reset any tasks stuck in RUNNING state from previous run
-        count = Task.query.filter_by(status=TaskStatus.RUNNING.value).update(
-            {"status": TaskStatus.PENDING.value, "started_at": None}
-        )
-        db.session.commit()
-        if count:
-            logger.info("Reset %d stale tasks to pending", count)
+        alembic_cfg = Config("alembic.ini")
+        try:
+            command.upgrade(alembic_cfg, "head")
+        except Exception:
+            pass
+
+        with SessionLocal() as db:
+            db.query(Task).filter_by(status=TaskStatus.RUNNING.value).update(
+                {"status": TaskStatus.PENDING.value, "started_at": None}
+            )
+            db.commit()
 
 
-def _init_worker(app: OpenAPI) -> None:
+def _init_worker(app: FastAPI) -> None:
     """Set up the background task worker and register handlers."""
     from app.models.task import TaskType
     from app.task_queue import init_worker
     from app.tasks import download_single_video, sync_single_list
 
+    config = app.state.config
     worker = init_worker(
-        app,
-        max_sync_workers=app.config["MAX_SYNC_WORKERS"],
-        max_download_workers=app.config["MAX_DOWNLOAD_WORKERS"],
+        max_sync_workers=config["MAX_SYNC_WORKERS"],
+        max_download_workers=config["MAX_DOWNLOAD_WORKERS"],
     )
     worker.register_handler(TaskType.SYNC.value, sync_single_list)
     worker.register_handler(TaskType.DOWNLOAD.value, download_single_video)
     worker.start()
 
 
-def _setup_scheduler(app: OpenAPI) -> None:
+def _setup_scheduler(app: FastAPI) -> None:
     """Set up periodic task scheduling for syncs and downloads."""
-    from app.task_queue import get_worker
+    from apscheduler.schedulers.background import BackgroundScheduler
+
     from app.tasks import schedule_all_syncs, schedule_downloads
 
-    def run_in_context(func):
-        def wrapper():
-            with app.app_context():
-                func()
-
-        return wrapper
-
-    def shutdown():
-        """Gracefully shut down scheduler and worker."""
-        if scheduler.running:
-            scheduler.shutdown(wait=False)
-        worker = get_worker()
-        if worker:
-            worker.stop()
+    scheduler = BackgroundScheduler()
+    app.state.scheduler = scheduler
 
     scheduler.add_job(
-        func=run_in_context(schedule_all_syncs),
+        func=schedule_all_syncs,
         trigger="interval",
         minutes=30,
         id="sync_videos",
         replace_existing=True,
     )
     scheduler.add_job(
-        func=run_in_context(schedule_downloads),
+        func=schedule_downloads,
         trigger="interval",
         minutes=5,
         id="download_videos",
         replace_existing=True,
     )
 
-    if not scheduler.running:
-        scheduler.start()
-        logger.info("Scheduler started")
-        atexit.register(shutdown)
+    scheduler.start()
+
+
+def _shutdown(app: FastAPI) -> None:
+    """Gracefully shut down scheduler and worker."""
+    from app.task_queue import get_worker
+
+    if hasattr(app.state, "scheduler") and app.state.scheduler.running:
+        app.state.scheduler.shutdown(wait=False)
+
+    worker = get_worker()
+    if worker:
+        worker.stop()

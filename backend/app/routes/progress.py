@@ -1,30 +1,29 @@
 """SSE endpoint for download progress - streams all active downloads."""
 
+import asyncio
 import json
-import time
 
-from flask import Response, jsonify, request
-from flask_openapi3 import APIBlueprint, Tag
+from fastapi import APIRouter, Request
+from sse_starlette.sse import EventSourceResponse
 
 from app.services import progress_service
 
-tag = Tag(name="Progress", description="Download progress streaming")
-bp = APIBlueprint("progress", __name__, url_prefix="/api/progress", abp_tags=[tag])
+router = APIRouter(prefix="/api/progress", tags=["Progress"])
 
 
-@bp.get("/")
-def get_progress():
+@router.get("/")
+async def get_progress(request: Request):
     """Get download progress.
 
     If Accept header is 'text/event-stream', streams updates via SSE.
     Otherwise returns JSON object of current progress.
     """
-    # Regular JSON response (early return)
-    if request.accept_mimetypes.best != "text/event-stream":
-        return jsonify(progress_service.get_all())
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" not in accept:
+        return progress_service.get_all()
 
     # SSE stream
-    def generate():
+    async def generate():
         last_json = None
         idle = 0
 
@@ -33,23 +32,16 @@ def get_progress():
             current_json = json.dumps(data, sort_keys=True)
 
             if current_json != last_json:
-                yield f"data: {current_json}\n\n"
+                yield {"data": current_json}
                 last_json = current_json
                 idle = 0
             else:
                 idle += 1
 
             if idle > 600:
-                yield f"data: {json.dumps({'status': 'timeout'})}\n\n"
+                yield {"data": json.dumps({"status": "timeout"})}
                 break
 
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return EventSourceResponse(generate())

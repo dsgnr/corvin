@@ -9,7 +9,7 @@ class TestProfileOptions:
         response = client.get("/api/profiles/options")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "defaults" in data
         assert "sponsorblock" in data
         assert "output_formats" in data
@@ -18,8 +18,8 @@ class TestProfileOptions:
         """Should include all sponsorblock behaviour options."""
         response = client.get("/api/profiles/options")
 
-        data = response.get_json()
-        behaviours = data["sponsorblock"]["behaviors"]
+        data = response.json()
+        behaviours = data["sponsorblock"]["behaviours"]
         assert "disabled" in behaviours
         assert "delete" in behaviours
         assert "mark_chapter" in behaviours
@@ -36,7 +36,7 @@ class TestCreateProfile:
         )
 
         assert response.status_code == 201
-        data = response.get_json()
+        data = response.json()
         assert data["name"] == "My Profile"
         assert "id" in data
 
@@ -61,14 +61,14 @@ class TestCreateProfile:
             "/api/profiles",
             json={
                 "name": "Sponsorblock Profile",
-                "sponsorblock_behavior": "delete",
+                "sponsorblock_behaviour": "delete",
                 "sponsorblock_categories": "sponsor,intro",
             },
         )
 
         assert response.status_code == 201
-        data = response.get_json()
-        assert data["sponsorblock_behavior"] == "delete"
+        data = response.json()
+        assert data["sponsorblock_behaviour"] == "delete"
 
     def test_create_profile_invalid_sponsorblock_behaviour(self, client):
         """Should reject invalid sponsorblock behaviour."""
@@ -76,7 +76,7 @@ class TestCreateProfile:
             "/api/profiles",
             json={
                 "name": "Bad Profile",
-                "sponsorblock_behavior": "invalid",
+                "sponsorblock_behaviour": "invalid",
             },
         )
 
@@ -103,14 +103,14 @@ class TestListProfiles:
         response = client.get("/api/profiles")
 
         assert response.status_code == 200
-        assert response.get_json() == []
+        assert response.json() == []
 
     def test_list_profiles_with_data(self, client, sample_profile):
         """Should return all profiles."""
         response = client.get("/api/profiles")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "Test Profile"
 
@@ -123,7 +123,7 @@ class TestGetProfile:
         response = client.get(f"/api/profiles/{sample_profile}")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["id"] == sample_profile
 
     def test_get_profile_not_found(self, client):
@@ -144,7 +144,7 @@ class TestUpdateProfile:
         )
 
         assert response.status_code == 200
-        assert response.get_json()["name"] == "Updated Name"
+        assert response.json()["name"] == "Updated Name"
 
     def test_update_profile_not_found(self, client):
         """Should return 404 for non-existent profile."""

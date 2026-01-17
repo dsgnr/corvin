@@ -9,14 +9,14 @@ class TestGetHistory:
         response = client.get("/api/history")
 
         assert response.status_code == 200
-        assert response.get_json() == []
+        assert response.json() == []
 
     def test_get_history_with_data(self, client, sample_history):
         """Should return all history entries."""
         response = client.get("/api/history")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 2
 
     def test_get_history_filter_by_entity_type(self, client, sample_history):
@@ -24,7 +24,7 @@ class TestGetHistory:
         response = client.get("/api/history?entity_type=profile")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
         assert data[0]["entity_type"] == "profile"
 
@@ -33,7 +33,7 @@ class TestGetHistory:
         response = client.get("/api/history?action=list_created")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
         assert data[0]["action"] == "list_created"
 
@@ -42,7 +42,7 @@ class TestGetHistory:
         response = client.get("/api/history?limit=1&offset=0")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
 
     def test_get_history_combined_filters(self, client, sample_history):
@@ -50,5 +50,5 @@ class TestGetHistory:
         response = client.get("/api/history?entity_type=profile&action=profile_created")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1

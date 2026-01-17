@@ -1,27 +1,6 @@
 """Video schemas."""
 
-from pydantic import BaseModel, Field
-
-from app.schemas.common import PaginationQuery
-
-
-class VideoPath(BaseModel):
-    """Video path parameter."""
-
-    video_id: int = Field(..., description="Video ID")
-
-
-class VideoListPath(BaseModel):
-    """Video list path parameter for videos endpoint."""
-
-    list_id: int = Field(..., description="List ID")
-
-
-class VideoQuery(PaginationQuery):
-    """Video query parameters."""
-
-    list_id: int | None = Field(None, description="Filter by list ID")
-    downloaded: bool | None = Field(None, description="Filter by download status")
+from pydantic import BaseModel
 
 
 class VideoResponse(BaseModel):

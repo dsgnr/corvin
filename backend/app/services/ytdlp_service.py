@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from xml.etree import ElementTree as ET
 
 import requests
 import yt_dlp
 
 from app.core.logging import get_logger
-from app.models import Profile, Video
+
+if TYPE_CHECKING:
+    from app.models import Profile, Video
 
 logger = get_logger("ytdlp")
 

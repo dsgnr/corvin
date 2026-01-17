@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 
-from app.extensions import db
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from app.models import Base
 
 # Sync frequency options in hours
 SYNC_FREQUENCIES = {
@@ -13,36 +16,32 @@ SYNC_FREQUENCIES = {
 }
 
 
-class VideoList(db.Model):
+class VideoList(Base):
     """A channel or playlist to monitor for videos."""
 
     __tablename__ = "video_lists"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    name: str = db.Column(db.String(200), nullable=False)
-    url: str = db.Column(db.String(500), nullable=False, unique=True)
-    list_type: str = db.Column(db.String(20), default="channel")
-    extractor: str | None = db.Column(db.String(50), nullable=True)
-    profile_id: int = db.Column(
-        db.Integer, db.ForeignKey("profiles.id"), nullable=False
-    )
-    from_date: str | None = db.Column(db.String(8), nullable=True)  # YYYYMMDD format
-    sync_frequency: str = db.Column(db.String(10), default="daily")
-    enabled: bool = db.Column(db.Boolean, default=True)
-    auto_download: bool = db.Column(db.Boolean, default=True)
-    last_synced: datetime | None = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    url = Column(String(500), nullable=False, unique=True)
+    list_type = Column(String(20), default="channel")
+    extractor = Column(String(50), nullable=True)
+    profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False)
+    from_date = Column(String(8), nullable=True)  # YYYYMMDD format
+    sync_frequency = Column(String(10), default="daily")
+    enabled = Column(Boolean, default=True)
+    auto_download = Column(Boolean, default=True)
+    last_synced = Column(DateTime, nullable=True)
 
-    description: str | None = db.Column(db.Text, nullable=True)
-    thumbnail: str | None = db.Column(db.String(500), nullable=True)
-    tags: str | None = db.Column(db.Text, nullable=True)
+    description = Column(Text, nullable=True)
+    thumbnail = Column(String(500), nullable=True)
+    tags = Column(Text, nullable=True)
 
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    profile = db.relationship("Profile", back_populates="lists")
-    videos = db.relationship(
+    profile = relationship("Profile", back_populates="lists")
+    videos = relationship(
         "Video",
         back_populates="video_list",
         lazy="dynamic",
@@ -91,20 +90,19 @@ class VideoList(db.Model):
             data["videos"] = [v.to_dict() for v in self.videos]
         return data
 
-    def get_video_stats(self) -> dict:
+    def get_video_stats(self, db) -> dict:
         """Get video statistics using efficient COUNT queries."""
-        from sqlalchemy import func
+        from sqlalchemy import case, func
 
-        from app.extensions import db
         from app.models.video import Video
 
         stats = (
-            db.session.query(
+            db.query(
                 func.count(Video.id).label("total"),
-                func.sum(db.case((Video.downloaded.is_(True), 1), else_=0)).label(
+                func.sum(case((Video.downloaded.is_(True), 1), else_=0)).label(
                     "downloaded"
                 ),
-                func.sum(db.case((Video.error_message.isnot(None), 1), else_=0)).label(
+                func.sum(case((Video.error_message.isnot(None), 1), else_=0)).label(
                     "failed"
                 ),
             )

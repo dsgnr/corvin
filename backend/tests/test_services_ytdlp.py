@@ -414,19 +414,17 @@ class TestExtractLabels:
 class TestBuildDownloadOpts:
     """Tests for YtDlpService._build_download_opts method."""
 
-    def test_includes_profile_opts(self, app, sample_profile):
+    def test_includes_profile_opts(self, app, db_session, sample_profile):
         """Should include profile options."""
-        from app.extensions import db
         from app.models import Profile
 
-        with app.app_context():
-            profile = db.session.get(Profile, sample_profile)
+        profile = db_session.get(Profile, sample_profile)
 
-            opts = YtDlpService._build_download_opts(profile, "/downloads/%(title)s")
+        opts = YtDlpService._build_download_opts(profile, "/downloads/%(title)s")
 
-            assert opts["outtmpl"] == "/downloads/%(title)s"
-            assert opts["quiet"] is True
-            assert "postprocessors" in opts
+        assert opts["outtmpl"] == "/downloads/%(title)s"
+        assert opts["quiet"] is True
+        assert "postprocessors" in opts
 
 
 class TestDownloadVideo:
@@ -441,11 +439,11 @@ class TestDownloadVideo:
         mock_mark_done,
         mock_create_hook,
         app,
+        db_session,
         sample_video,
         sample_profile,
     ):
         """Should download video successfully."""
-        from app.extensions import db
         from app.models import Profile, Video
 
         mock_ydl = MagicMock()
@@ -459,12 +457,11 @@ class TestDownloadVideo:
         mock_ydl.prepare_filename.return_value = "/downloads/test.mp4"
         mock_create_hook.return_value = MagicMock()
 
-        with app.app_context():
-            video = db.session.get(Video, sample_video)
-            profile = db.session.get(Profile, sample_profile)
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
 
-            with patch.object(YtDlpService, "write_video_nfo", return_value=True):
-                success, result, labels = YtDlpService.download_video(video, profile)
+        with patch.object(YtDlpService, "write_video_nfo", return_value=True):
+            success, result, labels = YtDlpService.download_video(video, profile)
 
         assert success is True
         assert result == "/downloads/test.mp4"
@@ -479,11 +476,11 @@ class TestDownloadVideo:
         mock_mark_error,
         mock_create_hook,
         app,
+        db_session,
         sample_video,
         sample_profile,
     ):
         """Should handle download failure when no info returned."""
-        from app.extensions import db
         from app.models import Profile, Video
 
         mock_ydl = MagicMock()
@@ -491,11 +488,10 @@ class TestDownloadVideo:
         mock_ydl.extract_info.return_value = None
         mock_create_hook.return_value = MagicMock()
 
-        with app.app_context():
-            video = db.session.get(Video, sample_video)
-            profile = db.session.get(Profile, sample_profile)
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
 
-            success, result, labels = YtDlpService.download_video(video, profile)
+        success, result, labels = YtDlpService.download_video(video, profile)
 
         assert success is False
         assert "Failed to extract" in result
@@ -509,13 +505,13 @@ class TestDownloadVideo:
         mock_mark_error,
         mock_create_hook,
         app,
+        db_session,
         sample_video,
         sample_profile,
     ):
         """Should handle yt-dlp download errors."""
         import yt_dlp
 
-        from app.extensions import db
         from app.models import Profile, Video
 
         mock_ydl = MagicMock()
@@ -523,11 +519,10 @@ class TestDownloadVideo:
         mock_ydl.extract_info.side_effect = yt_dlp.DownloadError("Video unavailable")
         mock_create_hook.return_value = MagicMock()
 
-        with app.app_context():
-            video = db.session.get(Video, sample_video)
-            profile = db.session.get(Profile, sample_profile)
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
 
-            success, result, labels = YtDlpService.download_video(video, profile)
+        success, result, labels = YtDlpService.download_video(video, profile)
 
         assert success is False
         assert "Video unavailable" in result
@@ -701,16 +696,14 @@ class TestWriteChannelNfo:
 class TestWriteVideoNfo:
     """Tests for YtDlpService.write_video_nfo method."""
 
-    def test_writes_video_nfo(self, app, sample_video, tmp_path):
+    def test_writes_video_nfo(self, app, db_session, sample_video, tmp_path):
         """Should write video NFO file."""
-        from app.extensions import db
         from app.models import Video
 
-        with app.app_context():
-            video = db.session.get(Video, sample_video)
-            video_path = str(tmp_path / "test_video.mp4")
+        video = db_session.get(Video, sample_video)
+        video_path = str(tmp_path / "test_video.mp4")
 
-            result = YtDlpService.write_video_nfo(video, video_path)
+        result = YtDlpService.write_video_nfo(video, video_path)
 
         assert result is True
         nfo_path = tmp_path / "test_video.nfo"
@@ -719,25 +712,23 @@ class TestWriteVideoNfo:
         content = nfo_path.read_text()
         assert "Test Video" in content
 
-    def test_includes_upload_date_info(self, app, sample_list, tmp_path):
+    def test_includes_upload_date_info(self, app, db_session, sample_list, tmp_path):
         """Should include year and season from upload date."""
-        from app.extensions import db
         from app.models import Video
 
-        with app.app_context():
-            video = Video(
-                video_id="dated123",
-                title="Dated Video",
-                url="https://youtube.com/watch?v=dated123",
-                list_id=sample_list,
-                upload_date=datetime(2024, 6, 15),
-                duration=300,
-            )
-            db.session.add(video)
-            db.session.commit()
+        video = Video(
+            video_id="dated123",
+            title="Dated Video",
+            url="https://youtube.com/watch?v=dated123",
+            list_id=sample_list,
+            upload_date=datetime(2024, 6, 15),
+            duration=300,
+        )
+        db_session.add(video)
+        db_session.commit()
 
-            video_path = str(tmp_path / "dated_video.mp4")
-            result = YtDlpService.write_video_nfo(video, video_path)
+        video_path = str(tmp_path / "dated_video.mp4")
+        result = YtDlpService.write_video_nfo(video, video_path)
 
         assert result is True
         content = (tmp_path / "dated_video.nfo").read_text()

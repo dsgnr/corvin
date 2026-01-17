@@ -1,260 +1,246 @@
+import asyncio
 import json
-import time
+from datetime import datetime
 
-from flask import Response, current_app, jsonify, request
-from flask_openapi3 import APIBlueprint, Tag
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.extensions import db
+from app.extensions import SessionLocal, get_db
 from app.models import HistoryAction, Video, VideoList
 from app.models.task import Task, TaskStatus, TaskType
-from app.schemas.videos import VideoListPath, VideoPath, VideoQuery
 from app.services import HistoryService
 
 logger = get_logger("routes.videos")
-tag = Tag(name="Videos", description="Video management")
-bp = APIBlueprint("videos", __name__, url_prefix="/api/videos", abp_tags=[tag])
+router = APIRouter(prefix="/api/videos", tags=["Videos"])
 
 ACTIVE_STATUSES = [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]
 
 
 def _get_list_fingerprint(list_id: int) -> tuple:
-    """Get fingerprint for change detection.
-
-    Uses video count + max updated_at as a lightweight change indicator.
-    """
-    video_stats = (
-        db.session.query(func.count(Video.id), func.max(Video.updated_at))
-        .filter(Video.list_id == list_id)
-        .first()
-    )
-    # Also check active task count to detect when downloads complete
-    active_task_count = (
-        db.session.query(func.count(Task.id))
-        .filter(Task.status.in_(ACTIVE_STATUSES))
-        .scalar()
-    )
-    return (
-        video_stats[0],
-        str(video_stats[1]) if video_stats[1] else None,
-        active_task_count,
-    )
+    """Get fingerprint for change detection."""
+    with SessionLocal() as db:
+        video_stats = (
+            db.query(func.count(Video.id), func.max(Video.updated_at))
+            .filter(Video.list_id == list_id)
+            .first()
+        )
+        active_task_count = (
+            db.query(func.count(Task.id))
+            .filter(Task.status.in_(ACTIVE_STATUSES))
+            .scalar()
+        )
+        return (
+            video_stats[0],
+            str(video_stats[1]) if video_stats[1] else None,
+            active_task_count,
+        )
 
 
 def _get_active_tasks_for_list(list_id: int) -> dict:
     """Get active task status for a specific list."""
-    result = {
-        "sync": {"pending": [], "running": []},
-        "download": {"pending": [], "running": []},
-    }
-
-    # Get sync tasks for this list (usually 0-1)
-    sync_tasks = (
-        db.session.query(Task.status, Task.entity_id)
-        .filter(
-            Task.task_type == TaskType.SYNC.value,
-            Task.status.in_(ACTIVE_STATUSES),
-            Task.entity_id == list_id,
-        )
-        .all()
-    )
-
-    for status, entity_id in sync_tasks:
-        if status in result["sync"]:
-            result["sync"][status].append(entity_id)
-
-    # Get all active download tasks (usually a small number)
-    # Then filter in Python - faster than subquery for SQLite
-    download_tasks = (
-        db.session.query(Task.status, Task.entity_id)
-        .filter(
-            Task.task_type == TaskType.DOWNLOAD.value,
-            Task.status.in_(ACTIVE_STATUSES),
-        )
-        .all()
-    )
-
-    if download_tasks:
-        # Get video IDs for this list to filter download tasks
-        video_ids = {
-            v[0]
-            for v in db.session.query(Video.id).filter(Video.list_id == list_id).all()
+    with SessionLocal() as db:
+        result = {
+            "sync": {"pending": [], "running": []},
+            "download": {"pending": [], "running": []},
         }
 
-        for status, entity_id in download_tasks:
-            if entity_id in video_ids and status in result["download"]:
-                result["download"][status].append(entity_id)
+        sync_tasks = (
+            db.query(Task.status, Task.entity_id)
+            .filter(
+                Task.task_type == TaskType.SYNC.value,
+                Task.status.in_(ACTIVE_STATUSES),
+                Task.entity_id == list_id,
+            )
+            .all()
+        )
 
-    return result
+        for status, entity_id in sync_tasks:
+            if status in result["sync"]:
+                result["sync"][status].append(entity_id)
+
+        download_tasks = (
+            db.query(Task.status, Task.entity_id)
+            .filter(
+                Task.task_type == TaskType.DOWNLOAD.value,
+                Task.status.in_(ACTIVE_STATUSES),
+            )
+            .all()
+        )
+
+        if download_tasks:
+            video_ids = {
+                v[0] for v in db.query(Video.id).filter(Video.list_id == list_id).all()
+            }
+
+            for status, entity_id in download_tasks:
+                if entity_id in video_ids and status in result["download"]:
+                    result["download"][status].append(entity_id)
+
+        return result
 
 
 def _get_videos_for_stream(list_id: int, since: str | None = None) -> list[dict]:
-    """Get video data optimised for SSE stream (minimal fields for display)."""
-    from datetime import datetime
+    """Get video data optimised for SSE stream."""
+    with SessionLocal() as db:
+        q = db.query(
+            Video.id,
+            Video.title,
+            Video.thumbnail,
+            Video.media_type,
+            Video.duration,
+            Video.upload_date,
+            Video.downloaded,
+            Video.error_message,
+            Video.created_at,
+        ).filter(Video.list_id == list_id)
 
-    q = db.session.query(
-        Video.id,
-        Video.title,
-        Video.thumbnail,
-        Video.media_type,
-        Video.duration,
-        Video.upload_date,
-        Video.downloaded,
-        Video.error_message,
-        Video.created_at,
-    ).filter(Video.list_id == list_id)
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                q = q.filter(Video.updated_at > since_dt)
+            except ValueError:
+                pass
 
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
-            q = q.filter(Video.updated_at > since_dt)
-        except ValueError:
-            pass  # Invalid timestamp, return all
+        videos = q.order_by(Video.created_at.desc()).all()
 
-    videos = q.order_by(Video.created_at.desc()).all()
-
-    result = []
-    for v in videos:
-        result.append(
-            {
-                "id": v[0],
-                "title": v[1],
-                "thumbnail": v[2],
-                "media_type": v[3],
-                "duration": v[4],
-                "upload_date": v[5].isoformat() if v[5] else None,
-                "downloaded": v[6],
-                "error_message": v[7],
-                "created_at": v[8].isoformat() if v[8] else None,
-            }
-        )
-    return result
+        result = []
+        for v in videos:
+            result.append(
+                {
+                    "id": v[0],
+                    "title": v[1],
+                    "thumbnail": v[2],
+                    "media_type": v[3],
+                    "duration": v[4],
+                    "upload_date": v[5].isoformat() if v[5] else None,
+                    "downloaded": v[6],
+                    "error_message": v[7],
+                    "created_at": v[8].isoformat() if v[8] else None,
+                }
+            )
+        return result
 
 
-@bp.get("/")
-def list_videos(query: VideoQuery):
+@router.get("/")
+def list_videos(
+    list_id: int | None = Query(None),
+    downloaded: bool | None = Query(None),
+    limit: int | None = Query(None),
+    offset: int = Query(0),
+    db: Session = Depends(get_db),
+):
     """List videos with optional filtering."""
-    q = Video.query
+    q = db.query(Video)
 
-    if query.list_id:
-        q = q.filter_by(list_id=query.list_id)
-    if query.downloaded is not None:
-        q = q.filter_by(downloaded=query.downloaded)
+    if list_id:
+        q = q.filter_by(list_id=list_id)
+    if downloaded is not None:
+        q = q.filter_by(downloaded=downloaded)
 
-    q = q.order_by(Video.created_at.desc()).offset(query.offset)
-    if query.limit:
-        q = q.limit(query.limit)
-    return jsonify([v.to_dict() for v in q.all()])
-
-
-@bp.get("/<int:video_id>")
-def get_video(path: VideoPath):
-    """Get a video by ID."""
-    video = Video.query.get(path.video_id)
-    if not video:
-        raise NotFoundError("Video", path.video_id)
-    return jsonify(video.to_dict())
+    q = q.order_by(Video.created_at.desc()).offset(offset)
+    if limit:
+        q = q.limit(limit)
+    return [v.to_dict() for v in q.all()]
 
 
-@bp.get("/list/<int:list_id>")
-def get_videos_by_list(path: VideoListPath, query: VideoQuery):
-    """Get all videos for a specific list.
-
-    If Accept header is 'text/event-stream', streams updates via SSE.
-    Otherwise returns JSON array of videos.
-    """
-    video_list = VideoList.query.get(path.list_id)
+@router.get("/list/{list_id}")
+async def get_videos_by_list(
+    list_id: int,
+    request: Request,
+    downloaded: bool | None = Query(None),
+    limit: int | None = Query(None),
+    offset: int = Query(0),
+    db: Session = Depends(get_db),
+):
+    """Get all videos for a specific list. Supports SSE streaming."""
+    video_list = db.query(VideoList).get(list_id)
     if not video_list:
-        raise NotFoundError("VideoList", path.list_id)
+        raise NotFoundError("VideoList", list_id)
 
-    # Regular JSON response (early return)
-    if request.accept_mimetypes.best != "text/event-stream":
-        q = Video.query.filter_by(list_id=path.list_id)
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" not in accept:
+        q = db.query(Video).filter_by(list_id=list_id)
 
-        if query.downloaded is not None:
-            q = q.filter_by(downloaded=query.downloaded)
+        if downloaded is not None:
+            q = q.filter_by(downloaded=downloaded)
 
-        q = q.order_by(Video.created_at.desc()).offset(query.offset)
-        if query.limit:
-            q = q.limit(query.limit)
-        return jsonify([v.to_dict() for v in q.all()])
+        q = q.order_by(Video.created_at.desc()).offset(offset)
+        if limit:
+            q = q.limit(limit)
+        return [v.to_dict() for v in q.all()]
 
     # SSE stream with incremental updates
-    app = current_app._get_current_object()
-    list_id = path.list_id
-
-    def generate():
+    async def generate():
         last_fingerprint = None
         last_update_time = None
         heartbeat_counter = 0
         is_first_message = True
 
         while True:
-            with app.app_context():
-                fingerprint = _get_list_fingerprint(list_id)
+            fingerprint = _get_list_fingerprint(list_id)
 
-                if fingerprint != last_fingerprint:
-                    if is_first_message:
-                        # First message: send full list
-                        videos = _get_videos_for_stream(list_id)
-                        is_first_message = False
-                    else:
-                        # Subsequent messages: only send changed videos
-                        videos = _get_videos_for_stream(list_id, since=last_update_time)
-
-                    # Track the current time for next incremental update
-                    from datetime import datetime
-
-                    last_update_time = datetime.utcnow().isoformat()
-
-                    data = {
-                        "type": "full" if len(videos) > 100 else "incremental",
-                        "videos": videos,
-                        "tasks": _get_active_tasks_for_list(list_id),
-                    }
-                    yield f"data: {json.dumps(data, default=str)}\n\n"
-                    last_fingerprint = fingerprint
-                    heartbeat_counter = 0
+            if fingerprint != last_fingerprint:
+                if is_first_message:
+                    videos = _get_videos_for_stream(list_id)
+                    is_first_message = False
                 else:
-                    heartbeat_counter += 1
-                    if heartbeat_counter >= 30:
-                        yield ": heartbeat\n\n"
-                        heartbeat_counter = 0
+                    videos = _get_videos_for_stream(list_id, since=last_update_time)
 
-            time.sleep(1)
+                last_update_time = datetime.utcnow().isoformat()
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+                data = {
+                    "type": "full" if len(videos) > 100 else "incremental",
+                    "videos": videos,
+                    "tasks": _get_active_tasks_for_list(list_id),
+                }
+                yield {"data": json.dumps(data, default=str)}
+                last_fingerprint = fingerprint
+                heartbeat_counter = 0
+            else:
+                heartbeat_counter += 1
+                if heartbeat_counter >= 30:
+                    yield {"comment": "heartbeat"}
+                    heartbeat_counter = 0
+
+            await asyncio.sleep(1)
+
+    return EventSourceResponse(generate())
 
 
-@bp.post("/<int:video_id>/retry")
-def retry_video(path: VideoPath):
-    """Mark a video for retry."""
-    video = Video.query.get(path.video_id)
+@router.get("/{video_id}")
+def get_video(video_id: int, db: Session = Depends(get_db)):
+    """Get a video by ID."""
+    video = db.query(Video).get(video_id)
     if not video:
-        raise NotFoundError("Video", path.video_id)
+        raise NotFoundError("Video", video_id)
+    return video.to_dict()
+
+
+@router.post("/{video_id}/retry")
+def retry_video(video_id: int, db: Session = Depends(get_db)):
+    """Mark a video for retry."""
+    video = db.query(Video).get(video_id)
+    if not video:
+        raise NotFoundError("Video", video_id)
 
     if video.downloaded:
         raise ValidationError("Video already downloaded")
 
     video.error_message = None
     video.retry_count += 1
-    db.session.commit()
+    db.commit()
 
     HistoryService.log(
+        db,
         HistoryAction.VIDEO_RETRY,
         "video",
         video.id,
         {"title": video.title, "retry_count": video.retry_count},
     )
 
-    logger.info("Video %d marked for retry", path.video_id)
-    return jsonify({"message": "Video queued for retry", "video": video.to_dict()})
+    logger.info("Video %d marked for retry", video_id)
+    return {"message": "Video queued for retry", "video": video.to_dict()}

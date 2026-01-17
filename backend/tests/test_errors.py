@@ -10,7 +10,7 @@ class TestErrorHandlers:
         response = client.get("/api/profiles/99999")
 
         assert response.status_code == 404
-        data = response.get_json()
+        data = response.json()
         assert "error" in data
 
     def test_validation_error_handler(self, client):

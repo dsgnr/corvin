@@ -1,28 +1,37 @@
-from flask import Blueprint, jsonify
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
 
 logger = get_logger("errors")
 
-bp = Blueprint("errors", __name__)
 
+def register_exception_handlers(app: FastAPI) -> None:
+    """Register exception handlers for the application."""
 
-@bp.app_errorhandler(AppError)
-def handle_app_error(error: AppError):
-    """Handle custom application errors."""
-    logger.warning("AppError: %s", error.message)
-    return jsonify(error.to_dict()), error.status_code
+    @app.exception_handler(AppError)
+    async def handle_app_error(request: Request, error: AppError):
+        """Handle custom application errors."""
+        logger.warning("AppError: %s", error.message)
+        return JSONResponse(
+            status_code=error.status_code,
+            content=error.to_dict(),
+        )
 
+    @app.exception_handler(404)
+    async def handle_not_found(request: Request, exc):
+        """Handle 404 errors."""
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Resource not found"},
+        )
 
-@bp.app_errorhandler(404)
-def handle_not_found(error):
-    """Handle 404 errors."""
-    return jsonify({"error": "Resource not found"}), 404
-
-
-@bp.app_errorhandler(500)
-def handle_internal_error(error):
-    """Handle 500 errors."""
-    logger.exception("Internal server error")
-    return jsonify({"error": "Internal server error"}), 500
+    @app.exception_handler(500)
+    async def handle_internal_error(request: Request, exc):
+        """Handle 500 errors."""
+        logger.exception("Internal server error")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error"},
+        )

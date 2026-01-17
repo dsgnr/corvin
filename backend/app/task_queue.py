@@ -4,9 +4,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from flask import Flask
-
 from app.core.logging import get_logger
+from app.extensions import SessionLocal
 
 logger = get_logger("task_queue")
 
@@ -17,16 +16,14 @@ SETTING_DOWNLOAD_PAUSED = "download_paused"
 
 
 class TaskWorker:
-    """Task queue with thread pool workers. Uses SQLite for backend"""
+    """Task queue with thread pool workers. Uses SQLite for backend."""
 
     def __init__(
         self,
-        app: Flask,
         max_sync_workers: int = 2,
         max_download_workers: int = 2,
         poll_interval: float = 30.0,
     ):
-        self.app = app
         self.max_sync_workers = max_sync_workers
         self.max_download_workers = max_download_workers
         self.poll_interval = poll_interval
@@ -89,15 +86,15 @@ class TaskWorker:
         """
         from app.models.settings import Settings
 
-        with self.app.app_context():
+        with SessionLocal() as db:
             if task_type == "sync":
-                Settings.set_bool(SETTING_SYNC_PAUSED, True)
+                Settings.set_bool(db, SETTING_SYNC_PAUSED, True)
                 logger.info("Sync tasks paused")
             elif task_type == "download":
-                Settings.set_bool(SETTING_DOWNLOAD_PAUSED, True)
+                Settings.set_bool(db, SETTING_DOWNLOAD_PAUSED, True)
                 logger.info("Download tasks paused")
             else:
-                Settings.set_bool(SETTING_WORKER_PAUSED, True)
+                Settings.set_bool(db, SETTING_WORKER_PAUSED, True)
                 logger.info("All tasks paused")
 
     def resume(self, task_type: str | None = None) -> None:
@@ -108,15 +105,15 @@ class TaskWorker:
         """
         from app.models.settings import Settings
 
-        with self.app.app_context():
+        with SessionLocal() as db:
             if task_type == "sync":
-                Settings.set_bool(SETTING_SYNC_PAUSED, False)
+                Settings.set_bool(db, SETTING_SYNC_PAUSED, False)
                 logger.info("Sync tasks resumed")
             elif task_type == "download":
-                Settings.set_bool(SETTING_DOWNLOAD_PAUSED, False)
+                Settings.set_bool(db, SETTING_DOWNLOAD_PAUSED, False)
                 logger.info("Download tasks resumed")
             else:
-                Settings.set_bool(SETTING_WORKER_PAUSED, False)
+                Settings.set_bool(db, SETTING_WORKER_PAUSED, False)
                 logger.info("All tasks resumed")
         self._task_event.set()  # Wake up to process pending tasks
 
@@ -128,14 +125,14 @@ class TaskWorker:
         """
         from app.models.settings import Settings
 
-        with self.app.app_context():
+        with SessionLocal() as db:
             # Global pause takes precedence
-            if Settings.get_bool(SETTING_WORKER_PAUSED, False):
+            if Settings.get_bool(db, SETTING_WORKER_PAUSED, False):
                 return True
             if task_type == "sync":
-                return Settings.get_bool(SETTING_SYNC_PAUSED, False)
+                return Settings.get_bool(db, SETTING_SYNC_PAUSED, False)
             if task_type == "download":
-                return Settings.get_bool(SETTING_DOWNLOAD_PAUSED, False)
+                return Settings.get_bool(db, SETTING_DOWNLOAD_PAUSED, False)
             return False
 
     def _poll_loop(self) -> None:
@@ -151,15 +148,12 @@ class TaskWorker:
 
     def _process_pending_tasks(self) -> None:
         """Check for pending tasks and submit to executors."""
-        with self.app.app_context():
-            if not self.is_paused("sync"):
-                self._process_task_type(
-                    "sync", self._sync_executor, self.max_sync_workers
-                )
-            if not self.is_paused("download"):
-                self._process_task_type(
-                    "download", self._download_executor, self.max_download_workers
-                )
+        if not self.is_paused("sync"):
+            self._process_task_type("sync", self._sync_executor, self.max_sync_workers)
+        if not self.is_paused("download"):
+            self._process_task_type(
+                "download", self._download_executor, self.max_download_workers
+            )
 
     def _process_task_type(
         self,
@@ -168,7 +162,6 @@ class TaskWorker:
         max_workers: int,
     ) -> None:
         """Process pending tasks of a specific type."""
-        from app.extensions import db
         from app.models.task import Task, TaskStatus
 
         with self._lock:
@@ -180,55 +173,54 @@ class TaskWorker:
             if available <= 0:
                 return
 
-            tasks = (
-                Task.query.filter_by(
-                    task_type=task_type, status=TaskStatus.PENDING.value
-                )
-                .order_by(Task.created_at.asc())
-                .limit(available)
-                .all()
-            )
-
-            if not tasks:
-                return
-
-            # Increment counters while holding lock to prevent race conditions
-            if task_type == "sync":
-                self._running_sync += len(tasks)
-                logger.info(
-                    "Picked up %d sync tasks, running_sync now %d (max %d)",
-                    len(tasks),
-                    self._running_sync,
-                    max_workers,
-                )
-            else:
-                self._running_download += len(tasks)
-                logger.info(
-                    "Picked up %d download tasks, running_download now %d (max %d)",
-                    len(tasks),
-                    self._running_download,
-                    max_workers,
+            with SessionLocal() as db:
+                tasks = (
+                    db.query(Task)
+                    .filter_by(task_type=task_type, status=TaskStatus.PENDING.value)
+                    .order_by(Task.created_at.asc())
+                    .limit(available)
+                    .all()
                 )
 
-        # Now process tasks outside the lock
-        for task in tasks:
-            task.status = TaskStatus.RUNNING.value
-            task.started_at = datetime.utcnow()
-            db.session.commit()
+                if not tasks:
+                    return
 
-            logger.info(
-                "Starting task %d (%s) for entity %d",
-                task.id,
-                task_type,
-                task.entity_id,
-            )
-            executor.submit(self._execute_task, task.id, task_type)
+                # Increment counters while holding lock to prevent race conditions
+                if task_type == "sync":
+                    self._running_sync += len(tasks)
+                    logger.info(
+                        "Picked up %d sync tasks, running_sync now %d (max %d)",
+                        len(tasks),
+                        self._running_sync,
+                        max_workers,
+                    )
+                else:
+                    self._running_download += len(tasks)
+                    logger.info(
+                        "Picked up %d download tasks, running_download now %d (max %d)",
+                        len(tasks),
+                        self._running_download,
+                        max_workers,
+                    )
+
+                # Now process tasks outside the lock
+                for task in tasks:
+                    task.status = TaskStatus.RUNNING.value
+                    task.started_at = datetime.utcnow()
+                    db.commit()
+
+                    logger.info(
+                        "Starting task %d (%s) for entity %d",
+                        task.id,
+                        task_type,
+                        task.entity_id,
+                    )
+                    executor.submit(self._execute_task, task.id, task_type)
 
     def _execute_task(self, task_id: int, task_type: str) -> None:
         """Execute a task."""
         try:
-            with self.app.app_context():
-                self._run_task_handler(task_id, task_type)
+            self._run_task_handler(task_id, task_type)
         except Exception:
             logger.exception("Unhandled error executing task %d", task_id)
         finally:
@@ -236,54 +228,57 @@ class TaskWorker:
 
     def _run_task_handler(self, task_id: int, task_type: str) -> None:
         """Run the task handler and update task status."""
-        from app.extensions import db
         from app.models.task import Task, TaskLogLevel, TaskStatus
 
-        task = Task.query.get(task_id)
-        if not task:
-            logger.warning("Task %d not found", task_id)
-            return
+        with SessionLocal() as db:
+            task = db.query(Task).get(task_id)
+            if not task:
+                logger.warning("Task %d not found", task_id)
+                return
 
-        handler = self._handlers.get(task_type)
-        if not handler:
-            self._fail_task(task, f"No handler for task type: {task_type}")
-            return
+            handler = self._handlers.get(task_type)
+            if not handler:
+                self._fail_task(db, task, f"No handler for task type: {task_type}")
+                return
 
-        attempt = task.retry_count + 1
-        task.add_log(f"Starting attempt {attempt}", TaskLogLevel.INFO.value, attempt)
-        db.session.commit()
-
-        try:
-            result = handler(self.app, task.entity_id)
-            task.status = TaskStatus.COMPLETED.value
-            task.result = json.dumps(result) if result else None
-            task.completed_at = datetime.utcnow()
+            attempt = task.retry_count + 1
             task.add_log(
-                f"Completed successfully: {json.dumps(result) if result else 'OK'}",
-                TaskLogLevel.INFO.value,
-                attempt,
+                db, f"Starting attempt {attempt}", TaskLogLevel.INFO.value, attempt
             )
-            db.session.commit()
-            logger.info("Task %d completed successfully", task_id)
+            db.commit()
 
-        except Exception as e:
-            self._handle_task_failure(task, e, attempt)
+            try:
+                result = handler(task.entity_id)
+                task.status = TaskStatus.COMPLETED.value
+                task.result = json.dumps(result) if result else None
+                task.completed_at = datetime.utcnow()
+                task.add_log(
+                    db,
+                    f"Completed successfully: {json.dumps(result) if result else 'OK'}",
+                    TaskLogLevel.INFO.value,
+                    attempt,
+                )
+                db.commit()
+                logger.info("Task %d completed successfully", task_id)
 
-    def _fail_task(self, task, error_message: str) -> None:
+            except Exception as e:
+                self._handle_task_failure(db, task, e, attempt)
+
+    def _fail_task(self, db, task, error_message: str) -> None:
         """Mark a task as failed."""
-        from app.extensions import db
         from app.models.task import TaskLogLevel, TaskStatus
 
         task.status = TaskStatus.FAILED.value
         task.error = error_message
         task.completed_at = datetime.utcnow()
-        task.add_log(f"Failed: {error_message}", TaskLogLevel.ERROR.value)
-        db.session.commit()
+        task.add_log(db, f"Failed: {error_message}", TaskLogLevel.ERROR.value)
+        db.commit()
         logger.error("Task %d failed: %s", task.id, error_message)
 
-    def _handle_task_failure(self, task, exception: Exception, attempt: int) -> None:
+    def _handle_task_failure(
+        self, db, task, exception: Exception, attempt: int
+    ) -> None:
         """Handle task failure with retry logic."""
-        from app.extensions import db
         from app.models.task import TaskLogLevel, TaskStatus
 
         error_msg = str(exception)
@@ -294,6 +289,7 @@ class TaskWorker:
             task.status = TaskStatus.PENDING.value
             task.started_at = None
             task.add_log(
+                db,
                 f"Failed (attempt {attempt}/{task.max_retries}): {error_msg}. Will retry.",
                 TaskLogLevel.WARNING.value,
                 attempt,
@@ -309,6 +305,7 @@ class TaskWorker:
             task.status = TaskStatus.FAILED.value
             task.completed_at = datetime.utcnow()
             task.add_log(
+                db,
                 f"Failed permanently after {attempt} attempts: {error_msg}",
                 TaskLogLevel.ERROR.value,
                 attempt,
@@ -320,7 +317,7 @@ class TaskWorker:
                 exception,
             )
 
-        db.session.commit()
+        db.commit()
 
     def _decrement_running_count(self, task_type: str) -> None:
         """Reduce the running task count."""
@@ -351,9 +348,7 @@ def get_worker() -> TaskWorker | None:
     return _worker
 
 
-def init_worker(
-    app: Flask, max_sync_workers: int = 2, max_download_workers: int = 3
-) -> TaskWorker:
+def init_worker(max_sync_workers: int = 2, max_download_workers: int = 3) -> TaskWorker:
     global _worker
-    _worker = TaskWorker(app, max_sync_workers, max_download_workers)
+    _worker = TaskWorker(max_sync_workers, max_download_workers)
     return _worker

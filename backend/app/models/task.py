@@ -1,9 +1,10 @@
 from datetime import datetime
 from enum import Enum
 
-from app.extensions import db
-from app.models.video import Video
-from app.models.video_list import VideoList
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from app.models import Base
 
 
 class TaskStatus(str, Enum):
@@ -26,34 +27,35 @@ class TaskLogLevel(str, Enum):
     ERROR = "error"
 
 
-class Task(db.Model):
+class Task(Base):
     """Background task persisted to database."""
 
     __tablename__ = "tasks"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    task_type: str = db.Column(db.String(20), nullable=False)
-    entity_id: int = db.Column(db.Integer, nullable=False)
-    status: str = db.Column(db.String(20), default=TaskStatus.PENDING.value)
-    result: str | None = db.Column(db.Text, nullable=True)
-    error: str | None = db.Column(db.Text, nullable=True)
-    retry_count: int = db.Column(db.Integer, default=0)
-    max_retries: int = db.Column(db.Integer, default=3)
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
-    started_at: datetime | None = db.Column(db.DateTime, nullable=True)
-    completed_at: datetime | None = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    task_type = Column(String(20), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    status = Column(String(20), default=TaskStatus.PENDING.value)
+    result = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
 
-    logs = db.relationship(
+    logs = relationship(
         "TaskLog", back_populates="task", lazy="dynamic", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
-        db.Index("ix_tasks_status_type", "status", "task_type"),
-        db.Index("ix_tasks_pending_lookup", "task_type", "entity_id", "status"),
+        Index("ix_tasks_status_type", "status", "task_type"),
+        Index("ix_tasks_pending_lookup", "task_type", "entity_id", "status"),
     )
 
     def add_log(
         self,
+        db,
         message: str,
         level: str = TaskLogLevel.INFO.value,
         attempt: int | None = None,
@@ -65,7 +67,7 @@ class Task(db.Model):
             level=level,
             message=message,
         )
-        db.session.add(log)
+        db.add(log)
         return log
 
     def to_dict(
@@ -96,20 +98,49 @@ class Task(db.Model):
         return data
 
     def _get_entity_name(self) -> str | None:
-        """Get the name/title of the related entity."""
-        if self.task_type == TaskType.SYNC.value:
-            video_list = (
-                db.session.query(VideoList.name).filter_by(id=self.entity_id).first()
-            )
-            return video_list[0] if video_list else None
-        if self.task_type == TaskType.DOWNLOAD.value:
-            video = db.session.query(Video.title).filter_by(id=self.entity_id).first()
-            return video[0] if video else None
+        """Get the name/title of the related entity.
+
+        Note: This creates a new session, so prefer using batch_get_entity_names()
+        or passing entity_name directly to to_dict() when possible.
+        """
+        from sqlalchemy.orm import Session
+
+        from app.models.video import Video
+        from app.models.video_list import VideoList
+
+        # Try to use the object's existing session first
+        session = Session.object_session(self)
+        if session:
+            if self.task_type == TaskType.SYNC.value:
+                video_list = (
+                    session.query(VideoList.name).filter_by(id=self.entity_id).first()
+                )
+                return video_list[0] if video_list else None
+            if self.task_type == TaskType.DOWNLOAD.value:
+                video = session.query(Video.title).filter_by(id=self.entity_id).first()
+                return video[0] if video else None
+            return None
+
+        # Fallback to new session if object is detached
+        from app.extensions import SessionLocal
+
+        with SessionLocal() as db:
+            if self.task_type == TaskType.SYNC.value:
+                video_list = (
+                    db.query(VideoList.name).filter_by(id=self.entity_id).first()
+                )
+                return video_list[0] if video_list else None
+            if self.task_type == TaskType.DOWNLOAD.value:
+                video = db.query(Video.title).filter_by(id=self.entity_id).first()
+                return video[0] if video else None
         return None
 
     @staticmethod
-    def batch_get_entity_names(tasks: list["Task"]) -> dict[int, str]:
+    def batch_get_entity_names(db, tasks: list["Task"]) -> dict[int, str]:
         """Batch fetch entity names for multiple tasks to avoid N+1 queries."""
+        from app.models.video import Video
+        from app.models.video_list import VideoList
+
         if not tasks:
             return {}
 
@@ -127,7 +158,7 @@ class Task(db.Model):
 
         if sync_entity_ids:
             results = (
-                db.session.query(VideoList.id, VideoList.name)
+                db.query(VideoList.id, VideoList.name)
                 .filter(VideoList.id.in_(sync_entity_ids))
                 .all()
             )
@@ -135,7 +166,7 @@ class Task(db.Model):
 
         if download_entity_ids:
             results = (
-                db.session.query(Video.id, Video.title)
+                db.query(Video.id, Video.title)
                 .filter(Video.id.in_(download_entity_ids))
                 .all()
             )
@@ -154,21 +185,21 @@ class Task(db.Model):
         return result
 
 
-class TaskLog(db.Model):
+class TaskLog(Base):
     """Log entry for a task attempt."""
 
     __tablename__ = "task_logs"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    task_id: int = db.Column(db.Integer, db.ForeignKey("tasks.id"), nullable=False)
-    attempt: int = db.Column(db.Integer, nullable=False)
-    level: str = db.Column(db.String(10), default=TaskLogLevel.INFO.value)
-    message: str = db.Column(db.Text, nullable=False)
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    attempt = Column(Integer, nullable=False)
+    level = Column(String(10), default=TaskLogLevel.INFO.value)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    task = db.relationship("Task", back_populates="logs")
+    task = relationship("Task", back_populates="logs")
 
-    __table_args__ = (db.Index("ix_task_logs_task_id", "task_id"),)
+    __table_args__ = (Index("ix_task_logs_task_id", "task_id"),)
 
     def to_dict(self) -> dict:
         return {

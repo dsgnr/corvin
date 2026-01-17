@@ -1,5 +1,6 @@
+from sqlalchemy.orm import Session
+
 from app.core.logging import get_logger
-from app.extensions import db
 from app.models import History, HistoryAction
 
 logger = get_logger("history")
@@ -8,6 +9,7 @@ logger = get_logger("history")
 class HistoryService:
     @staticmethod
     def log(
+        db: Session,
         action: HistoryAction,
         entity_type: str,
         entity_id: int | None = None,
@@ -21,9 +23,9 @@ class HistoryService:
             entity_id=entity_id,
             details=details or {},
         )
-        db.session.add(entry)
+        db.add(entry)
         if commit:
-            db.session.commit()
+            db.commit()
 
         logger.debug(
             "History: %s %s/%s %s",
@@ -36,13 +38,14 @@ class HistoryService:
 
     @staticmethod
     def get_all(
+        db: Session,
         limit: int | None = None,
         offset: int = 0,
         entity_type: str | None = None,
         action: str | None = None,
     ) -> list[History]:
         """Get history entries."""
-        query = History.query.order_by(History.created_at.desc())
+        query = db.query(History).order_by(History.created_at.desc())
 
         if entity_type:
             query = query.filter_by(entity_type=entity_type)

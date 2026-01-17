@@ -1,12 +1,11 @@
 """Prometheus metrics for the application."""
 
-from flask import Flask
+from fastapi import FastAPI
 from prometheus_client import Gauge, Info
-from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.helpers import _get_pyproject_attr
-
-_pyproject_data: dict | None = None
+from app.extensions import SessionLocal
 
 app_info = Info(_get_pyproject_attr("name"), _get_pyproject_attr("description"))
 
@@ -38,11 +37,9 @@ lists_total = Gauge("lists_total", "Total number of video lists", ["enabled"])
 videos_total = Gauge("videos_total", "Total number of videos", ["downloaded"])
 
 
-def init_metrics(app: Flask) -> PrometheusMetrics:
-    """Initialise Prometheus metrics for the Flask app."""
-    # Disable default endpoint, we'll register manually to work in debug mode
-    metrics = PrometheusMetrics(app, path=None, defaults_prefix="flask")
-    metrics.register_endpoint("/metrics")
+def init_metrics(app: FastAPI) -> Instrumentator:
+    """Initialise Prometheus metrics for the FastAPI app."""
+    instrumentator = Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
     app_info.info(
         {
@@ -52,29 +49,28 @@ def init_metrics(app: Flask) -> PrometheusMetrics:
         }
     )
 
-    @app.before_request
-    def update_queue_metrics():
-        """Update queue metrics on each request to /metrics."""
-        from flask import request
-
-        if request.path == "/metrics":
-            _collect_queue_metrics(app)
-
-    return metrics
+    return instrumentator
 
 
-def _collect_queue_metrics(app: Flask) -> None:
+def collect_queue_metrics() -> None:
     """Collect current queue metrics from database and worker."""
     from app.models.task import Task, TaskStatus, TaskType
     from app.task_queue import get_worker
 
-    # Pending tasks from database
-    pending_sync = Task.query.filter_by(
-        task_type=TaskType.SYNC.value, status=TaskStatus.PENDING.value
-    ).count()
-    pending_download = Task.query.filter_by(
-        task_type=TaskType.DOWNLOAD.value, status=TaskStatus.PENDING.value
-    ).count()
+    with SessionLocal() as db:
+        # Pending tasks from database
+        pending_sync = (
+            db.query(Task)
+            .filter_by(task_type=TaskType.SYNC.value, status=TaskStatus.PENDING.value)
+            .count()
+        )
+        pending_download = (
+            db.query(Task)
+            .filter_by(
+                task_type=TaskType.DOWNLOAD.value, status=TaskStatus.PENDING.value
+            )
+            .count()
+        )
 
     queue_pending.labels(task_type="sync").set(pending_sync)
     queue_pending.labels(task_type="download").set(pending_download)
@@ -112,18 +108,19 @@ def _collect_entity_metrics() -> None:
     from app.models.video import Video
     from app.models.video_list import VideoList
 
-    profiles_total.set(Profile.query.count())
+    with SessionLocal() as db:
+        profiles_total.set(db.query(Profile).count())
 
-    lists_total.labels(enabled="true").set(
-        VideoList.query.filter_by(enabled=True).count()
-    )
-    lists_total.labels(enabled="false").set(
-        VideoList.query.filter_by(enabled=False).count()
-    )
+        lists_total.labels(enabled="true").set(
+            db.query(VideoList).filter_by(enabled=True).count()
+        )
+        lists_total.labels(enabled="false").set(
+            db.query(VideoList).filter_by(enabled=False).count()
+        )
 
-    videos_total.labels(downloaded="true").set(
-        Video.query.filter_by(downloaded=True).count()
-    )
-    videos_total.labels(downloaded="false").set(
-        Video.query.filter_by(downloaded=False).count()
-    )
+        videos_total.labels(downloaded="true").set(
+            db.query(Video).filter_by(downloaded=True).count()
+        )
+        videos_total.labels(downloaded="false").set(
+            db.query(Video).filter_by(downloaded=False).count()
+        )

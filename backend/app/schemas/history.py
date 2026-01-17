@@ -1,15 +1,6 @@
 """History schemas."""
 
-from pydantic import BaseModel, Field
-
-from app.schemas.common import PaginationQuery
-
-
-class HistoryQuery(PaginationQuery):
-    """History query parameters."""
-
-    entity_type: str | None = Field(None, description="Filter by entity type")
-    action: str | None = Field(None, description="Filter by action")
+from pydantic import BaseModel
 
 
 class HistoryResponse(BaseModel):

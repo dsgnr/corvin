@@ -1,40 +1,35 @@
+import asyncio
 import json
-import time
 from datetime import datetime
 
-from flask import Response, current_app, jsonify, request
-from flask_openapi3 import APIBlueprint, Tag
+from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import and_, false, func, or_
+from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.extensions import db
+from app.extensions import SessionLocal, get_db
 from app.models import HistoryAction, Profile, VideoList
 from app.models.history import History
 from app.models.task import Task, TaskType
 from app.models.video import Video
-from app.schemas.lists import (
-    ListCreate,
-    ListPath,
-    ListQuery,
-    ListTasksQuery,
-    ListUpdate,
-)
+from app.schemas.lists import ListCreate, ListUpdate
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService
 from app.tasks import enqueue_task
 
 logger = get_logger("routes.lists")
-tag = Tag(name="Lists", description="Video list management")
-bp = APIBlueprint("lists", __name__, url_prefix="/api/lists", abp_tags=[tag])
+router = APIRouter(prefix="/api/lists", tags=["Lists"])
 
 
-@bp.post("/")
-def create_list(body: ListCreate):
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_list(body: ListCreate, db: Session = Depends(get_db)):
     """Create a new video list."""
-    if not Profile.query.get(body.profile_id):
+    if not db.query(Profile).get(body.profile_id):
         raise NotFoundError("Profile", body.profile_id)
 
-    if VideoList.query.filter_by(url=body.url).first():
+    if db.query(VideoList).filter_by(url=body.url).first():
         raise ConflictError("List with this URL already exists")
 
     from_date = _parse_from_date(body.from_date)
@@ -60,8 +55,9 @@ def create_list(body: ListCreate):
         extractor=metadata.get("extractor"),
     )
 
-    db.session.add(video_list)
-    db.session.commit()
+    db.add(video_list)
+    db.commit()
+    db.refresh(video_list)
 
     thumbnails = metadata.get("thumbnails", [])
     if thumbnails and metadata.get("name"):
@@ -80,6 +76,7 @@ def create_list(body: ListCreate):
             logger.warning("Failed to download artwork for %s: %s", video_list.name, e)
 
     HistoryService.log(
+        db,
         HistoryAction.LIST_CREATED,
         "list",
         video_list.id,
@@ -91,7 +88,7 @@ def create_list(body: ListCreate):
         logger.info("Auto-triggered sync for new list: %s", video_list.name)
 
     logger.info("Created list: %s", video_list.name)
-    return jsonify(video_list.to_dict()), 201
+    return video_list.to_dict()
 
 
 def _parse_from_date(date_str: str | None) -> str | None:
@@ -108,65 +105,72 @@ def _parse_from_date(date_str: str | None) -> str | None:
     return clean
 
 
-@bp.get("/")
-def list_all():
+@router.get("/")
+async def list_all(request: Request, db: Session = Depends(get_db)):
     """List all video lists. Supports SSE streaming."""
-    if request.accept_mimetypes.best != "text/event-stream":
-        lists = VideoList.query.all()
-        return jsonify([vl.to_dict() for vl in lists])
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" not in accept:
+        lists = db.query(VideoList).all()
+        return [vl.to_dict() for vl in lists]
 
     # SSE stream
-    return _sse_stream(
-        lambda: [vl.to_dict() for vl in VideoList.query.all()],
-        lambda: _get_lists_fingerprint(),
+    return EventSourceResponse(
+        _sse_stream(
+            lambda: [vl.to_dict() for vl in SessionLocal().query(VideoList).all()],
+            lambda: _get_lists_fingerprint(),
+        )
     )
 
 
 def _get_lists_fingerprint() -> tuple:
     """Get fingerprint for lists change detection."""
-    from sqlalchemy import func
+    with SessionLocal() as db:
+        result = db.query(
+            func.count(VideoList.id),
+            func.max(VideoList.created_at),
+            func.max(VideoList.updated_at),
+        ).first()
+        return (
+            result[0],
+            str(result[1]) if result[1] else None,
+            str(result[2]) if result[2] else None,
+        )
 
-    result = db.session.query(
-        func.count(VideoList.id),
-        func.max(VideoList.created_at),
-        func.max(VideoList.updated_at),
-    ).first()
-    return (
-        result[0],
-        str(result[1]) if result[1] else None,
-        str(result[2]) if result[2] else None,
-    )
 
-
-@bp.get("/<int:list_id>")
-def get_list(path: ListPath, query: ListQuery):
+@router.get("/{list_id}")
+def get_list(
+    list_id: int,
+    include_videos: bool = Query(False),
+    include_stats: bool = Query(False),
+    db: Session = Depends(get_db),
+):
     """Get a video list by ID."""
-    video_list = VideoList.query.get(path.list_id)
+    video_list = db.query(VideoList).get(list_id)
     if not video_list:
-        raise NotFoundError("VideoList", path.list_id)
-    data = video_list.to_dict(include_videos=query.include_videos)
-    if query.include_stats:
-        data["stats"] = video_list.get_video_stats()
-    return jsonify(data)
+        raise NotFoundError("VideoList", list_id)
+    data = video_list.to_dict(include_videos=include_videos)
+    if include_stats:
+        data["stats"] = video_list.get_video_stats(db)
+    return data
 
 
-@bp.put("/<int:list_id>")
-def update_list(path: ListPath, body: ListUpdate):
+@router.put("/{list_id}")
+def update_list(list_id: int, body: ListUpdate, db: Session = Depends(get_db)):
     """Update a video list."""
-    video_list = VideoList.query.get(path.list_id)
+    video_list = db.query(VideoList).get(list_id)
     if not video_list:
-        raise NotFoundError("VideoList", path.list_id)
+        raise NotFoundError("VideoList", list_id)
 
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise ValidationError("No data provided")
 
     if "profile_id" in data:
-        if not Profile.query.get(data["profile_id"]):
+        if not db.query(Profile).get(data["profile_id"]):
             raise NotFoundError("Profile", data["profile_id"])
 
     if "url" in data and data["url"] != video_list.url:
-        if VideoList.query.filter_by(url=data["url"]).first():
+        if db.query(VideoList).filter_by(url=data["url"]).first():
             raise ConflictError("List with this URL already exists")
 
     if "from_date" in data:
@@ -175,9 +179,11 @@ def update_list(path: ListPath, body: ListUpdate):
     for field, value in data.items():
         setattr(video_list, field, value)
 
-    db.session.commit()
+    db.commit()
+    db.refresh(video_list)
 
     HistoryService.log(
+        db,
         HistoryAction.LIST_UPDATED,
         "list",
         video_list.id,
@@ -185,142 +191,168 @@ def update_list(path: ListPath, body: ListUpdate):
     )
 
     logger.info("Updated list: %s", video_list.name)
-    return jsonify(video_list.to_dict())
+    return video_list.to_dict()
 
 
-@bp.delete("/<int:list_id>")
-def delete_list(path: ListPath):
+@router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_list(list_id: int, db: Session = Depends(get_db)):
     """Delete a video list and its associated videos."""
-    video_list = VideoList.query.get(path.list_id)
+    video_list = db.query(VideoList).get(list_id)
     if not video_list:
-        raise NotFoundError("VideoList", path.list_id)
+        raise NotFoundError("VideoList", list_id)
 
     list_name = video_list.name
     video_count = video_list.videos.count()
 
-    db.session.delete(video_list)
-    db.session.commit()
+    db.delete(video_list)
+    db.commit()
 
     HistoryService.log(
+        db,
         HistoryAction.LIST_DELETED,
         "list",
-        path.list_id,
+        list_id,
         {"name": list_name, "videos_deleted": video_count},
     )
 
     logger.info("Deleted list: %s (with %d videos)", list_name, video_count)
-    return "", 204
 
 
-def _build_list_tasks_query(list_id: int, limit: int | None):
+def _build_list_tasks_query(db, list_id: int, limit: int | None):
     """Build query for tasks related to a list."""
-    video_ids = [v.id for v in Video.query.filter_by(list_id=list_id).all()]
-    q = Task.query.filter(
-        db.or_(
-            db.and_(Task.task_type == TaskType.SYNC.value, Task.entity_id == list_id),
-            db.and_(
-                Task.task_type == TaskType.DOWNLOAD.value, Task.entity_id.in_(video_ids)
+    video_ids = [v.id for v in db.query(Video).filter_by(list_id=list_id).all()]
+    q = (
+        db.query(Task)
+        .filter(
+            or_(
+                and_(Task.task_type == TaskType.SYNC.value, Task.entity_id == list_id),
+                and_(
+                    Task.task_type == TaskType.DOWNLOAD.value,
+                    Task.entity_id.in_(video_ids),
+                )
+                if video_ids
+                else false(),
             )
-            if video_ids
-            else db.false(),
         )
-    ).order_by(Task.created_at.desc())
+        .order_by(Task.created_at.desc())
+    )
     return q.limit(limit) if limit else q
 
 
 def _get_list_tasks_data(list_id: int, limit: int | None) -> list[dict]:
     """Get task data for a list."""
-    tasks = _build_list_tasks_query(list_id, limit).all()
-    entity_names = Task.batch_get_entity_names(tasks)
-    return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
+    with SessionLocal() as db:
+        tasks = _build_list_tasks_query(db, list_id, limit).all()
+        entity_names = Task.batch_get_entity_names(db, tasks)
+        return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
 
 
 def _get_list_tasks_fingerprint(list_id: int, limit: int | None) -> str:
     """Get fingerprint for task change detection."""
-    tasks = (
-        _build_list_tasks_query(list_id, limit)
-        .with_entities(Task.id, Task.status)
-        .all()
-    )
-    return ",".join(f"{t.id}:{t.status}" for t in tasks)
+    with SessionLocal() as db:
+        tasks = (
+            _build_list_tasks_query(db, list_id, limit)
+            .with_entities(Task.id, Task.status)
+            .all()
+        )
+        return ",".join(f"{t.id}:{t.status}" for t in tasks)
 
 
 def _get_list_history_data(list_id: int, limit: int | None) -> list[dict]:
     """Get history data for a list."""
-    q = History.query.filter(
-        History.entity_type == "list", History.entity_id == list_id
-    ).order_by(History.created_at.desc())
-    if limit:
-        q = q.limit(limit)
-    return [e.to_dict() for e in q.all()]
+    with SessionLocal() as db:
+        q = (
+            db.query(History)
+            .filter(History.entity_type == "list", History.entity_id == list_id)
+            .order_by(History.created_at.desc())
+        )
+        if limit:
+            q = q.limit(limit)
+        return [e.to_dict() for e in q.all()]
 
 
 def _get_list_history_fingerprint(list_id: int) -> tuple:
     """Get fingerprint for history change detection."""
-    from sqlalchemy import func
+    with SessionLocal() as db:
+        result = (
+            db.query(func.count(History.id), func.max(History.created_at))
+            .filter(History.entity_type == "list", History.entity_id == list_id)
+            .first()
+        )
+        return (result[0], str(result[1]) if result[1] else None)
 
-    result = (
-        db.session.query(func.count(History.id), func.max(History.created_at))
-        .filter(History.entity_type == "list", History.entity_id == list_id)
-        .first()
-    )
-    return (result[0], str(result[1]) if result[1] else None)
 
-
-def _sse_stream(get_data, get_fingerprint):
+async def _sse_stream(get_data, get_fingerprint):
     """Create an SSE stream generator."""
-    app = current_app._get_current_object()
+    last_fingerprint = None
+    heartbeat_counter = 0
 
-    def generate():
-        last_fingerprint = None
-        heartbeat_counter = 0
-
-        while True:
-            with app.app_context():
-                fingerprint = get_fingerprint()
-                if fingerprint != last_fingerprint:
-                    yield f"data: {json.dumps(get_data(), default=str)}\n\n"
-                    last_fingerprint = fingerprint
-                    heartbeat_counter = 0
-                else:
-                    heartbeat_counter += 1
-                    if heartbeat_counter >= 30:
-                        yield ": heartbeat\n\n"
-                        heartbeat_counter = 0
-            time.sleep(1)
-
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    while True:
+        fingerprint = get_fingerprint()
+        if fingerprint != last_fingerprint:
+            yield {"data": json.dumps(get_data(), default=str)}
+            last_fingerprint = fingerprint
+            heartbeat_counter = 0
+        else:
+            heartbeat_counter += 1
+            if heartbeat_counter >= 30:
+                yield {"comment": "heartbeat"}
+                heartbeat_counter = 0
+        await asyncio.sleep(1)
 
 
-@bp.get("/<int:list_id>/tasks")
-def get_list_tasks(path: ListPath, query: ListTasksQuery):
+@router.get("/{list_id}/tasks")
+async def get_list_tasks(
+    list_id: int,
+    request: Request,
+    limit: int = Query(100),
+    db: Session = Depends(get_db),
+):
     """Get tasks for a list. Supports SSE streaming."""
-    if not VideoList.query.get(path.list_id):
-        raise NotFoundError("VideoList", path.list_id)
+    if not db.query(VideoList).get(list_id):
+        raise NotFoundError("VideoList", list_id)
 
-    if request.accept_mimetypes.best != "text/event-stream":
-        return jsonify(_get_list_tasks_data(path.list_id, query.limit))
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" not in accept:
+        # Use injected session for non-SSE requests
+        tasks = _build_list_tasks_query(db, list_id, limit).all()
+        entity_names = Task.batch_get_entity_names(db, tasks)
+        return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
 
-    return _sse_stream(
-        lambda: _get_list_tasks_data(path.list_id, query.limit),
-        lambda: _get_list_tasks_fingerprint(path.list_id, query.limit),
+    return EventSourceResponse(
+        _sse_stream(
+            lambda: _get_list_tasks_data(list_id, limit),
+            lambda: _get_list_tasks_fingerprint(list_id, limit),
+        )
     )
 
 
-@bp.get("/<int:list_id>/history")
-def get_list_history(path: ListPath, query: ListTasksQuery):
+@router.get("/{list_id}/history")
+async def get_list_history(
+    list_id: int,
+    request: Request,
+    limit: int = Query(100),
+    db: Session = Depends(get_db),
+):
     """Get history for a list. Supports SSE streaming."""
-    if not VideoList.query.get(path.list_id):
-        raise NotFoundError("VideoList", path.list_id)
+    if not db.query(VideoList).get(list_id):
+        raise NotFoundError("VideoList", list_id)
 
-    if request.accept_mimetypes.best != "text/event-stream":
-        return jsonify(_get_list_history_data(path.list_id, query.limit))
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" not in accept:
+        # Use injected session for non-SSE requests
+        q = (
+            db.query(History)
+            .filter(History.entity_type == "list", History.entity_id == list_id)
+            .order_by(History.created_at.desc())
+        )
+        if limit:
+            q = q.limit(limit)
+        return [e.to_dict() for e in q.all()]
 
-    return _sse_stream(
-        lambda: _get_list_history_data(path.list_id, query.limit),
-        lambda: _get_list_history_fingerprint(path.list_id),
+    return EventSourceResponse(
+        _sse_stream(
+            lambda: _get_list_history_data(list_id, limit),
+            lambda: _get_list_history_fingerprint(list_id),
+        )
     )

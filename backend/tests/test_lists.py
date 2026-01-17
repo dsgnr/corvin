@@ -24,7 +24,7 @@ class TestCreateList:
         )
 
         assert response.status_code == 201
-        data = response.get_json()
+        data = response.json()
         assert data["name"] == "My Channel"
         assert data["enabled"] is True
         mock_enqueue.assert_called_once()
@@ -50,7 +50,7 @@ class TestCreateList:
         )
 
         assert response.status_code == 201
-        data = response.get_json()
+        data = response.json()
         assert data["description"] == "Channel description"
 
     def test_create_list_missing_required_fields(self, client):
@@ -110,7 +110,7 @@ class TestCreateList:
         )
 
         assert response.status_code == 201
-        assert response.get_json()["from_date"] == "20240101"
+        assert response.json()["from_date"] == "20240101"
 
     def test_create_list_invalid_from_date(self, client, sample_profile):
         """Should reject invalid from_date format."""
@@ -135,14 +135,14 @@ class TestListAll:
         response = client.get("/api/lists")
 
         assert response.status_code == 200
-        assert response.get_json() == []
+        assert response.json() == []
 
     def test_list_all_with_data(self, client, sample_list):
         """Should return all lists."""
         response = client.get("/api/lists")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert len(data) == 1
 
 
@@ -154,7 +154,7 @@ class TestGetList:
         response = client.get(f"/api/lists/{sample_list}")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["id"] == sample_list
 
     def test_get_list_not_found(self, client):
@@ -168,7 +168,7 @@ class TestGetList:
         response = client.get(f"/api/lists/{sample_list}?include_videos=true")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "videos" in data
         assert len(data["videos"]) == 1
 
@@ -184,7 +184,7 @@ class TestUpdateList:
         )
 
         assert response.status_code == 200
-        assert response.get_json()["name"] == "Updated Name"
+        assert response.json()["name"] == "Updated Name"
 
     def test_update_list_not_found(self, client):
         """Should return 404 for non-existent list."""
@@ -270,7 +270,7 @@ class TestGetListTasks:
         response = client.get(f"/api/lists/{sample_list}/tasks")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert isinstance(data, list)
 
     def test_get_list_tasks_not_found(self, client):
@@ -294,7 +294,7 @@ class TestGetListHistory:
         response = client.get(f"/api/lists/{sample_list}/history")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert isinstance(data, list)
 
     def test_get_list_history_not_found(self, client):
@@ -312,7 +312,7 @@ class TestGetListWithStats:
         response = client.get(f"/api/lists/{sample_list}?include_stats=true")
 
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert "stats" in data
         assert "total" in data["stats"]
         assert "downloaded" in data["stats"]

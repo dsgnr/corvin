@@ -1,10 +1,13 @@
 from datetime import datetime
 
-from app.extensions import db
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from app.models import Base
 
 
-class SponsorBlockBehavior:
-    """SponsorBlock behavior options."""
+class SponsorBlockBehaviour:
+    """SponsorBlock behaviour options."""
 
     DISABLED = "disabled"
     DELETE = "delete"
@@ -29,48 +32,44 @@ SPONSORBLOCK_CATEGORIES = [
 OUTPUT_FORMATS = ["3gp", "aac", "flv", "m4a", "mp3", "mp4", "ogg", "wav", "webm"]
 
 
-class Profile(db.Model):
+class Profile(Base):
     """yt-dlp download profile with quality and format settings."""
 
     __tablename__ = "profiles"
 
-    id: int = db.Column(db.Integer, primary_key=True)
-    name: str = db.Column(db.String(100), nullable=False, unique=True)
-    embed_metadata: bool = db.Column(db.Boolean, default=True)
-    embed_thumbnail: bool = db.Column(db.Boolean, default=True)
-    include_shorts: bool = db.Column(db.Boolean, default=True)
-    extra_args: str = db.Column(db.Text, default="{}")
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False, unique=True)
+    embed_metadata = Column(Boolean, default=True)
+    embed_thumbnail = Column(Boolean, default=True)
+    include_shorts = Column(Boolean, default=True)
+    extra_args = Column(Text, default="{}")
 
     # Subtitle options
-    download_subtitles: bool = db.Column(db.Boolean, default=False)
-    embed_subtitles: bool = db.Column(db.Boolean, default=False)
-    auto_generated_subtitles: bool = db.Column(db.Boolean, default=False)
-    subtitle_languages: str = db.Column(db.String(200), default="en")
+    download_subtitles = Column(Boolean, default=False)
+    embed_subtitles = Column(Boolean, default=False)
+    auto_generated_subtitles = Column(Boolean, default=False)
+    subtitle_languages = Column(String(200), default="en")
 
     # Audio track language
-    audio_track_language: str = db.Column(db.String(100), default="en")
+    audio_track_language = Column(String(100), default="en")
 
     # Output path template
-    output_template: str = db.Column(
-        db.String(500),
+    output_template = Column(
+        String(500),
         default="%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
     )
 
     # SponsorBlock options
-    sponsorblock_behavior: str = db.Column(
-        db.String(20), default=SponsorBlockBehavior.DISABLED
-    )
-    sponsorblock_categories: str = db.Column(db.String(500), default="")
+    sponsorblock_behaviour = Column(String(20), default=SponsorBlockBehaviour.DISABLED)
+    sponsorblock_categories = Column(String(500), default="")
 
     # Output format for remuxing
-    output_format: str = db.Column(db.String(20), default="mp4")
+    output_format = Column(String(20), default="mp4")
 
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    lists = db.relationship("VideoList", back_populates="profile", lazy="dynamic")
+    lists = relationship("VideoList", back_populates="profile", lazy="dynamic")
 
     def to_dict(self) -> dict:
         return {
@@ -90,7 +89,7 @@ class Profile(db.Model):
             # Output template
             "output_template": self.output_template,
             # SponsorBlock options
-            "sponsorblock_behavior": self.sponsorblock_behavior,
+            "sponsorblock_behaviour": self.sponsorblock_behaviour,
             "sponsorblock_categories": self.sponsorblock_categories,
             # Output format
             "output_format": self.output_format,
@@ -200,7 +199,7 @@ class Profile(db.Model):
 
     def _add_sponsorblock_postprocessors(self, postprocessors: list) -> None:
         """Add SponsorBlock postprocessors if enabled."""
-        if self.sponsorblock_behavior == SponsorBlockBehavior.DISABLED:
+        if self.sponsorblock_behaviour == SponsorBlockBehaviour.DISABLED:
             return
         if not self.sponsorblock_categories:
             return
@@ -224,7 +223,7 @@ class Profile(db.Model):
 
         remove_segments = (
             categories_set
-            if self.sponsorblock_behavior == SponsorBlockBehavior.DELETE
+            if self.sponsorblock_behaviour == SponsorBlockBehaviour.DELETE
             else set()
         )
         postprocessors.append(
@@ -238,7 +237,7 @@ class Profile(db.Model):
             }
         )
 
-        if self.sponsorblock_behavior == SponsorBlockBehavior.MARK_CHAPTER:
+        if self.sponsorblock_behaviour == SponsorBlockBehaviour.MARK_CHAPTER:
             postprocessors.append(
                 {
                     "key": "FFmpegMetadata",

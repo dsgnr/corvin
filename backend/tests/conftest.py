@@ -1,10 +1,14 @@
 """Pytest fixtures."""
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app import create_app
-from app.extensions import db
-from app.models import History, HistoryAction, Profile, Video, VideoList
+from app.extensions import get_db
+from app.models import Base, History, HistoryAction, Profile, Video, VideoList
 from app.models.task import Task, TaskStatus, TaskType
 
 
@@ -17,94 +21,120 @@ def app():
     }
     application = create_app(test_config)
 
-    with application.app_context():
-        db.create_all()
-        yield application
-        db.session.remove()
-        db.drop_all()
+    # Create test database engine
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    # Create tables
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    application.dependency_overrides[get_db] = override_get_db
+
+    # Store session factory for fixtures
+    application.state.test_session_factory = TestingSessionLocal
+
+    yield application
+
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
 def client(app):
     """Create test client."""
-    return app.test_client()
+    return TestClient(app)
 
 
 @pytest.fixture
-def sample_profile(app):
+def db_session(app):
+    """Create a database session for tests."""
+    session = app.state.test_session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def sample_profile(app, db_session):
     """Create a sample profile."""
-    with app.app_context():
-        profile = Profile(name="Test Profile")
-        db.session.add(profile)
-        db.session.commit()
-        profile_id = profile.id
-    return profile_id
+    profile = Profile(name="Test Profile")
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+    return profile.id
 
 
 @pytest.fixture
-def sample_list(app, sample_profile):
+def sample_list(app, db_session, sample_profile):
     """Create a sample video list."""
-    with app.app_context():
-        video_list = VideoList(
-            name="Test Channel",
-            url="https://youtube.com/c/testchannel",
-            profile_id=sample_profile,
-            list_type="channel",
-        )
-        db.session.add(video_list)
-        db.session.commit()
-        list_id = video_list.id
-    return list_id
+    video_list = VideoList(
+        name="Test Channel",
+        url="https://youtube.com/c/testchannel",
+        profile_id=sample_profile,
+        list_type="channel",
+    )
+    db_session.add(video_list)
+    db_session.commit()
+    db_session.refresh(video_list)
+    return video_list.id
 
 
 @pytest.fixture
-def sample_video(app, sample_list):
+def sample_video(app, db_session, sample_list):
     """Create a sample video."""
-    with app.app_context():
-        video = Video(
-            video_id="abc123",
-            title="Test Video",
-            url="https://youtube.com/watch?v=abc123",
-            list_id=sample_list,
-        )
-        db.session.add(video)
-        db.session.commit()
-        video_id = video.id
-    return video_id
+    video = Video(
+        video_id="abc123",
+        title="Test Video",
+        url="https://youtube.com/watch?v=abc123",
+        list_id=sample_list,
+    )
+    db_session.add(video)
+    db_session.commit()
+    db_session.refresh(video)
+    return video.id
 
 
 @pytest.fixture
-def sample_task(app, sample_list):
+def sample_task(app, db_session, sample_list):
     """Create a sample task for testing."""
-    with app.app_context():
-        task = Task(
-            task_type=TaskType.SYNC.value,
-            entity_id=sample_list,
-            status=TaskStatus.PENDING.value,
-        )
-        db.session.add(task)
-        db.session.commit()
-        task_id = task.id
-    return task_id
+    task = Task(
+        task_type=TaskType.SYNC.value,
+        entity_id=sample_list,
+        status=TaskStatus.PENDING.value,
+    )
+    db_session.add(task)
+    db_session.commit()
+    db_session.refresh(task)
+    return task.id
 
 
 @pytest.fixture
-def sample_history(app):
+def sample_history(app, db_session):
     """Create sample history entries."""
-    with app.app_context():
-        entries = [
-            History(
-                action=HistoryAction.PROFILE_CREATED.value,
-                entity_type="profile",
-                entity_id=1,
-                details='{"name": "Test Profile"}',
-            ),
-            History(
-                action=HistoryAction.LIST_CREATED.value,
-                entity_type="list",
-                entity_id=1,
-                details='{"name": "Test List"}',
-            ),
-        ]
-        db.session.add_all(entries)
-        db.session.commit()
+    entries = [
+        History(
+            action=HistoryAction.PROFILE_CREATED.value,
+            entity_type="profile",
+            entity_id=1,
+            details={"name": "Test Profile"},
+        ),
+        History(
+            action=HistoryAction.LIST_CREATED.value,
+            entity_type="list",
+            entity_id=1,
+            details={"name": "Test List"},
+        ),
+    ]
+    db_session.add_all(entries)
+    db_session.commit()

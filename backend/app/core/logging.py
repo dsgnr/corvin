@@ -6,7 +6,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "[%(asctime)s +0000] [%(process)d] [%(levelname)s] %(message)s",
+            "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
@@ -22,17 +22,19 @@ LOGGING_CONFIG = {
         "handlers": ["console"],
     },
     "loggers": {
-        "apscheduler": {
-            "level": "WARNING",
-        },
+        "app": {"level": "INFO"},
+        "uvicorn": {"level": "INFO"},
+        "uvicorn.error": {"level": "INFO"},
+        "uvicorn.access": {"level": "INFO"},
+        "apscheduler": {"level": "WARNING"},
+        "httpx": {"level": "WARNING"},
     },
 }
 
 
-def setup_logging(level: int = logging.INFO) -> None:
-    """Configure application-wide logging."""
+def setup_logging() -> None:
+    """Configure application-wide logging using dictConfig."""
     logging.config.dictConfig(LOGGING_CONFIG)
-    logging.getLogger().setLevel(level)
 
 
 def get_logger(name: str) -> logging.Logger:

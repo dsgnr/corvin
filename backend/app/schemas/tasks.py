@@ -1,51 +1,12 @@
 """Task schemas."""
 
-from pydantic import BaseModel, Field
-
-from app.schemas.common import PaginationQuery
-
-
-class TaskPath(BaseModel):
-    """Task path parameter."""
-
-    task_id: int = Field(..., description="Task ID")
-
-
-class ListIdPath(BaseModel):
-    """List ID path parameter."""
-
-    list_id: int = Field(..., description="List ID")
-
-
-class VideoIdPath(BaseModel):
-    """Video ID path parameter."""
-
-    video_id: int = Field(..., description="Video ID")
-
-
-class TaskQuery(PaginationQuery):
-    """Task query parameters."""
-
-    type: str | None = Field(None, description="Filter by task type (sync, download)")
-    status: str | None = Field(
-        None, description="Filter by status (pending, running, completed, failed)"
-    )
-
-
-class TaskLogsQuery(BaseModel):
-    """Task logs query parameters."""
-
-    include_logs: bool = Field(True, description="Include task logs")
-
-
-class ActiveTasksQuery(BaseModel):
-    """Active tasks query parameters."""
-
-    list_id: int | None = Field(None, description="Filter by list ID")
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TaskResponse(BaseModel):
     """Task response."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     task_type: str
@@ -60,21 +21,17 @@ class TaskResponse(BaseModel):
     started_at: str | None = None
     completed_at: str | None = None
 
-    class Config:
-        from_attributes = True
-
 
 class TaskLogResponse(BaseModel):
     """Task log response."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     attempt: int
     level: str = "info"
     message: str
     created_at: str
-
-    class Config:
-        from_attributes = True
 
 
 class TaskStatsResponse(BaseModel):

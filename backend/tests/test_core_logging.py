@@ -31,12 +31,12 @@ class TestGetLogger:
 class TestSetupLogging:
     """Tests for setup_logging function."""
 
-    def test_sets_log_level(self):
-        """Should configure root logger level."""
-        setup_logging(level=logging.DEBUG)
+    def test_configures_root_logger(self):
+        """Should configure root logger with INFO level."""
+        setup_logging()
 
         root = logging.getLogger()
-        assert root.level == logging.DEBUG
+        assert root.level == logging.INFO
 
     def test_suppresses_apscheduler(self):
         """Should set apscheduler to WARNING level."""
