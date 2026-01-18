@@ -67,7 +67,9 @@ export default function ListDetailPage() {
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set())
   const [queuedDownloadIds, setQueuedDownloadIds] = useState<Set<number>>(new Set())
   const [runningDownloadIds, setRunningDownloadIds] = useState<Set<number>>(new Set())
-  const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed' | 'blacklisted'>(
+    'all'
+  )
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -198,12 +200,14 @@ export default function ListDetailPage() {
 
     const downloaded = filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
     const failed = filter === 'failed' ? true : undefined
+    const blacklisted = filter === 'blacklisted' ? true : undefined
 
     return getListVideosStreamUrl(listId, {
       page: currentPage,
       pageSize,
-      downloaded: filter === 'failed' ? undefined : downloaded,
+      downloaded: filter === 'failed' || filter === 'blacklisted' ? undefined : downloaded,
       failed,
+      blacklisted,
       search: debouncedSearch || undefined,
     })
   }, [listId, loading, list, filter, currentPage, pageSize, debouncedSearch])
@@ -226,13 +230,15 @@ export default function ListDetailPage() {
 
     const downloaded = filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
     const failed = filter === 'failed' ? true : undefined
+    const blacklisted = filter === 'blacklisted' ? true : undefined
 
     api
       .getVideosPaginated(listId, {
         page: currentPage,
         pageSize,
-        downloaded: filter === 'failed' ? undefined : downloaded,
+        downloaded: filter === 'failed' || filter === 'blacklisted' ? undefined : downloaded,
         failed,
+        blacklisted,
         search: debouncedSearch || undefined,
       })
       .then((response) => {
@@ -384,7 +390,7 @@ export default function ListDetailPage() {
 
   // Use server stats - show loading placeholder until available
   const statsLoading = !serverStats
-  const stats = serverStats || { total: 0, downloaded: 0, pending: 0, failed: 0 }
+  const stats = serverStats || { total: 0, downloaded: 0, pending: 0, failed: 0, blacklisted: 0 }
 
   if (loading) {
     return (
@@ -553,7 +559,7 @@ export default function ListDetailPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <button
           onClick={() => setFilter('all')}
           className={clsx(
@@ -618,6 +624,24 @@ export default function ListDetailPage() {
           </p>
         </button>
         <button
+          onClick={() => setFilter('blacklisted')}
+          className={clsx(
+            'rounded-lg border p-3 text-left transition-colors',
+            filter === 'blacklisted'
+              ? 'border-[var(--muted)] bg-[var(--muted)]/10'
+              : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted)]'
+          )}
+        >
+          <p className="text-2xl font-semibold text-[var(--muted)]">
+            {statsLoading ? (
+              <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--border)]" />
+            ) : (
+              stats.blacklisted
+            )}
+          </p>
+          <p className="text-xs text-[var(--muted)]">Blacklisted</p>
+        </button>
+        <button
           onClick={() => setFilter('failed')}
           className={clsx(
             'rounded-lg border p-3 text-left transition-colors',
@@ -659,6 +683,8 @@ export default function ListDetailPage() {
               ) : (
                 0
               )
+            ) : filter === 'blacklisted' ? (
+              stats.blacklisted
             ) : filter === 'failed' ? (
               stats.failed
             ) : (
@@ -844,6 +870,13 @@ function VideoRow({
     if (video.error_message) {
       return <XCircle size={18} className="text-[var(--error)]" />
     }
+    if (video.blacklisted) {
+      return (
+        <span title="Blacklisted - excluded from auto-download">
+          <CircleSlash size={18} className="text-[var(--muted)]" />
+        </span>
+      )
+    }
     if (downloadRunning) {
       return (
         <span title="Downloading...">
@@ -892,6 +925,11 @@ function VideoRow({
           <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
             {video.media_type}
           </span>
+          {video.blacklisted && (
+            <span className="rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)]">
+              blacklisted
+            </span>
+          )}
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
             <span>

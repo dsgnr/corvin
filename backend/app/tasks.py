@@ -42,6 +42,7 @@ def _execute_sync(list_id: int) -> dict:
     Returns:
         Dictionary with new_videos and total_found counts.
     """
+    import re
     import threading
 
     from app.models import HistoryAction, Video, VideoList
@@ -78,9 +79,19 @@ def _execute_sync(list_id: int) -> dict:
         }
 
         include_shorts = video_list.profile.include_shorts
-        counters = {"new": 0, "total": 0, "last_notified": 0}
+        counters = {"new": 0, "total": 0, "blacklisted": 0, "last_notified": 0}
         lock = threading.Lock()
         list_name = video_list.name
+
+        # Compile blacklist regex if set
+        blacklist_pattern = None
+        if video_list.blacklist_regex:
+            try:
+                blacklist_pattern = re.compile(
+                    video_list.blacklist_regex, re.IGNORECASE
+                )
+            except re.error as e:
+                logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
 
         # Import here to avoid circular imports
         from app.sse_hub import Channel
@@ -95,6 +106,14 @@ def _execute_sync(list_id: int) -> dict:
 
             try:
                 with SessionLocal() as db_inner:
+                    # Check if video title matches blacklist pattern
+                    is_blacklisted = False
+                    if blacklist_pattern and blacklist_pattern.search(
+                        video_data["title"]
+                    ):
+                        is_blacklisted = True
+                        counters["blacklisted"] += 1
+
                     video = Video(
                         video_id=video_data["video_id"],
                         title=video_data["title"],
@@ -107,6 +126,7 @@ def _execute_sync(list_id: int) -> dict:
                         media_type=video_data.get("media_type"),
                         labels=video_data.get("labels", {}),
                         list_id=list_id,
+                        blacklisted=is_blacklisted,
                     )
                     db_inner.add(video)
                     db_inner.commit()
@@ -121,6 +141,7 @@ def _execute_sync(list_id: int) -> dict:
                             "name": list_name,
                             "title": video_data["title"],
                             "list_id": list_id,
+                            "blacklisted": is_blacklisted,
                         },
                     )
                     sse_notify(Channel.list_videos(list_id))
@@ -513,6 +534,7 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
 
     Note: Videos from lists with auto_download=False are excluded from automatic
     scheduling. They must be manually selected for download.
+    Blacklisted videos are also excluded from automatic scheduling.
 
     Args:
         video_ids: Specific video IDs to download, or None for all pending.
@@ -534,11 +556,13 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
             ids_to_queue = [v.id for v in videos]
         else:
             # All pending videos from lists with auto_download enabled
+            # Exclude blacklisted videos from automatic downloads
             videos = (
                 db.query(Video)
                 .join(VideoList)
                 .filter(VideoList.auto_download.is_(True))
                 .filter(Video.downloaded.is_(False))
+                .filter(Video.blacklisted.is_(False))
                 .filter((Video.error_message.is_(None)) | (Video.retry_count > 0))
                 .limit(100)
                 .all()

@@ -23,13 +23,34 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     from_date: list?.from_date || '',
     enabled: list?.enabled ?? true,
     auto_download: list?.auto_download ?? true,
+    blacklist_regex: list?.blacklist_regex || '',
   })
   const [saving, setSaving] = useState(false)
+  const [regexError, setRegexError] = useState<string | null>(null)
+
+  const validateRegex = (pattern: string): boolean => {
+    if (!pattern) {
+      setRegexError(null)
+      return true
+    }
+    try {
+      new RegExp(pattern, 'i')
+      setRegexError(null)
+      return true
+    } catch {
+      setRegexError('Invalid regex pattern')
+      return false
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateRegex(form.blacklist_regex)) return
     setSaving(true)
-    await onSave(form)
+    await onSave({
+      ...form,
+      blacklist_regex: form.blacklist_regex || null,
+    })
     setSaving(false)
   }
 
@@ -128,6 +149,47 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
       </div>
 
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium">Blacklist Pattern</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Videos with titles matching this pattern will be synced but not auto-downloaded. Uses
+            Python regex syntax with case-insensitive matching. Leave empty to disable.
+          </p>
+          <input
+            type="text"
+            value={form.blacklist_regex}
+            onChange={(e) => {
+              setForm({ ...form, blacklist_regex: e.target.value })
+              validateRegex(e.target.value)
+            }}
+            className={`w-full rounded-md border bg-[var(--background)] px-3 py-2 font-mono text-sm focus:outline-none ${
+              regexError
+                ? 'border-[var(--error)] focus:border-[var(--error)]'
+                : 'border-[var(--border)] focus:border-[var(--accent)]'
+            }`}
+            placeholder="e.g. live|sponsor|#shorts"
+          />
+          {regexError && <p className="mt-1 text-xs text-[var(--error)]">{regexError}</p>}
+          <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
+            <p>
+              <code className="rounded bg-[var(--border)] px-1">word</code> matches titles
+              containing &quot;word&quot; anywhere
+            </p>
+            <p>
+              <code className="rounded bg-[var(--border)] px-1">after files</code> matches phrase
+              &quot;After Files&quot; (spaces work)
+            </p>
+            <p>
+              <code className="rounded bg-[var(--border)] px-1">live|stream</code> matches
+              &quot;live&quot; OR &quot;stream&quot;
+            </p>
+            <p>
+              <code className="rounded bg-[var(--border)] px-1">^live</code> matches titles starting
+              with &quot;live&quot;
+            </p>
+          </div>
+        </div>
+
         <ToggleOption
           label="Enabled"
           description="When disabled, this list will not be synced automatically"

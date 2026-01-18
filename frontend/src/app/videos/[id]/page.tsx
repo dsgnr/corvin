@@ -36,6 +36,7 @@ export default function VideoDetailPage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [togglingBlacklist, setTogglingBlacklist] = useState(false)
   const [downloadQueued, setDownloadQueued] = useState(false)
   const [downloadRunning, setDownloadRunning] = useState(false)
 
@@ -115,6 +116,19 @@ export default function VideoDetailPage() {
       console.error('Failed to retry:', err)
     } finally {
       setRetrying(false)
+    }
+  }
+
+  const handleToggleBlacklist = async () => {
+    if (!video) return
+    setTogglingBlacklist(true)
+    try {
+      const data = await api.toggleVideoBlacklist(video.id)
+      setVideo(data)
+    } catch (err) {
+      console.error('Failed to toggle blacklist:', err)
+    } finally {
+      setTogglingBlacklist(false)
     }
   }
 
@@ -312,6 +326,24 @@ export default function VideoDetailPage() {
                 Retry
               </button>
             )}
+            <button
+              onClick={handleToggleBlacklist}
+              disabled={togglingBlacklist}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
+                video.blacklisted
+                  ? 'border-[var(--muted)] bg-[var(--muted)]/10 text-[var(--muted)] hover:bg-[var(--muted)]/20'
+                  : 'border-[var(--border)] bg-[var(--card)] hover:bg-[var(--card-hover)]'
+              )}
+              title={video.blacklisted ? 'Remove from blacklist' : 'Add to blacklist'}
+            >
+              {togglingBlacklist ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CircleSlash size={14} />
+              )}
+              {video.blacklisted ? 'Unblacklist' : 'Blacklist'}
+            </button>
             <a
               href={video.url}
               target="_blank"
@@ -358,6 +390,11 @@ export default function VideoDetailPage() {
               <span className="rounded bg-[var(--accent)]/20 px-2 py-1 text-xs font-medium text-[var(--accent)] uppercase">
                 {video.media_type}
               </span>
+              {video.blacklisted && (
+                <span className="rounded bg-[var(--muted)]/20 px-2 py-1 text-xs font-medium text-[var(--muted)]">
+                  blacklisted
+                </span>
+              )}
               {video.duration && (
                 <span className="flex items-center gap-1.5 rounded bg-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]">
                   <Timer size={12} />

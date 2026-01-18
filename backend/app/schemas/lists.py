@@ -19,6 +19,9 @@ class ListCreate(BaseModel):
     sync_frequency: str = Field("daily", description="Sync frequency")
     enabled: bool = Field(True, description="Enable automatic syncing")
     auto_download: bool = Field(True, description="Auto-download new videos")
+    blacklist_regex: str | None = Field(
+        None, description="Regex pattern to blacklist videos by title"
+    )
 
 
 class ListUpdate(BaseModel):
@@ -34,6 +37,9 @@ class ListUpdate(BaseModel):
     sync_frequency: str | None = Field(None, description="Sync frequency")
     enabled: bool | None = Field(None, description="Enable automatic syncing")
     auto_download: bool | None = Field(None, description="Auto-download new videos")
+    blacklist_regex: str | None = Field(
+        None, description="Regex pattern to blacklist videos by title"
+    )
 
 
 class ListResponse(BaseModel):
@@ -51,6 +57,7 @@ class ListResponse(BaseModel):
     sync_frequency: str = "daily"
     enabled: bool = True
     auto_download: bool = True
+    blacklist_regex: str | None = None
     deleting: bool = False
     last_synced: str | None = None
     next_sync_at: str | None = None
@@ -68,6 +75,7 @@ class VideoStatsResponse(BaseModel):
     downloaded: int
     failed: int
     pending: int
+    blacklisted: int = 0
     newest_id: int | None = None
     last_updated: str | None = None
 
@@ -91,6 +99,7 @@ class VideoSummary(BaseModel):
     media_type: str = "video"
     thumbnail: str | None = None
     downloaded: bool = False
+    blacklisted: bool = False
     error_message: str | None = None
 
 

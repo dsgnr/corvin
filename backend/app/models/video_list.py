@@ -39,6 +39,7 @@ class VideoList(Base):
     auto_download = Column(Boolean, default=True)
     last_synced = Column(DateTime, nullable=True)
     deleting = Column(Boolean, default=False)
+    blacklist_regex = Column(Text, nullable=True)
 
     description = Column(Text, nullable=True)
     thumbnail = Column(String(500), nullable=True)
@@ -101,6 +102,7 @@ class VideoList(Base):
             "description": self.description,
             "thumbnail": self.thumbnail,
             "tags": self.tags.split(",") if self.tags else [],
+            "blacklist_regex": self.blacklist_regex,
             "deleting": self.deleting,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

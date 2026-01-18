@@ -21,6 +21,7 @@ class VideoResponse(BaseModel):
     labels: dict = {}
     list_id: int
     downloaded: bool = False
+    blacklisted: bool = False
     download_path: str | None = None
     error_message: str | None = None
     retry_count: int = 0
@@ -46,6 +47,7 @@ class VideoWithListResponse(BaseModel):
     labels: dict = {}
     list_id: int
     downloaded: bool = False
+    blacklisted: bool = False
     download_path: str | None = None
     error_message: str | None = None
     retry_count: int = 0

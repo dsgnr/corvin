@@ -56,6 +56,7 @@ export const api = {
       pageSize: number
       downloaded?: boolean
       failed?: boolean
+      blacklisted?: boolean
       search?: string
     }
   ): Promise<VideosPaginatedResponse> => {
@@ -64,6 +65,7 @@ export const api = {
     query.set('page_size', String(params.pageSize))
     if (params.downloaded !== undefined) query.set('downloaded', String(params.downloaded))
     if (params.failed !== undefined) query.set('failed', String(params.failed))
+    if (params.blacklisted !== undefined) query.set('blacklisted', String(params.blacklisted))
     if (params.search) query.set('search', params.search)
     return request<VideosPaginatedResponse>(`/lists/${listId}/videos?${query}`)
   },
@@ -72,6 +74,8 @@ export const api = {
   getVideo: (id: number) => request<Video>(`/videos/${id}`),
   retryVideo: (id: number) =>
     request<{ message: string; video: Video }>(`/videos/${id}/retry`, { method: 'POST' }),
+  toggleVideoBlacklist: (id: number) =>
+    request<Video>(`/videos/${id}/blacklist`, { method: 'POST' }),
 
   // Tasks
   getTasksPaginated: (params: {
@@ -190,6 +194,7 @@ export interface VideoList {
   sync_frequency: string
   enabled: boolean
   auto_download: boolean
+  blacklist_regex: string | null
   last_synced: string | null
   next_sync_at: string | null
   description: string | null
@@ -226,6 +231,7 @@ export interface Video {
   list_id: number
   list?: VideoList
   downloaded: boolean
+  blacklisted: boolean
   download_path: string | null
   error_message: string | null
   retry_count: number
@@ -316,6 +322,7 @@ export interface VideoListStats {
   downloaded: number
   failed: number
   pending: number
+  blacklisted: number
   newest_id: number | null
   last_updated: string | null
 }
@@ -439,6 +446,7 @@ export function getListVideosStreamUrl(
     pageSize?: number
     downloaded?: boolean
     failed?: boolean
+    blacklisted?: boolean
     search?: string
   }
 ): string {
@@ -447,6 +455,7 @@ export function getListVideosStreamUrl(
   if (params?.pageSize) query.set('page_size', String(params.pageSize))
   if (params?.downloaded !== undefined) query.set('downloaded', String(params.downloaded))
   if (params?.failed !== undefined) query.set('failed', String(params.failed))
+  if (params?.blacklisted !== undefined) query.set('blacklisted', String(params.blacklisted))
   if (params?.search) query.set('search', params.search)
   const queryStr = query.toString()
   return `${getApiBase()}/lists/${listId}/videos${queryStr ? `?${queryStr}` : ''}`

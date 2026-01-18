@@ -43,6 +43,85 @@ router = APIRouter(prefix="/api/lists", tags=["Lists"])
 ACTIVE_TASK_STATUSES = (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
 
 
+def _reapply_blacklist_background(
+    list_id: int, list_name: str, blacklist_regex: str | None
+):
+    """
+    Re-evaluate all videos in a list against the blacklist regex in batches.
+
+    Runs in a background thread to avoid blocking the API for large lists.
+
+    Args:
+        list_id: The VideoList ID to reapply blacklist for.
+        list_name: Name of the list for logging.
+        blacklist_regex: The regex pattern to match against video titles.
+    """
+    import re
+    import time
+
+    BATCH_SIZE = 2000
+
+    pattern = None
+    if blacklist_regex:
+        try:
+            pattern = re.compile(blacklist_regex, re.IGNORECASE)
+        except re.error as e:
+            logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
+            return
+
+    total_changed = 0
+
+    with SessionLocal() as db:
+        try:
+            # Process in batches using offset
+            offset = 0
+            while True:
+                videos = (
+                    db.query(Video)
+                    .options(load_only(Video.id, Video.title, Video.blacklisted))
+                    .filter(Video.list_id == list_id)
+                    .order_by(Video.id)
+                    .offset(offset)
+                    .limit(BATCH_SIZE)
+                    .all()
+                )
+
+                if not videos:
+                    break
+
+                batch_changed = 0
+                for video in videos:
+                    should_be_blacklisted = bool(
+                        pattern and pattern.search(video.title)
+                    )
+                    if video.blacklisted != should_be_blacklisted:
+                        video.blacklisted = should_be_blacklisted
+                        batch_changed += 1
+
+                if batch_changed:
+                    db.commit()
+                    total_changed += batch_changed
+                    # Notify after each batch so UI updates progressively
+                    notify(Channel.list_videos(list_id))
+
+                offset += BATCH_SIZE
+                time.sleep(0.05)  # yield time to other connections
+
+            if total_changed:
+                logger.info(
+                    "Reapplied blacklist for list %s: %d videos changed",
+                    list_name,
+                    total_changed,
+                )
+
+        except Exception as e:
+            logger.error("Failed to reapply blacklist for list %s: %s", list_name, e)
+            db.rollback()
+        finally:
+            # Final notification to ensure UI is up to date
+            notify(Channel.list_videos(list_id))
+
+
 def _list_exists(db: Session, list_id: int) -> bool:
     return db.query(exists().where(VideoList.id == list_id)).scalar()
 
@@ -81,6 +160,7 @@ def _fetch_video_stats(db: Session, list_id: int) -> dict:
             func.count()
             .filter(Video.downloaded.is_(False), Video.error_message.isnot(None))
             .label("failed"),
+            func.count().filter(Video.blacklisted.is_(True)).label("blacklisted"),
             func.max(Video.id).label("newest_id"),
             func.max(Video.updated_at).label("last_updated"),
         )
@@ -91,6 +171,7 @@ def _fetch_video_stats(db: Session, list_id: int) -> dict:
     total = stats.total or 0
     downloaded = stats.downloaded or 0
     failed = stats.failed or 0
+    blacklisted = stats.blacklisted or 0
     pending = max(0, total - downloaded - failed)
 
     return {
@@ -98,6 +179,7 @@ def _fetch_video_stats(db: Session, list_id: int) -> dict:
         "downloaded": downloaded,
         "failed": failed,
         "pending": pending,
+        "blacklisted": blacklisted,
         "newest_id": stats.newest_id,
         "last_updated": stats.last_updated.isoformat() if stats.last_updated else None,
     }
@@ -294,6 +376,7 @@ def create_list(payload: ListCreate, db: Session = Depends(get_db)):
         sync_frequency=payload.sync_frequency,
         enabled=payload.enabled,
         auto_download=payload.auto_download,
+        blacklist_regex=payload.blacklist_regex,
         description=list_metadata.get("description"),
         thumbnail=list_metadata.get("thumbnail"),
         tags=",".join(list_metadata.get("tags", [])[:20])
@@ -389,11 +472,26 @@ def update_list(list_id: int, payload: ListUpdate, db: Session = Depends(get_db)
     if "from_date" in update_data:
         update_data["from_date"] = parse_from_date(update_data["from_date"])
 
+    # Check if blacklist_regex is changing
+    blacklist_changed = (
+        "blacklist_regex" in update_data
+        and update_data["blacklist_regex"] != video_list.blacklist_regex
+    )
+
     for field, value in update_data.items():
         setattr(video_list, field, value)
 
     db.commit()
     db.refresh(video_list)
+
+    # Re-evaluate existing videos if blacklist regex changed
+    if blacklist_changed:
+        thread = threading.Thread(
+            target=_reapply_blacklist_background,
+            args=(video_list.id, video_list.name, video_list.blacklist_regex),
+            daemon=True,
+        )
+        thread.start()
 
     HistoryService.log(
         db,
@@ -614,6 +712,7 @@ def _fetch_videos_paginated(
     page_size: int,
     downloaded: bool | None = None,
     failed: bool | None = None,
+    blacklisted: bool | None = None,
     search: str | None = None,
 ) -> dict:
     """Fetch paginated videos for SSE streaming."""
@@ -628,6 +727,9 @@ def _fetch_videos_paginated(
             query = query.filter(Video.error_message.isnot(None))
         elif failed is False:
             query = query.filter(Video.error_message.is_(None))
+
+        if blacklisted is not None:
+            query = query.filter(Video.blacklisted == blacklisted)
 
         if search:
             pattern = f"%{search}%"
@@ -649,6 +751,7 @@ def _fetch_videos_paginated(
                     Video.media_type,
                     Video.thumbnail,
                     Video.downloaded,
+                    Video.blacklisted,
                     Video.error_message,
                 )
             )
@@ -665,10 +768,11 @@ def _fetch_videos_paginated(
                 "video_id": v.video_id,
                 "title": v.title,
                 "duration": v.duration,
-                "upload_date": v.upload_date,
+                "upload_date": v.upload_date.isoformat() if v.upload_date else None,
                 "media_type": v.media_type,
                 "thumbnail": v.thumbnail,
                 "downloaded": v.downloaded,
+                "blacklisted": v.blacklisted,
                 "error_message": v.error_message,
             }
             for v in rows
@@ -691,6 +795,7 @@ async def get_videos_page(
     page_size: int = Query(20, ge=1, le=100),
     downloaded: bool | None = Query(None),
     failed: bool | None = Query(None),
+    blacklisted: bool | None = Query(None),
     search: str | None = Query(None),
 ):
     """
@@ -706,7 +811,7 @@ async def get_videos_page(
             request,
             Channel.list_videos(list_id),
             lambda: _fetch_videos_paginated(
-                list_id, page, page_size, downloaded, failed, search
+                list_id, page, page_size, downloaded, failed, blacklisted, search
             ),
         )
 
@@ -717,7 +822,7 @@ async def get_videos_page(
 
         # Delegate filtering & pagination to the optimised function
         result = _fetch_videos_paginated(
-            list_id, page, page_size, downloaded, failed, search
+            list_id, page, page_size, downloaded, failed, blacklisted, search
         )
         return result
 

@@ -43,6 +43,7 @@ class Video(Base):
     labels = Column(JSON, nullable=True, default=dict)
     list_id = Column(Integer, ForeignKey("video_lists.id"), nullable=False)
     downloaded = Column(Boolean, default=False)
+    blacklisted = Column(Boolean, default=False)
     download_path = Column(String(500), nullable=True)
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, default=0)
@@ -82,6 +83,7 @@ class Video(Base):
             "labels": self.labels or {},
             "list_id": self.list_id,
             "downloaded": self.downloaded,
+            "blacklisted": self.blacklisted,
             "download_path": self.download_path,
             "error_message": self.error_message,
             "retry_count": self.retry_count,
