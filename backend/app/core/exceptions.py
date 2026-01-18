@@ -1,8 +1,19 @@
+"""
+Application exception classes.
+
+Custom exceptions that map to HTTP status codes for consistent API error responses.
+"""
+
 from typing import Any
 
 
 class AppError(Exception):
-    """Base exception for application errors with HTTP status code support."""
+    """
+    Base exception for application errors with HTTP status code support.
+
+    All custom exceptions should inherit from this class to ensure
+    consistent error handling and JSON response formatting.
+    """
 
     def __init__(self, message: str, status_code: int = 500, details: Any = None):
         super().__init__(message)

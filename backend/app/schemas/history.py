@@ -1,5 +1,7 @@
 """History schemas."""
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -10,7 +12,7 @@ class HistoryResponse(BaseModel):
     action: str
     entity_type: str
     entity_id: int | None = None
-    details: str = "{}"
+    details: dict[str, Any] = {}
     created_at: str
 
     class Config:

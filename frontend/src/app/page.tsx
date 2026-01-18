@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { api, TaskStats, Task, VideoList, getTaskStatsStreamUrl } from '@/lib/api'
-import { RefreshCw, Play, Download, ListVideo, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { useEventSource } from '@/lib/useEventSource'
+import { RefreshCw, Play, Download, ListVideo, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import Link from 'next/link'
+import { TaskStatusIcon } from '@/components/TaskStatusIcon'
 
 export default function Dashboard() {
   const [stats, setStats] = useState<TaskStats | null>(null)
@@ -17,10 +19,10 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const [tasksData, listsData] = await Promise.all([
-        api.getTasks({ limit: 10 }),
+        api.getTasksPaginated({ page: 1, pageSize: 10 }),
         api.getLists(),
       ])
-      setRecentTasks(tasksData)
+      setRecentTasks(tasksData.tasks)
       setLists(listsData)
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err)
@@ -35,23 +37,15 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    const eventSource = new EventSource(getTaskStatsStreamUrl())
-
-    eventSource.onmessage = (event) => {
-      const data: TaskStats = JSON.parse(event.data)
-      setStats(data)
-    }
-
-    eventSource.onerror = () => {
-      api.getTaskStats().then(setStats).catch(console.error)
-      eventSource.close()
-    }
-
-    return () => {
-      eventSource.close()
-    }
+  const handleStatsMessage = useCallback((data: TaskStats) => {
+    setStats(data)
   }, [])
+
+  const handleStatsError = useCallback(() => {
+    api.getTaskStats().then(setStats).catch(console.error)
+  }, [])
+
+  useEventSource(getTaskStatsStreamUrl(), handleStatsMessage, handleStatsError)
 
   const handleSyncAll = async () => {
     setSyncing(true)
@@ -101,7 +95,7 @@ export default function Dashboard() {
           <button
             onClick={handleDownloadPending}
             disabled={downloading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--success)] hover:opacity-90 text-success rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
           >
             <Download size={14} className={downloading ? 'animate-bounce' : ''} />
             Download Pending
@@ -203,19 +197,4 @@ function StatCard({ title, value, subtitle, icon: Icon }: {
       </div>
     </div>
   )
-}
-
-function TaskStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case 'completed':
-      return <CheckCircle size={18} className="text-[var(--success)]" />
-    case 'failed':
-      return <XCircle size={18} className="text-[var(--error)]" />
-    case 'running':
-      return <Loader2 size={18} className="text-[var(--accent)] animate-spin" />
-    case 'cancelled':
-      return <XCircle size={18} className="text-[var(--muted)]" />
-    default:
-      return <Clock size={18} className="text-[var(--warning)]" />
-  }
 }

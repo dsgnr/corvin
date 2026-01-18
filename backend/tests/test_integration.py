@@ -89,22 +89,22 @@ class TestProfileListVideoRelationships:
         assert response.status_code == 409
         assert "associated list" in response.json()["error"].lower()
 
-    def test_delete_list_cascades_to_videos(
-        self, client, db_session, sample_list, sample_video
+    @patch("app.routes.lists.threading.Thread")
+    def test_delete_list_accepted(
+        self, mock_thread, client, db_session, sample_list, sample_video
     ):
-        """Should delete videos when list is deleted."""
+        """Should accept list deletion request (async)."""
         from app.models import Video
 
         # Verify video exists
         assert db_session.query(Video).get(sample_video) is not None
 
-        # Delete list
+        # Delete list - returns 202 Accepted for async deletion
         response = client.delete(f"/api/lists/{sample_list}")
-        assert response.status_code == 204
-
-        # Verify video is gone (need to expire the session to see the change)
-        db_session.expire_all()
-        assert db_session.query(Video).get(sample_video) is None
+        assert response.status_code == 202
+        assert "message" in response.json()
+        # Verify background thread was started (but mocked to prevent DB access after teardown)
+        mock_thread.assert_called_once()
 
 
 class TestHistoryTracking:
@@ -133,8 +133,9 @@ class TestHistoryTracking:
         response = client.get("/api/history?action=list_created")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 1
-        assert any(e["details"].get("name") == "History Test" for e in data)
+        entries = data["entries"]
+        assert len(entries) >= 1
+        assert any(e["details"].get("name") == "History Test" for e in entries)
 
     def test_profile_crud_logged(self, client):
         """Should log profile create/update/delete in history."""
@@ -151,8 +152,9 @@ class TestHistoryTracking:
         # Check history
         response = client.get("/api/history?entity_type=profile")
         data = response.json()
+        entries = data["entries"]
 
-        actions = [e["action"] for e in data]
+        actions = [e["action"] for e in entries]
         assert "profile_created" in actions
         assert "profile_updated" in actions
         assert "profile_deleted" in actions

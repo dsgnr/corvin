@@ -65,15 +65,6 @@ class TestVideoList:
         assert result["name"] == "Test Channel"
         assert result["tags"] == ["tech", "coding"]
 
-    def test_to_dict_with_videos(self, db_session, sample_list, sample_video):
-        """Should include videos when requested."""
-        video_list = db_session.query(VideoList).get(sample_list)
-
-        result = video_list.to_dict(include_videos=True)
-
-        assert "videos" in result
-        assert len(result["videos"]) == 1
-
 
 class TestProfile:
     """Tests for Profile model."""

@@ -1,3 +1,7 @@
+"""
+Video model for individual videos.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import (
@@ -10,6 +14,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    desc,
+    text,
 )
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import relationship
@@ -18,7 +24,9 @@ from app.models import Base
 
 
 class Video(Base):
-    """An individual video discovered from a list."""
+    """
+    An individual video discovered from a list.
+    """
 
     __tablename__ = "videos"
 
@@ -30,15 +38,9 @@ class Video(Base):
     upload_date = Column(DateTime, nullable=True)
     thumbnail = Column(String(500), nullable=True)
     description = Column(Text, nullable=True)
-    extractor = Column(
-        String(50), nullable=True
-    )  # Platform identifier (e.g., "Youtube", "Vimeo")
-    media_type = Column(
-        String(20), nullable=False, default="video"
-    )  # "video" or "short"
-    labels = Column(
-        JSON, nullable=True, default=dict
-    )  # Video metadata labels (resolution, codec, etc.)
+    extractor = Column(String(50), nullable=True)
+    media_type = Column(String(20), nullable=False, default="video")
+    labels = Column(JSON, nullable=True, default=dict)
     list_id = Column(Integer, ForeignKey("video_lists.id"), nullable=False)
     downloaded = Column(Boolean, default=False)
     download_path = Column(String(500), nullable=True)
@@ -51,14 +53,21 @@ class Video(Base):
 
     __table_args__ = (
         UniqueConstraint("video_id", "list_id", name="uq_video_list"),
-        Index("ix_videos_list_id", "list_id"),
-        Index("ix_videos_downloaded", "downloaded"),
-        Index("ix_videos_list_downloaded", "list_id", "downloaded"),
-        Index("ix_videos_list_created", "list_id", "created_at"),  # For ORDER BY
-        Index("ix_videos_list_updated", "list_id", "updated_at"),  # For incremental SSE
+        Index("ix_videos_list_id_desc", "list_id", desc("id")),
+        Index("ix_videos_list_downloaded", "list_id", "downloaded", desc("id")),
+        Index("ix_videos_list_updated", "list_id", "updated_at"),
+        Index(
+            "ix_videos_pending",
+            "list_id",
+            desc("id"),
+            sqlite_where=text("downloaded = 0"),
+        ),
+        Index("ix_videos_list_failed", "list_id", "downloaded", "error_message"),
+        Index("ix_videos_list_id_updated", "list_id", "id", "updated_at"),
     )
 
     def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialisation."""
         return {
             "id": self.id,
             "video_id": self.video_id,

@@ -1,1 +1,1 @@
-# API route routers
+"""API route routers."""

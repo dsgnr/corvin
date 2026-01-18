@@ -1,6 +1,11 @@
+"""
+Profile model for yt-dlp download configuration.
+Profiles define how videos are downloaded.
+"""
+
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.models import Base
@@ -18,14 +23,14 @@ class SponsorBlockBehaviour:
 
 # Valid SponsorBlock categories
 SPONSORBLOCK_CATEGORIES = [
-    "sponsor",  # Sponsor
-    "intro",  # Intro/Intermission
-    "outro",  # Outro/Credits
-    "selfpromo",  # Unpaid/Self Promotion
-    "preview",  # Preview/Recap
-    "interaction",  # Interaction Reminder (Subscribe)
-    "music_offtopic",  # Music: Non-Music Section
-    "filler",  # Tangents/Jokes
+    "sponsor",
+    "intro",
+    "outro",
+    "selfpromo",
+    "preview",
+    "interaction",
+    "music_offtopic",
+    "filler",
 ]
 
 # Supported output formats for remuxing
@@ -33,7 +38,12 @@ OUTPUT_FORMATS = ["3gp", "aac", "flv", "m4a", "mp3", "mp4", "ogg", "wav", "webm"
 
 
 class Profile(Base):
-    """yt-dlp download profile with quality and format settings."""
+    """
+    yt-dlp download profile.
+
+    Each VideoList references a Profile that determines how its videos
+    are downloaded. Multiple lists can share the same profile.
+    """
 
     __tablename__ = "profiles"
 
@@ -61,7 +71,7 @@ class Profile(Base):
 
     # SponsorBlock options
     sponsorblock_behaviour = Column(String(20), default=SponsorBlockBehaviour.DISABLED)
-    sponsorblock_categories = Column(String(500), default="")
+    sponsorblock_categories = Column(JSON, default=list)
 
     # Output format for remuxing
     output_format = Column(String(20), default="mp4")
@@ -72,6 +82,7 @@ class Profile(Base):
     lists = relationship("VideoList", back_populates="profile", lazy="dynamic")
 
     def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialisation."""
         return {
             "id": self.id,
             "name": self.name,
@@ -79,26 +90,26 @@ class Profile(Base):
             "embed_thumbnail": self.embed_thumbnail,
             "include_shorts": self.include_shorts,
             "extra_args": self.extra_args,
-            # Subtitle options
             "download_subtitles": self.download_subtitles,
             "embed_subtitles": self.embed_subtitles,
             "auto_generated_subtitles": self.auto_generated_subtitles,
             "subtitle_languages": self.subtitle_languages,
-            # Audio track language
             "audio_track_language": self.audio_track_language,
-            # Output template
             "output_template": self.output_template,
-            # SponsorBlock options
             "sponsorblock_behaviour": self.sponsorblock_behaviour,
-            "sponsorblock_categories": self.sponsorblock_categories,
-            # Output format
+            "sponsorblock_categories": self.sponsorblock_categories or [],
             "output_format": self.output_format,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
 
     def to_yt_dlp_opts(self) -> dict:
-        """Convert profile settings to a yt-dlp options dictionary."""
+        """
+        Convert profile settings to a yt-dlp options dictionary.
+
+        Returns:
+            Dictionary of yt-dlp options ready for use with YoutubeDL.
+        """
         output_fmt = (
             self.output_format if self.output_format in OUTPUT_FORMATS else "mp4"
         )
@@ -159,7 +170,7 @@ class Profile(Base):
             )
 
     def _add_subtitle_postprocessors(self, opts: dict, postprocessors: list) -> None:
-        """Add subtitle-related options and postprocessors."""
+        """Add subtitle options and postprocessors."""
         if self.download_subtitles or self.embed_subtitles:
             opts["writesubtitles"] = True
             opts["subtitlesformat"] = "srt"
@@ -204,19 +215,14 @@ class Profile(Base):
         if not self.sponsorblock_categories:
             return
 
-        categories = [
-            c.strip() for c in self.sponsorblock_categories.split(",") if c.strip()
-        ]
-        if not categories:
-            return
-
-        categories_set = set(categories)
+        categories_csv = ",".join(self.sponsorblock_categories)
+        categories_set = set(self.sponsorblock_categories)
 
         postprocessors.append(
             {
                 "key": "SponsorBlock",
                 "api": "https://sponsor.ajay.app",
-                "categories": categories_set,
+                "categories": categories_csv,
                 "when": "after_filter",
             }
         )

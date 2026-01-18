@@ -1,3 +1,7 @@
+"""
+Corvin
+"""
+
 import os
 from contextlib import asynccontextmanager
 
@@ -20,7 +24,12 @@ from app.models import Base  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler for startup and shutdown."""
+    """
+    Manage the application lifecycle.
+
+    Startup: initialises database, starts background workers, schedules periodic jobs.
+    Shutdown: gracefully stops scheduler and worker threads.
+    """
     logger.info("Application starting up...")
     _init_database(app)
 
@@ -36,7 +45,16 @@ async def lifespan(app: FastAPI):
 
 
 def create_app(config: dict | None = None) -> FastAPI:
-    """Create and configure the FastAPI application."""
+    """
+    Create and configure the FastAPI application.
+
+    Args:
+        config: Optional configuration overrides. Set TESTING=True to skip
+                worker/scheduler initialisation.
+
+    Returns:
+        Configured FastAPI application instance.
+    """
     debug = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 
     app = FastAPI(
@@ -48,6 +66,7 @@ def create_app(config: dict | None = None) -> FastAPI:
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
         debug=debug,
+        redirect_slashes=False,
     )
 
     app.state.testing = config.get("TESTING", False) if config else False
@@ -63,7 +82,12 @@ def create_app(config: dict | None = None) -> FastAPI:
 
 
 def _build_config(config: dict | None) -> dict:
-    """Build application configuration."""
+    """
+    Build application configuration by merging defaults with overrides.
+
+    Defaults are suitable for local development. Override via environment
+    variables or by passing a config dict.
+    """
     default_config = {
         "SQLALCHEMY_DATABASE_URI": "sqlite:////data/corvin.db",
         "MAX_SYNC_WORKERS": int(os.getenv("MAX_SYNC_WORKERS", "2")),
@@ -75,19 +99,24 @@ def _build_config(config: dict | None) -> dict:
 
 
 def _add_middleware(app: FastAPI) -> None:
-    """Add middleware to the application."""
+    """
+    Add middleware to the application.
+
+    Configures permissive CORS for local network use.
+    """
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
         max_age=86400,
     )
 
 
 def _register_routes(app: FastAPI) -> None:
-    """Register all route routers."""
+    """Register all API route routers and the health check endpoint."""
     from app.routes import errors, history, lists, profiles, progress, tasks, videos
 
     app.include_router(profiles.router)
@@ -115,7 +144,7 @@ def _register_scalar_docs(app: FastAPI) -> None:
 
 
 def _register_exception_handlers(app: FastAPI) -> None:
-    """Register exception handlers."""
+    """Register global exception handlers for AppError and validation errors."""
     from app.core.exceptions import AppError
 
     @app.exception_handler(AppError)
@@ -134,7 +163,12 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
 
 def _init_database(app: FastAPI) -> None:
-    """Initialise database schema and reset stale tasks."""
+    """
+    Initialise database schema and reset stale tasks.
+
+    Runs Alembic migrations, then resets any tasks left in "running" state
+    from a previous shutdown back to "pending".
+    """
     from app.models.task import Task, TaskStatus
 
     Base.metadata.create_all(bind=engine)
@@ -157,7 +191,12 @@ def _init_database(app: FastAPI) -> None:
 
 
 def _init_worker(app: FastAPI) -> None:
-    """Set up the background task worker and register handlers."""
+    """
+    Set up the background task worker and register handlers.
+
+    Uses separate thread pools for sync and download tasks to prevent
+    long-running downloads from blocking sync operations.
+    """
     from app.models.task import TaskType
     from app.task_queue import init_worker
     from app.tasks import download_single_video, sync_single_list
@@ -173,7 +212,14 @@ def _init_worker(app: FastAPI) -> None:
 
 
 def _setup_scheduler(app: FastAPI) -> None:
-    """Set up periodic task scheduling for syncs and downloads."""
+    """
+    Set up periodic task scheduling.
+
+    - Syncs: every 30 minutes (checks for new videos)
+    - Downloads: every 5 minutes (processes pending videos)
+
+    Manual triggers are also available via the API.
+    """
     from apscheduler.schedulers.background import BackgroundScheduler
 
     from app.tasks import schedule_all_syncs, schedule_downloads
@@ -200,7 +246,7 @@ def _setup_scheduler(app: FastAPI) -> None:
 
 
 def _shutdown(app: FastAPI) -> None:
-    """Gracefully shut down scheduler and worker."""
+    """Gracefully shut down the scheduler and worker threads."""
     from app.task_queue import get_worker
 
     if hasattr(app.state, "scheduler") and app.state.scheduler.running:

@@ -1,3 +1,7 @@
+"""
+Logging configuration.
+"""
+
 import logging
 import logging.config
 
@@ -38,5 +42,13 @@ def setup_logging() -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a logger instance prefixed with 'app.' for the given module name."""
+    """
+    Get a logger instance prefixed with 'app.'.
+
+    Args:
+        name: The module or component name.
+
+    Returns:
+        A configured Logger instance.
+    """
     return logging.getLogger(f"app.{name}")

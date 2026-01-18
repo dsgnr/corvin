@@ -1,79 +1,329 @@
+"""
+Lists routes.
+"""
+
 import asyncio
 import json
+import threading
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy import and_, false, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import exists, func
+from sqlalchemy.orm import Session, load_only
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.helpers import parse_from_date
 from app.core.logging import get_logger
-from app.extensions import SessionLocal, get_db
+from app.extensions import ReadSessionLocal, SessionLocal, get_db, sse_executor
 from app.models import HistoryAction, Profile, VideoList
 from app.models.history import History
-from app.models.task import Task, TaskType
+from app.models.task import Task, TaskStatus, TaskType
 from app.models.video import Video
-from app.schemas.lists import ListCreate, ListUpdate
+from app.schemas.common import DeletionStartedResponse
+from app.schemas.lists import (
+    HistoryPaginatedResponse,
+    ListCreate,
+    ListResponse,
+    ListUpdate,
+    ListVideoStatsResponse,
+    TasksPaginatedResponse,
+    VideosPaginatedResponse,
+)
+from app.schemas.videos import VideoResponse
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService
+from app.sse_hub import Channel, hub, notify
+from app.sse_stream import sse_cors_headers, sse_response, wants_sse
 from app.tasks import enqueue_task
 
 logger = get_logger("routes.lists")
 router = APIRouter(prefix="/api/lists", tags=["Lists"])
 
+ACTIVE_TASK_STATUSES = (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
-def create_list(body: ListCreate, db: Session = Depends(get_db)):
-    """Create a new video list."""
-    if not db.query(Profile).get(body.profile_id):
-        raise NotFoundError("Profile", body.profile_id)
 
-    if db.query(VideoList).filter_by(url=body.url).first():
+def _list_exists(db: Session, list_id: int) -> bool:
+    return db.query(exists().where(VideoList.id == list_id)).scalar()
+
+
+def _get_list_stats(db: Session, list_id: int) -> dict:
+    """Get video statistics for a list."""
+    stats = (
+        db.query(
+            func.count(Video.id).label("total"),
+            func.count().filter(Video.downloaded.is_(True)).label("downloaded"),
+            func.count().filter(Video.error_message.isnot(None)).label("failed"),
+        )
+        .filter(Video.list_id == list_id)
+        .first()
+    )
+
+    total = stats.total or 0
+    downloaded = stats.downloaded or 0
+    failed = stats.failed or 0
+    pending = max(0, total - downloaded - failed)
+
+    return {
+        "total": total,
+        "downloaded": downloaded,
+        "failed": failed,
+        "pending": pending,
+    }
+
+
+def _fetch_video_stats(db: Session, list_id: int) -> dict:
+    """Fetch list stats."""
+    stats = (
+        db.query(
+            func.count(Video.id).label("total"),
+            func.count().filter(Video.downloaded.is_(True)).label("downloaded"),
+            func.count()
+            .filter(Video.downloaded.is_(False), Video.error_message.isnot(None))
+            .label("failed"),
+            func.max(Video.id).label("newest_id"),
+            func.max(Video.updated_at).label("last_updated"),
+        )
+        .filter(Video.list_id == list_id)
+        .one()
+    )
+
+    total = stats.total or 0
+    downloaded = stats.downloaded or 0
+    failed = stats.failed or 0
+    pending = max(0, total - downloaded - failed)
+
+    return {
+        "total": total,
+        "downloaded": downloaded,
+        "failed": failed,
+        "pending": pending,
+        "newest_id": stats.newest_id,
+        "last_updated": stats.last_updated.isoformat() if stats.last_updated else None,
+    }
+
+
+def _fetch_active_tasks(db: Session, list_id: int) -> dict:
+    """Fetch active tasks for a list."""
+    result = {
+        "sync": {"pending": [], "running": []},
+        "download": {"pending": [], "running": []},
+    }
+
+    # Sync tasks
+    sync_rows = (
+        db.query(Task.status, Task.entity_id)
+        .filter(
+            Task.task_type == TaskType.SYNC.value,
+            Task.entity_id == list_id,
+            Task.status.in_(ACTIVE_TASK_STATUSES),
+        )
+        .all()
+    )
+    for task_status, entity_id in sync_rows:
+        if task_status in result["sync"]:
+            result["sync"][task_status].append(entity_id)
+
+    # Download tasks
+    download_rows = (
+        db.query(Task.status, Task.entity_id)
+        .join(Video, Task.entity_id == Video.id)
+        .filter(
+            Task.task_type == TaskType.DOWNLOAD.value,
+            Video.list_id == list_id,
+            Task.status.in_(ACTIVE_TASK_STATUSES),
+        )
+        .all()
+    )
+    for task_status, entity_id in download_rows:
+        if task_status in result["download"]:
+            result["download"][task_status].append(entity_id)
+
+    return result
+
+
+def _fetch_changed_video_ids(
+    db: Session, list_id: int, since: datetime, limit: int = 100
+) -> list[int]:
+    """Fetch video IDs updated since a given timestamp."""
+    rows = (
+        db.query(Video.id)
+        .filter(Video.list_id == list_id, Video.updated_at > since)
+        .order_by(Video.updated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [row[0] for row in rows]
+
+
+def _fetch_all_lists() -> list[dict]:
+    with ReadSessionLocal() as db:
+        return [vl.to_dict() for vl in db.query(VideoList).all()]
+
+
+def _fetch_list_tasks(
+    list_id: int, page: int, page_size: int, search: str | None
+) -> dict:
+    """Fetch paginated tasks for a list."""
+    with ReadSessionLocal() as db:
+        task_cols = [
+            Task.id,
+            Task.task_type,
+            Task.entity_id,
+            Task.status,
+            Task.result,
+            Task.error,
+            Task.retry_count,
+            Task.max_retries,
+            Task.created_at,
+            Task.started_at,
+            Task.completed_at,
+        ]
+
+        # Base queries
+        sync_query = (
+            db.query(*task_cols, VideoList.name.label("entity_name"))
+            .join(VideoList, Task.entity_id == VideoList.id)
+            .filter(Task.task_type == TaskType.SYNC.value, Task.entity_id == list_id)
+        )
+
+        download_query = (
+            db.query(*task_cols, Video.title.label("entity_name"))
+            .join(Video, Task.entity_id == Video.id)
+            .filter(Task.task_type == TaskType.DOWNLOAD.value, Video.list_id == list_id)
+        )
+
+        # Apply search filter
+        if search:
+            pattern = f"%{search}%"
+            sync_query = sync_query.filter(
+                VideoList.name.ilike(pattern)
+                | Task.status.ilike(pattern)
+                | Task.task_type.ilike(pattern)
+            )
+            download_query = download_query.filter(
+                Video.title.ilike(pattern)
+                | Task.status.ilike(pattern)
+                | Task.task_type.ilike(pattern)
+            )
+
+        # Combine queries with UNION ALL
+        combined_query = sync_query.union_all(download_query)
+
+        # Get total count in one go
+        total = combined_query.count()
+        total_pages = max(1, (total + page_size - 1) // page_size)
+
+        # Apply pagination
+        rows = (
+            combined_query.order_by(Task.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        return {
+            "tasks": [Task.row_to_dict(row) for row in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        }
+
+
+def _fetch_list_history(
+    list_id: int, page: int, page_size: int, search: str | None
+) -> dict:
+    """Fetch paginated history for a list."""
+    with ReadSessionLocal() as db:
+        query = db.query(History).filter(
+            History.entity_type == "list",
+            History.entity_id == list_id,
+        )
+
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(
+                History.action.ilike(pattern) | History.details.ilike(pattern)
+            )
+
+        # Get total count
+        total = query.count()
+        total_pages = max(1, (total + page_size - 1) // page_size)
+
+        # Fetch paginated entries
+        entries = (
+            query.order_by(History.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        return {
+            "entries": [h.to_dict() for h in entries],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        }
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ListResponse)
+def create_list(payload: ListCreate, db: Session = Depends(get_db)):
+    """Create a new list."""
+    if not db.get(Profile, payload.profile_id):
+        raise NotFoundError("Profile", payload.profile_id)
+
+    if db.query(VideoList).filter_by(url=payload.url).first():
         raise ConflictError("List with this URL already exists")
 
-    from_date = _parse_from_date(body.from_date)
+    from_date = parse_from_date(payload.from_date)
 
-    metadata = {}
+    list_metadata: dict = {}
     try:
-        metadata = YtDlpService.extract_list_metadata(body.url)
-    except Exception as e:
-        logger.warning("Failed to fetch metadata for %s: %s", body.url, e)
+        list_metadata = YtDlpService.extract_list_metadata(payload.url)
+    except Exception as exc:
+        logger.warning("Failed to fetch metadata for %s: %s", payload.url, exc)
 
     video_list = VideoList(
-        name=body.name,
-        url=body.url,
-        list_type=body.list_type,
-        profile_id=body.profile_id,
+        name=payload.name,
+        url=payload.url,
+        list_type=payload.list_type,
+        profile_id=payload.profile_id,
         from_date=from_date,
-        sync_frequency=body.sync_frequency,
-        enabled=body.enabled,
-        auto_download=body.auto_download,
-        description=metadata.get("description"),
-        thumbnail=metadata.get("thumbnail"),
-        tags=",".join(metadata.get("tags", [])[:20]) if metadata.get("tags") else None,
-        extractor=metadata.get("extractor"),
+        sync_frequency=payload.sync_frequency,
+        enabled=payload.enabled,
+        auto_download=payload.auto_download,
+        description=list_metadata.get("description"),
+        thumbnail=list_metadata.get("thumbnail"),
+        tags=",".join(list_metadata.get("tags", [])[:20])
+        if list_metadata.get("tags")
+        else None,
+        extractor=list_metadata.get("extractor"),
     )
 
     db.add(video_list)
     db.commit()
     db.refresh(video_list)
 
-    thumbnails = metadata.get("thumbnails", [])
-    if thumbnails and metadata.get("name"):
-        artwork_dir = YtDlpService.DEFAULT_OUTPUT_DIR / metadata["name"]
+    # Download artwork
+    thumbnails = list_metadata.get("thumbnails", [])
+    if thumbnails and list_metadata.get("name"):
+        artwork_dir = YtDlpService.DEFAULT_OUTPUT_DIR / list_metadata["name"]
         try:
             results = YtDlpService.download_list_artwork(thumbnails, artwork_dir)
-            downloaded = [f for f, success in results.items() if success]
+            downloaded = [f for f, ok in results.items() if ok]
             if downloaded:
                 logger.info(
                     "Downloaded artwork for %s: %s", video_list.name, downloaded
                 )
             YtDlpService.write_channel_nfo(
-                metadata, artwork_dir, metadata.get("channel_id")
+                list_metadata, artwork_dir, list_metadata.get("channel_id")
             )
-        except Exception as e:
-            logger.warning("Failed to download artwork for %s: %s", video_list.name, e)
+        except Exception as exc:
+            logger.warning(
+                "Failed to download artwork for %s: %s", video_list.name, exc
+            )
 
     HistoryService.log(
         db,
@@ -88,95 +338,58 @@ def create_list(body: ListCreate, db: Session = Depends(get_db)):
         logger.info("Auto-triggered sync for new list: %s", video_list.name)
 
     logger.info("Created list: %s", video_list.name)
+    notify(Channel.LISTS)
     return video_list.to_dict()
 
 
-def _parse_from_date(date_str: str | None) -> str | None:
-    """Validate and return from_date in YYYYMMDD format."""
-    if not date_str:
-        return None
-    clean = date_str.replace("-", "")
-    if len(clean) != 8 or not clean.isdigit():
-        raise ValidationError("Invalid from_date format (use YYYYMMDD)")
-    try:
-        datetime.strptime(clean, "%Y%m%d")
-    except ValueError as err:
-        raise ValidationError("Invalid from_date (not a valid date)") from err
-    return clean
+@router.get("", response_model=list[ListResponse])
+async def list_all(request: Request):
+    """Get all lists. Supports SSE streaming."""
+    if not wants_sse(request):
+        with ReadSessionLocal() as db:
+            return [vl.to_dict() for vl in db.query(VideoList).all()]
+
+    return sse_response(request, Channel.LISTS, _fetch_all_lists)
 
 
-@router.get("/")
-async def list_all(request: Request, db: Session = Depends(get_db)):
-    """List all video lists. Supports SSE streaming."""
-    accept = request.headers.get("accept", "")
-    if "text/event-stream" not in accept:
-        lists = db.query(VideoList).all()
-        return [vl.to_dict() for vl in lists]
+@router.get("/{list_id}", response_model=ListResponse)
+async def get_list(list_id: int):
+    """Get a list by ID."""
 
-    # SSE stream
-    return EventSourceResponse(
-        _sse_stream(
-            lambda: [vl.to_dict() for vl in SessionLocal().query(VideoList).all()],
-            lambda: _get_lists_fingerprint(),
-        )
-    )
+    def _fetch():
+        with ReadSessionLocal() as db:
+            video_list = db.get(VideoList, list_id)
+            return video_list.to_dict() if video_list else None
 
-
-def _get_lists_fingerprint() -> tuple:
-    """Get fingerprint for lists change detection."""
-    with SessionLocal() as db:
-        result = db.query(
-            func.count(VideoList.id),
-            func.max(VideoList.created_at),
-            func.max(VideoList.updated_at),
-        ).first()
-        return (
-            result[0],
-            str(result[1]) if result[1] else None,
-            str(result[2]) if result[2] else None,
-        )
-
-
-@router.get("/{list_id}")
-def get_list(
-    list_id: int,
-    include_videos: bool = Query(False),
-    include_stats: bool = Query(False),
-    db: Session = Depends(get_db),
-):
-    """Get a video list by ID."""
-    video_list = db.query(VideoList).get(list_id)
-    if not video_list:
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(sse_executor, _fetch)
+    if result is None:
         raise NotFoundError("VideoList", list_id)
-    data = video_list.to_dict(include_videos=include_videos)
-    if include_stats:
-        data["stats"] = video_list.get_video_stats(db)
-    return data
+    return result
 
 
-@router.put("/{list_id}")
-def update_list(list_id: int, body: ListUpdate, db: Session = Depends(get_db)):
-    """Update a video list."""
-    video_list = db.query(VideoList).get(list_id)
+@router.put("/{list_id}", response_model=ListResponse)
+def update_list(list_id: int, payload: ListUpdate, db: Session = Depends(get_db)):
+    """Update a list."""
+    video_list = db.get(VideoList, list_id)
     if not video_list:
         raise NotFoundError("VideoList", list_id)
 
-    data = body.model_dump(exclude_unset=True)
-    if not data:
+    update_data = payload.model_dump(exclude_unset=True)
+    if not update_data:
         raise ValidationError("No data provided")
 
-    if "profile_id" in data:
-        if not db.query(Profile).get(data["profile_id"]):
-            raise NotFoundError("Profile", data["profile_id"])
+    if "profile_id" in update_data and not db.get(Profile, update_data["profile_id"]):
+        raise NotFoundError("Profile", update_data["profile_id"])
 
-    if "url" in data and data["url"] != video_list.url:
-        if db.query(VideoList).filter_by(url=data["url"]).first():
+    if "url" in update_data and update_data["url"] != video_list.url:
+        if db.query(VideoList).filter_by(url=update_data["url"]).first():
             raise ConflictError("List with this URL already exists")
 
-    if "from_date" in data:
-        data["from_date"] = _parse_from_date(data["from_date"])
+    if "from_date" in update_data:
+        update_data["from_date"] = parse_from_date(update_data["from_date"])
 
-    for field, value in data.items():
+    for field, value in update_data.items():
         setattr(video_list, field, value)
 
     db.commit()
@@ -187,172 +400,411 @@ def update_list(list_id: int, body: ListUpdate, db: Session = Depends(get_db)):
         HistoryAction.LIST_UPDATED,
         "list",
         video_list.id,
-        {"updated_fields": list(data.keys())},
+        {"updated_fields": list(update_data.keys())},
     )
 
     logger.info("Updated list: %s", video_list.name)
+    notify(Channel.LISTS, Channel.list_history(video_list.id))
     return video_list.to_dict()
 
 
-@router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+def _delete_list_background(list_id: int, list_name: str):
+    """Delete a list and all associated videos/tasks in SQLite."""
+    import time
+
+    BATCH_SIZE = 2000  # safe for SQLite concurrency
+
+    with SessionLocal() as db:
+        try:
+            # Count videos before deletion
+            video_count = (
+                db.query(func.count(Video.id)).filter(Video.list_id == list_id).scalar()
+                or 0
+            )
+
+            # Cancel all pending/paused SYNC tasks in bulk
+            cancelled_sync = (
+                db.query(Task)
+                .filter(
+                    Task.task_type == TaskType.SYNC.value,
+                    Task.entity_id == list_id,
+                    Task.status.in_(
+                        [TaskStatus.PENDING.value, TaskStatus.PAUSED.value]
+                    ),
+                )
+                .update(
+                    {Task.status: TaskStatus.CANCELLED.value}, synchronize_session=False
+                )
+            )
+
+            # Cancel all pending/paused DOWNLOAD tasks in bulk
+            cancelled_download = (
+                db.query(Task)
+                .join(Video, Task.entity_id == Video.id)
+                .filter(
+                    Task.task_type == TaskType.DOWNLOAD.value,
+                    Video.list_id == list_id,
+                    Task.status.in_(
+                        [TaskStatus.PENDING.value, TaskStatus.PAUSED.value]
+                    ),
+                )
+                .update(
+                    {Task.status: TaskStatus.CANCELLED.value}, synchronize_session=False
+                )
+            )
+
+            db.commit()  # single commit for all task cancellations
+
+            # Batch delete videos
+            while True:
+                video_ids = [
+                    vid
+                    for (vid,) in db.query(Video.id)
+                    .filter(Video.list_id == list_id)
+                    .limit(BATCH_SIZE)
+                ]
+                if not video_ids:
+                    break
+
+                db.query(Video).filter(Video.id.in_(video_ids)).delete(
+                    synchronize_session=False
+                )
+                db.commit()  # commit each batch
+                time.sleep(0.05)  # yield time to other connections
+
+            # Delete the list itself
+            video_list = db.get(VideoList, list_id)
+            if video_list:
+                db.delete(video_list)
+                db.commit()
+
+            # Log deletion in history
+            HistoryService.log(
+                db,
+                HistoryAction.LIST_DELETED,
+                "list",
+                None,  # not linking to deleted list
+                {"name": list_name, "videos_deleted": video_count},
+            )
+
+            logger.info(
+                "Deleted list: %s (videos: %d, cancelled tasks: %d)",
+                list_name,
+                video_count,
+                cancelled_sync + cancelled_download,
+            )
+
+        except Exception as e:
+            logger.error("Failed to delete list %s: %s", list_name, e)
+            db.rollback()
+            # Reset deleting flag on error
+            video_list = db.get(VideoList, list_id)
+            if video_list:
+                video_list.deleting = False
+                db.commit()
+        finally:
+            notify(Channel.LISTS, Channel.TASKS, Channel.TASKS_STATS, Channel.HISTORY)
+
+
+@router.delete(
+    "/{list_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=DeletionStartedResponse,
+)
 def delete_list(list_id: int, db: Session = Depends(get_db)):
-    """Delete a video list and its associated videos."""
-    video_list = db.query(VideoList).get(list_id)
+    """Mark a list for deletion.
+
+    Since lists can have millions of videos,
+    we drop the actual delete steps into a thread so we don't lock the db.
+    """
+    video_list = db.get(VideoList, list_id)
     if not video_list:
         raise NotFoundError("VideoList", list_id)
 
-    list_name = video_list.name
-    video_count = video_list.videos.count()
+    if video_list.deleting:
+        raise ConflictError("List is already being deleted")
 
-    db.delete(video_list)
-    db.commit()
-
-    HistoryService.log(
-        db,
-        HistoryAction.LIST_DELETED,
-        "list",
-        list_id,
-        {"name": list_name, "videos_deleted": video_count},
-    )
-
-    logger.info("Deleted list: %s (with %d videos)", list_name, video_count)
-
-
-def _build_list_tasks_query(db, list_id: int, limit: int | None):
-    """Build query for tasks related to a list."""
-    video_ids = [v.id for v in db.query(Video).filter_by(list_id=list_id).all()]
-    q = (
+    # Check for running sync tasks
+    running_sync = (
         db.query(Task)
         .filter(
-            or_(
-                and_(Task.task_type == TaskType.SYNC.value, Task.entity_id == list_id),
-                and_(
-                    Task.task_type == TaskType.DOWNLOAD.value,
-                    Task.entity_id.in_(video_ids),
-                )
-                if video_ids
-                else false(),
-            )
+            Task.task_type == TaskType.SYNC.value,
+            Task.entity_id == list_id,
+            Task.status == TaskStatus.RUNNING.value,
         )
-        .order_by(Task.created_at.desc())
+        .count()
     )
-    return q.limit(limit) if limit else q
+    if running_sync > 0:
+        raise ConflictError("Cannot delete list while sync is running")
 
-
-def _get_list_tasks_data(list_id: int, limit: int | None) -> list[dict]:
-    """Get task data for a list."""
-    with SessionLocal() as db:
-        tasks = _build_list_tasks_query(db, list_id, limit).all()
-        entity_names = Task.batch_get_entity_names(db, tasks)
-        return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
-
-
-def _get_list_tasks_fingerprint(list_id: int, limit: int | None) -> str:
-    """Get fingerprint for task change detection."""
-    with SessionLocal() as db:
-        tasks = (
-            _build_list_tasks_query(db, list_id, limit)
-            .with_entities(Task.id, Task.status)
-            .all()
+    # Check for running download tasks using JOIN
+    running_download = (
+        db.query(Task)
+        .join(Video, Task.entity_id == Video.id)
+        .filter(
+            Task.task_type == TaskType.DOWNLOAD.value,
+            Video.list_id == list_id,
+            Task.status == TaskStatus.RUNNING.value,
         )
-        return ",".join(f"{t.id}:{t.status}" for t in tasks)
-
-
-def _get_list_history_data(list_id: int, limit: int | None) -> list[dict]:
-    """Get history data for a list."""
-    with SessionLocal() as db:
-        q = (
-            db.query(History)
-            .filter(History.entity_type == "list", History.entity_id == list_id)
-            .order_by(History.created_at.desc())
+        .count()
+    )
+    if running_download > 0:
+        raise ConflictError(
+            f"Cannot delete list while {running_download} download(s) are running"
         )
-        if limit:
-            q = q.limit(limit)
-        return [e.to_dict() for e in q.all()]
+
+    # Mark as deleting
+    list_name = video_list.name
+    video_list.deleting = True
+    db.commit()
+    notify(Channel.LISTS)
+
+    # Run deletion in background thread
+    thread = threading.Thread(
+        target=_delete_list_background,
+        args=(list_id, list_name),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"message": "List deletion started"}
 
 
-def _get_list_history_fingerprint(list_id: int) -> tuple:
-    """Get fingerprint for history change detection."""
-    with SessionLocal() as db:
-        result = (
-            db.query(func.count(History.id), func.max(History.created_at))
-            .filter(History.entity_type == "list", History.entity_id == list_id)
-            .first()
-        )
-        return (result[0], str(result[1]) if result[1] else None)
-
-
-async def _sse_stream(get_data, get_fingerprint):
-    """Create an SSE stream generator."""
-    last_fingerprint = None
-    heartbeat_counter = 0
-
-    while True:
-        fingerprint = get_fingerprint()
-        if fingerprint != last_fingerprint:
-            yield {"data": json.dumps(get_data(), default=str)}
-            last_fingerprint = fingerprint
-            heartbeat_counter = 0
-        else:
-            heartbeat_counter += 1
-            if heartbeat_counter >= 30:
-                yield {"comment": "heartbeat"}
-                heartbeat_counter = 0
-        await asyncio.sleep(1)
-
-
-@router.get("/{list_id}/tasks")
+@router.get("/{list_id}/tasks", response_model=TasksPaginatedResponse)
 async def get_list_tasks(
     list_id: int,
     request: Request,
-    limit: int = Query(100),
-    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None),
 ):
-    """Get tasks for a list. Supports SSE streaming."""
-    if not db.query(VideoList).get(list_id):
-        raise NotFoundError("VideoList", list_id)
+    """Get paginated tasks for a list. Supports SSE streaming."""
+    if not wants_sse(request):
+        return _fetch_list_tasks(list_id, page, page_size, search)
 
-    accept = request.headers.get("accept", "")
-    if "text/event-stream" not in accept:
-        # Use injected session for non-SSE requests
-        tasks = _build_list_tasks_query(db, list_id, limit).all()
-        entity_names = Task.batch_get_entity_names(db, tasks)
-        return [t.to_dict(entity_name=entity_names.get(t.id)) for t in tasks]
-
-    return EventSourceResponse(
-        _sse_stream(
-            lambda: _get_list_tasks_data(list_id, limit),
-            lambda: _get_list_tasks_fingerprint(list_id, limit),
-        )
+    return sse_response(
+        request,
+        Channel.list_tasks(list_id),
+        lambda: _fetch_list_tasks(list_id, page, page_size, search),
     )
 
 
-@router.get("/{list_id}/history")
+@router.get("/{list_id}/history", response_model=HistoryPaginatedResponse)
 async def get_list_history(
     list_id: int,
     request: Request,
-    limit: int = Query(100),
-    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None),
 ):
-    """Get history for a list. Supports SSE streaming."""
-    if not db.query(VideoList).get(list_id):
+    """Get paginated history for a list. Supports SSE streaming."""
+    if not wants_sse(request):
+        return _fetch_list_history(list_id, page, page_size, search)
+
+    return sse_response(
+        request,
+        Channel.list_history(list_id),
+        lambda: _fetch_list_history(list_id, page, page_size, search),
+    )
+
+
+def _fetch_videos_paginated(
+    list_id: int,
+    page: int,
+    page_size: int,
+    downloaded: bool | None = None,
+    failed: bool | None = None,
+    search: str | None = None,
+) -> dict:
+    """Fetch paginated videos for SSE streaming."""
+    with ReadSessionLocal() as db:
+        query = db.query(Video).filter(Video.list_id == list_id)
+
+        # Apply filters
+        if downloaded is not None:
+            query = query.filter(Video.downloaded == downloaded)
+
+        if failed is True:
+            query = query.filter(Video.error_message.isnot(None))
+        elif failed is False:
+            query = query.filter(Video.error_message.is_(None))
+
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(Video.title.ilike(pattern))
+
+        # Total count for pagination
+        total = query.count()
+        total_pages = max(1, (total + page_size - 1) // page_size)
+
+        # Fetch paginated rows
+        rows = (
+            query.options(
+                load_only(
+                    Video.id,
+                    Video.video_id,
+                    Video.title,
+                    Video.duration,
+                    Video.upload_date,
+                    Video.media_type,
+                    Video.thumbnail,
+                    Video.downloaded,
+                    Video.error_message,
+                )
+            )
+            .order_by(Video.upload_date.desc().nulls_last(), Video.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        # Convert to dict
+        videos = [
+            {
+                "id": v.id,
+                "video_id": v.video_id,
+                "title": v.title,
+                "duration": v.duration,
+                "upload_date": v.upload_date,
+                "media_type": v.media_type,
+                "thumbnail": v.thumbnail,
+                "downloaded": v.downloaded,
+                "error_message": v.error_message,
+            }
+            for v in rows
+        ]
+
+        return {
+            "videos": videos,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        }
+
+
+@router.get("/{list_id}/videos", response_model=VideosPaginatedResponse)
+async def get_videos_page(
+    list_id: int,
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    downloaded: bool | None = Query(None),
+    failed: bool | None = Query(None),
+    search: str | None = Query(None),
+):
+    """
+    Get paginated videos for a list.
+
+    Supports:
+    - Standard JSON response
+    - SSE stream if Accept header includes 'text/event-stream'
+    """
+    # SSE streaming mode
+    if wants_sse(request):
+        return sse_response(
+            request,
+            Channel.list_videos(list_id),
+            lambda: _fetch_videos_paginated(
+                list_id, page, page_size, downloaded, failed, search
+            ),
+        )
+
+    # Regular JSON response
+    with ReadSessionLocal() as db:
+        if not _list_exists(db, list_id):
+            raise NotFoundError("VideoList", list_id)
+
+        # Delegate filtering & pagination to the optimised function
+        result = _fetch_videos_paginated(
+            list_id, page, page_size, downloaded, failed, search
+        )
+        return result
+
+
+@router.get("/{list_id}/videos/stats", response_model=ListVideoStatsResponse)
+async def get_list_video_stats(list_id: int, request: Request):
+    """
+    Get list statistics and active tasks.
+
+    Supports two modes:
+    - Regular JSON response for standard requests
+    - SSE stream if Accept header includes 'text/event-stream'
+    """
+    if not wants_sse(request):
+        with ReadSessionLocal() as db:
+            if not _list_exists(db, list_id):
+                raise NotFoundError("VideoList", list_id)
+            return {
+                "stats": _fetch_video_stats(db, list_id),
+                "tasks": _fetch_active_tasks(db, list_id),
+            }
+
+    # Check list exists before starting stream
+    with ReadSessionLocal() as db:
+        if not _list_exists(db, list_id):
+            raise NotFoundError("VideoList", list_id)
+
+    async def generate_sse_stream():
+        event_loop = asyncio.get_running_loop()
+        last_change_check = datetime.utcnow()
+        heartbeat_interval = 30
+
+        def fetch_payload(since_timestamp: datetime):
+            with ReadSessionLocal() as db:
+                return {
+                    "stats": _fetch_video_stats(db, list_id),
+                    "tasks": _fetch_active_tasks(db, list_id),
+                    "changed_video_ids": _fetch_changed_video_ids(
+                        db, list_id, since_timestamp
+                    ),
+                }
+
+        # Send initial data
+        payload = await event_loop.run_in_executor(
+            sse_executor, fetch_payload, last_change_check
+        )
+        yield {"data": json.dumps(payload, default=str)}
+        last_change_check = datetime.utcnow()
+
+        async with hub.subscribe(Channel.list_videos(list_id)) as notification_queue:
+            while True:
+                try:
+                    await asyncio.wait_for(
+                        notification_queue.get(), timeout=heartbeat_interval
+                    )
+                    payload = await event_loop.run_in_executor(
+                        sse_executor, fetch_payload, last_change_check
+                    )
+                    yield {"data": json.dumps(payload, default=str)}
+                    last_change_check = datetime.utcnow()
+                except TimeoutError:
+                    yield {"comment": "heartbeat"}
+
+    return EventSourceResponse(generate_sse_stream(), headers=sse_cors_headers(request))
+
+
+@router.get("/{list_id}/videos/by-ids", response_model=list[VideoResponse])
+def get_videos_by_ids(
+    list_id: int, ids: str = Query(...), db: Session = Depends(get_db)
+):
+    """Get videos by their IDs within a list."""
+    if not _list_exists(db, list_id):
         raise NotFoundError("VideoList", list_id)
 
-    accept = request.headers.get("accept", "")
-    if "text/event-stream" not in accept:
-        # Use injected session for non-SSE requests
-        q = (
-            db.query(History)
-            .filter(History.entity_type == "list", History.entity_id == list_id)
-            .order_by(History.created_at.desc())
-        )
-        if limit:
-            q = q.limit(limit)
-        return [e.to_dict() for e in q.all()]
+    try:
+        video_ids = [int(v) for v in ids.split(",") if v]
+    except ValueError as exc:
+        raise ValidationError("Invalid video ID format") from exc
 
-    return EventSourceResponse(
-        _sse_stream(
-            lambda: _get_list_history_data(list_id, limit),
-            lambda: _get_list_history_fingerprint(list_id),
+    if not video_ids:
+        return []
+    if len(video_ids) > 100:
+        raise ValidationError("Maximum 100 video IDs per request")
+
+    return [
+        v.to_dict()
+        for v in db.query(Video).filter(
+            Video.list_id == list_id, Video.id.in_(video_ids)
         )
-    )
+    ]

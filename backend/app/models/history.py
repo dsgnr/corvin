@@ -1,3 +1,5 @@
+"""History model for audit logging."""
+
 from datetime import datetime
 from enum import Enum
 
@@ -8,6 +10,8 @@ from app.models import Base
 
 
 class HistoryAction(str, Enum):
+    """Trackable actions."""
+
     PROFILE_CREATED = "profile_created"
     PROFILE_UPDATED = "profile_updated"
     PROFILE_DELETED = "profile_deleted"
@@ -24,7 +28,7 @@ class HistoryAction(str, Enum):
 
 
 class History(Base):
-    """Audit log of actions performed in the system."""
+    """Audit log of actions performed."""
 
     __tablename__ = "history"
 
@@ -36,12 +40,13 @@ class History(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        Index("ix_history_entity_type", "entity_type"),
+        Index("ix_history_entity_lookup", "entity_type", "entity_id", "created_at"),
         Index("ix_history_action", "action"),
         Index("ix_history_created_at", "created_at"),
     )
 
     def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialisation."""
         return {
             "id": self.id,
             "action": self.action,

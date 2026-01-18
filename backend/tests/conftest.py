@@ -41,6 +41,25 @@ def app():
 
     application.dependency_overrides[get_db] = override_get_db
 
+    # Also patch SessionLocal and ReadSessionLocal for helpers that use them directly
+    import app.extensions
+    import app.routes.history
+    import app.routes.lists
+    import app.routes.tasks
+    import app.routes.videos
+    import app.sse_stream
+
+    app.extensions.SessionLocal = TestingSessionLocal
+    app.extensions.ReadSessionLocal = TestingSessionLocal
+    app.routes.lists.SessionLocal = TestingSessionLocal
+    app.routes.lists.ReadSessionLocal = TestingSessionLocal
+    app.routes.tasks.SessionLocal = TestingSessionLocal
+    app.routes.tasks.ReadSessionLocal = TestingSessionLocal
+    app.routes.videos.SessionLocal = TestingSessionLocal
+    app.routes.videos.ReadSessionLocal = TestingSessionLocal
+    app.routes.history.SessionLocal = TestingSessionLocal
+    app.routes.history.ReadSessionLocal = TestingSessionLocal
+
     # Store session factory for fixtures
     application.state.test_session_factory = TestingSessionLocal
 

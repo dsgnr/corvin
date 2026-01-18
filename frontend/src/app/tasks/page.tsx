@@ -1,77 +1,126 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { api, Task, TaskStats, getTaskStatsStreamUrl, getTasksStreamUrl } from '@/lib/api'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import {
+  api,
+  Task,
+  TaskStats,
+  TasksPaginatedResponse,
+  getTaskStatsStreamUrl,
+  getTasksStreamUrl,
+} from '@/lib/api'
+import { useEventSource } from '@/lib/useEventSource'
 import {
   RefreshCw,
   Loader2,
-  CheckCircle,
-  XCircle,
-  Clock,
   Play,
   RotateCcw,
   Pause,
   Square,
   Ban,
   Download,
+  Search,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
+import { TaskStatusIcon } from '@/components/TaskStatusIcon'
 import Link from 'next/link'
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
-  const [pageSize, setPageSize] = useState(10)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Debounce search
   useEffect(() => {
-    const eventSource = new EventSource(getTasksStreamUrl({ limit: 100 }))
+    const timer = setTimeout(() => {
+      if (search !== debouncedSearch) {
+        setDebouncedSearch(search)
+        setCurrentPage(1)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search, debouncedSearch])
 
-    eventSource.onmessage = (event) => {
-      const data: Task[] = JSON.parse(event.data)
-      setTasks(data)
-      setLoading(false)
+  // Build stream URL with current filters
+  const tasksStreamUrl = useMemo(() => {
+    const params: {
+      page: number
+      pageSize: number
+      type?: string
+      status?: string
+      search?: string
+    } = {
+      page: currentPage,
+      pageSize: pageSize,
     }
+    if (filter === 'sync' || filter === 'download') {
+      params.type = filter
+    } else if (filter !== 'all') {
+      params.status = filter
+    }
+    if (debouncedSearch) {
+      params.search = debouncedSearch
+    }
+    return getTasksStreamUrl(params)
+  }, [currentPage, pageSize, filter, debouncedSearch])
 
-    eventSource.onerror = () => {
-      api
-        .getTasks({ limit: 100 })
-        .then((data) => {
-          setTasks(data)
-          setLoading(false)
-        })
-        .catch(console.error)
-      eventSource.close()
-    }
-
-    return () => {
-      eventSource.close()
-    }
+  const handleTasksMessage = useCallback((data: TasksPaginatedResponse) => {
+    setTasks(data.tasks)
+    setTotal(data.total)
+    setTotalPages(data.total_pages)
+    setLoading(false)
   }, [])
 
-  useEffect(() => {
-    const eventSource = new EventSource(getTaskStatsStreamUrl())
-
-    eventSource.onmessage = (event) => {
-      const data: TaskStats = JSON.parse(event.data)
-      setStats(data)
+  const handleTasksError = useCallback(() => {
+    const params: {
+      page: number
+      pageSize: number
+      type?: string
+      status?: string
+      search?: string
+    } = {
+      page: currentPage,
+      pageSize: pageSize,
     }
-
-    eventSource.onerror = () => {
-      api.getTaskStats().then(setStats).catch(console.error)
-      eventSource.close()
+    if (filter === 'sync' || filter === 'download') {
+      params.type = filter
+    } else if (filter !== 'all') {
+      params.status = filter
     }
-
-    return () => {
-      eventSource.close()
+    if (debouncedSearch) {
+      params.search = debouncedSearch
     }
+    api
+      .getTasksPaginated(params)
+      .then((data) => {
+        setTasks(data.tasks)
+        setTotal(data.total)
+        setTotalPages(data.total_pages)
+        setLoading(false)
+      })
+      .catch(console.error)
+  }, [currentPage, pageSize, filter, debouncedSearch])
+
+  const handleStatsMessage = useCallback((data: TaskStats) => {
+    setStats(data)
   }, [])
+
+  const handleStatsError = useCallback(() => {
+    api.getTaskStats().then(setStats).catch(console.error)
+  }, [])
+
+  useEventSource(tasksStreamUrl, handleTasksMessage, handleTasksError)
+  useEventSource(getTaskStatsStreamUrl(), handleStatsMessage, handleStatsError)
 
   const handlePauseAll = async () => {
     try {
@@ -129,6 +178,14 @@ export default function TasksPage() {
     }
   }
 
+  const handleRetryFailed = async () => {
+    try {
+      await api.retryFailedTasks()
+    } catch (err) {
+      console.error('Failed to retry failed tasks:', err)
+    }
+  }
+
   const handleTaskAction = async (taskId: number, action: 'retry' | 'pause' | 'resume' | 'cancel') => {
     try {
       switch (action) {
@@ -150,29 +207,17 @@ export default function TasksPage() {
     }
   }
 
-  const filteredTasks = tasks
-    .filter((t) => {
-      if (filter === 'all') return true
-      if (filter === 'sync') return t.task_type === 'sync'
-      if (filter === 'download') return t.task_type === 'download'
-      if (filter === 'queued') return t.status === 'pending'
-      return t.status === filter
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-  const totalPages = Math.ceil(filteredTasks.length / pageSize)
-  const paginatedTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  const hasPendingTasks = tasks.some((t) => t.status === 'pending')
-  const hasPausedTasks = tasks.some((t) => t.status === 'paused')
-  const hasActiveQueue = hasPendingTasks || hasPausedTasks
+  // Check if we have tasks with certain statuses (from stats, not filtered list)
+  const hasPendingTasks = (stats?.pending_sync ?? 0) + (stats?.pending_download ?? 0) > 0
   const syncPaused = stats?.worker?.sync_paused ?? false
   const downloadPaused = stats?.worker?.download_paused ?? false
 
-  // Reset to page 1 when filter changes
-  useEffect(() => {
+  // Handle filter change with page reset
+  const handleFilterChange = useCallback((newFilter: string) => {
+    setFilter(newFilter)
     setCurrentPage(1)
-  }, [filter])
+    setLoading(true)
+  }, [])
 
   if (loading) {
     return (
@@ -196,24 +241,27 @@ export default function TasksPage() {
               Pause Queued
             </button>
           )}
-          {hasPausedTasks && (
-            <button
-              onClick={handleResumeAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
-            >
-              <Play size={14} />
-              Resume Paused
-            </button>
-          )}
-          {hasActiveQueue && (
-            <button
-              onClick={handleCancelAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--error)] hover:opacity-90 text-white rounded-md transition-colors"
-            >
-              <Ban size={14} />
-              Cancel Queued
-            </button>
-          )}
+          <button
+            onClick={handleResumeAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+          >
+            <Play size={14} />
+            Resume Paused
+          </button>
+          <button
+            onClick={handleCancelAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--error)] hover:opacity-90 text-white rounded-md transition-colors"
+          >
+            <Ban size={14} />
+            Cancel Queued
+          </button>
+          <button
+            onClick={handleRetryFailed}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--foreground)] border border-[var(--border)] rounded-md transition-colors"
+          >
+            <RotateCcw size={14} />
+            Retry Failed
+          </button>
         </div>
       </div>
 
@@ -245,7 +293,7 @@ export default function TasksPage() {
           {['all', 'sync', 'download', 'queued', 'paused', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => handleFilterChange(f)}
               className={clsx(
                 'px-3 py-1.5 text-sm rounded-md transition-colors',
                 filter === f
@@ -257,32 +305,44 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        <Select
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value))
-            setCurrentPage(1)
-          }}
-          fullWidth={false}
-        >
-          {PAGE_SIZE_OPTIONS.map((size) => (
-            <option key={size} value={size}>
-              {size} rows
-            </option>
-          ))}
-        </Select>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+            />
+          </div>
+          <Select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            fullWidth={false}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size} rows
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* Tasks */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
         <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="font-medium">Tasks ({filteredTasks.length})</h2>
+          <h2 className="font-medium">Tasks ({total})</h2>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {paginatedTasks.length === 0 ? (
+          {tasks.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No tasks found</p>
           ) : (
-            paginatedTasks.map((task) => (
+            tasks.map((task) => (
               <TaskRow key={task.id} task={task} onAction={handleTaskAction} />
             ))
           )}
@@ -367,15 +427,13 @@ function TaskRow({
   onAction: (taskId: number, action: 'retry' | 'pause' | 'resume' | 'cancel') => void
 }) {
   const [expanded, setExpanded] = useState(false)
-
-  // Determine link target based on task type
   const linkHref = task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
 
   return (
     <div className="p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div onClick={() => setExpanded(!expanded)}>
+          <div onClick={() => setExpanded(!expanded)} className="cursor-pointer">
             <TaskStatusIcon status={task.status} />
           </div>
           <div>
@@ -480,21 +538,4 @@ function TaskRow({
       )}
     </div>
   )
-}
-
-function TaskStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case 'completed':
-      return <CheckCircle size={18} className="text-[var(--success)]" />
-    case 'failed':
-      return <XCircle size={18} className="text-[var(--error)]" />
-    case 'running':
-      return <Loader2 size={18} className="text-[var(--accent)] animate-spin" />
-    case 'paused':
-      return <Pause size={18} className="text-[var(--muted)]" />
-    case 'cancelled':
-      return <XCircle size={18} className="text-[var(--muted)]" />
-    default:
-      return <Clock size={18} className="text-[var(--warning)]" />
-  }
 }

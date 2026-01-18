@@ -13,7 +13,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
   if (totalPages <= 1) return null
 
   const getPageNumbers = () => {
-    const pages: (number | 'ellipsis')[] = []
+    const pages: (number | 'ellipsis-start' | 'ellipsis-end')[] = []
     const showEllipsisStart = currentPage > 3
     const showEllipsisEnd = currentPage < totalPages - 2
 
@@ -22,7 +22,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
     }
 
     pages.push(1)
-    if (showEllipsisStart) pages.push('ellipsis')
+    if (showEllipsisStart) pages.push('ellipsis-start')
 
     const start = Math.max(2, currentPage - 1)
     const end = Math.min(totalPages - 1, currentPage + 1)
@@ -31,7 +31,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       if (!pages.includes(i)) pages.push(i)
     }
 
-    if (showEllipsisEnd) pages.push('ellipsis')
+    if (showEllipsisEnd) pages.push('ellipsis-end')
     if (!pages.includes(totalPages)) pages.push(totalPages)
 
     return pages
@@ -47,12 +47,14 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
         <ChevronLeft size={16} />
       </button>
 
-      {getPageNumbers().map((page, idx) =>
-        page === 'ellipsis' ? (
-          <span key={`ellipsis-${idx}`} className="px-2 text-[var(--muted)]">…</span>
+      {getPageNumbers().map((page) =>
+        typeof page === 'string' ? (
+          <span key={page} className="px-2 text-[var(--muted)]">
+            …
+          </span>
         ) : (
           <button
-            key={page}
+            key={`page-${page}`}
             onClick={() => onPageChange(page)}
             className={clsx(
               'min-w-[32px] h-8 px-2 rounded-md text-sm transition-colors',

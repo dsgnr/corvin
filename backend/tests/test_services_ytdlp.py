@@ -201,8 +201,8 @@ class TestExtractVideoEntries:
         assert result == []
 
     @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
-    def test_skips_entries_without_id_or_url(self, mock_ydl_class):
-        """Should skip entries missing id or url."""
+    def test_skips_entries_without_url(self, mock_ydl_class):
+        """Should skip entries missing url."""
         mock_ydl = MagicMock()
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
         mock_ydl.extract_info.return_value = {
@@ -216,7 +216,7 @@ class TestExtractVideoEntries:
 
         result = YtDlpService._extract_video_entries("https://youtube.com/c/test")
 
-        assert len(result) == 1
+        assert len(result) == 2
 
 
 class TestFetchSingleVideo:

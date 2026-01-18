@@ -5,10 +5,6 @@ from app.models import Base
 
 config = context.config
 
-# Don't reconfigure logging - let the app handle it
-# if config.config_file_name is not None:
-#     fileConfig(config.config_file_name)
-
 target_metadata = Base.metadata
 
 

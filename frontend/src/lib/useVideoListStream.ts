@@ -1,86 +1,131 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { Video, ActiveTasks, getVideoListStreamUrl } from './api'
+import { useEffect, useRef } from 'react'
+import {
+  ActiveTasks,
+  VideoListStats,
+  VideoListStatsUpdate,
+  getVideoListStreamUrl,
+} from './api'
 
-interface VideoListStreamData {
-  type: 'full' | 'incremental'
-  videos: Video[]
-  tasks: ActiveTasks
+/**
+ * Check if the current tab is active (visible and focused).
+ * SSE connections should only be active when the tab is in view.
+ */
+function isTabActive(): boolean {
+  return !document.hidden && document.hasFocus()
 }
 
+/**
+ * Hook for subscribing to real-time video list updates via SSE.
+ * Provides stats updates and notifications when videos change.
+ * Automatically pauses when the browser tab is hidden or loses focus.
+ *
+ * @param listId - The ID of the video list to monitor
+ * @param enabled - Whether the stream should be active
+ * @param onUpdate - Callback invoked when stats or videos change
+ */
 export function useVideoListStream(
   listId: number,
   enabled: boolean,
-  onUpdate: (videos: Video[], tasks: ActiveTasks) => void
+  onUpdate: (stats: VideoListStats, tasks: ActiveTasks, changedVideoIds: number[]) => void
 ) {
   const eventSourceRef = useRef<EventSource | null>(null)
+  const isClosingRef = useRef(false)
   const onUpdateRef = useRef(onUpdate)
-  const videosRef = useRef<Map<number, Video>>(new Map())
+  const listIdRef = useRef(listId)
+  const enabledRef = useRef(enabled)
 
   useEffect(() => {
     onUpdateRef.current = onUpdate
   }, [onUpdate])
 
-  const connect = useCallback(() => {
-    if (!enabled || !listId) return
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-    }
-
-    // Reset video cache on new connection
-    videosRef.current = new Map()
-
-    const url = getVideoListStreamUrl(listId)
-    const eventSource = new EventSource(url)
-    eventSourceRef.current = eventSource
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if ('status' in data && data.status === 'timeout') {
-          eventSource.close()
-          setTimeout(connect, 1000)
-          return
-        }
-        const streamData = data as VideoListStreamData
-
-        if (streamData.type === 'full' || videosRef.current.size === 0) {
-          // Full update: replace entire cache
-          videosRef.current = new Map(streamData.videos.map(v => [v.id, v]))
-        } else {
-          // Incremental update: merge changes into cache
-          for (const video of streamData.videos) {
-            videosRef.current.set(video.id, video)
-          }
-        }
-
-        // Convert map to sorted array (by created_at desc)
-        const sortedVideos = Array.from(videosRef.current.values()).sort((a, b) => {
-          const dateA = a.created_at || ''
-          const dateB = b.created_at || ''
-          return dateB.localeCompare(dateA)
-        })
-
-        onUpdateRef.current(sortedVideos, streamData.tasks)
-      } catch (err) {
-        console.error('Failed to parse SSE data:', err)
-      }
-    }
-
-    eventSource.onerror = () => {
-      eventSource.close()
-      setTimeout(connect, 3000)
-    }
-  }, [listId, enabled])
+  useEffect(() => {
+    listIdRef.current = listId
+  }, [listId])
 
   useEffect(() => {
-    connect()
+    enabledRef.current = enabled
+  }, [enabled])
 
-    return () => {
+  useEffect(() => {
+    if (!enabled || !listId) return
+
+    isClosingRef.current = false
+
+    const closeConnection = () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
       }
     }
-  }, [connect])
+
+    const connect = () => {
+      if (!enabledRef.current || !listIdRef.current) return
+      if (!isTabActive()) return
+      if (eventSourceRef.current) return
+
+      const url = getVideoListStreamUrl(listIdRef.current)
+      const eventSource = new EventSource(url)
+      eventSourceRef.current = eventSource
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if ('status' in data && data.status === 'timeout') {
+            eventSource.close()
+            eventSourceRef.current = null
+            setTimeout(() => {
+              if (isTabActive() && enabledRef.current && listIdRef.current) {
+                connect()
+              }
+            }, 1000)
+            return
+          }
+          const streamData = data as VideoListStatsUpdate
+
+          onUpdateRef.current(
+            streamData.stats,
+            streamData.tasks,
+            streamData.changed_video_ids || []
+          )
+        } catch (err) {
+          console.error('Failed to parse SSE data:', err)
+        }
+      }
+
+      eventSource.onerror = () => {
+        if (isClosingRef.current) return
+        eventSource.close()
+        eventSourceRef.current = null
+      }
+    }
+
+    const handleActivityChange = () => {
+      if (isTabActive()) {
+        connect()
+      } else {
+        closeConnection()
+      }
+    }
+
+    const handleBeforeUnload = () => {
+      isClosingRef.current = true
+      closeConnection()
+    }
+
+    document.addEventListener('visibilitychange', handleActivityChange)
+    window.addEventListener('focus', handleActivityChange)
+    window.addEventListener('blur', handleActivityChange)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    connect()
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleActivityChange)
+      window.removeEventListener('focus', handleActivityChange)
+      window.removeEventListener('blur', handleActivityChange)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      isClosingRef.current = true
+      closeConnection()
+    }
+  }, [listId, enabled])
 }

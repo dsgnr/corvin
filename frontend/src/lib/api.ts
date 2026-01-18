@@ -30,7 +30,6 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Profiles
   getProfiles: () => request<Profile[]>('/profiles'),
-  getProfile: (id: number) => request<Profile>(`/profiles/${id}`),
   getProfileOptions: () => request<ProfileOptions>('/profiles/options'),
   createProfile: (data: Partial<Profile>) =>
     request<Profile>('/profiles', { method: 'POST', body: JSON.stringify(data) }),
@@ -40,8 +39,7 @@ export const api = {
 
   // Lists
   getLists: () => request<VideoList[]>('/lists'),
-  getList: (id: number, includeVideos = false) =>
-    request<VideoList>(`/lists/${id}?include_videos=${includeVideos}`),
+  getList: (id: number) => request<VideoList>(`/lists/${id}`),
   createList: (data: Partial<VideoList>) =>
     request<VideoList>('/lists', { method: 'POST', body: JSON.stringify(data) }),
   updateList: (id: number, data: Partial<VideoList>) =>
@@ -49,34 +47,49 @@ export const api = {
   deleteList: (id: number) => request<void>(`/lists/${id}`, { method: 'DELETE' }),
 
   // Videos
-  getVideos: (params?: { list_id?: number; downloaded?: boolean; limit?: number; offset?: number }) => {
+  getVideoListStats: (listId: number) =>
+    request<{ stats: VideoListStats; tasks: ActiveTasks }>(`/lists/${listId}/videos/stats`),
+  getVideosPaginated: (
+    listId: number,
+    params: {
+      page: number
+      pageSize: number
+      downloaded?: boolean
+      failed?: boolean
+      search?: string
+    }
+  ): Promise<VideosPaginatedResponse> => {
     const query = new URLSearchParams()
-    if (params?.list_id) query.set('list_id', String(params.list_id))
-    if (params?.downloaded !== undefined) query.set('downloaded', String(params.downloaded))
-    if (params?.limit) query.set('limit', String(params.limit))
-    if (params?.offset) query.set('offset', String(params.offset))
-    return request<Video[]>(`/videos?${query}`)
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    if (params.downloaded !== undefined) query.set('downloaded', String(params.downloaded))
+    if (params.failed !== undefined) query.set('failed', String(params.failed))
+    if (params.search) query.set('search', params.search)
+    return request<VideosPaginatedResponse>(`/lists/${listId}/videos?${query}`)
   },
+  getVideosByIds: (listId: number, ids: number[]) =>
+    request<Video[]>(`/lists/${listId}/videos/by-ids?ids=${ids.join(',')}`),
   getVideo: (id: number) => request<Video>(`/videos/${id}`),
   retryVideo: (id: number) =>
     request<{ message: string; video: Video }>(`/videos/${id}/retry`, { method: 'POST' }),
 
   // Tasks
-  getTasks: (params?: { type?: string; status?: string; limit?: number }) => {
+  getTasksPaginated: (params: {
+    page: number
+    pageSize: number
+    type?: string
+    status?: string
+    search?: string
+  }) => {
     const query = new URLSearchParams()
-    if (params?.type) query.set('type', params.type)
-    if (params?.status) query.set('status', params.status)
-    if (params?.limit) query.set('limit', String(params.limit))
-    return request<Task[]>(`/tasks?${query}`)
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    if (params.type) query.set('type', params.type)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return request<TasksPaginatedResponse>(`/tasks?${query}`)
   },
-  getTask: (id: number) => request<Task>(`/tasks/${id}?include_logs=true`),
   getTaskStats: () => request<TaskStats>('/tasks/stats'),
-  getActiveTasks: (params?: { list_id?: number }) => {
-    const query = new URLSearchParams()
-    if (params?.list_id) query.set('list_id', String(params.list_id))
-    const queryStr = query.toString()
-    return request<ActiveTasks>(`/tasks/active${queryStr ? `?${queryStr}` : ''}`)
-  },
   triggerListSync: (listId: number) => request<Task>(`/tasks/sync/list/${listId}`, { method: 'POST' }),
   triggerAllSyncs: () => request<{ queued: number; skipped: number }>('/tasks/sync/all', { method: 'POST' }),
   triggerVideoDownload: (videoId: number) =>
@@ -87,15 +100,10 @@ export const api = {
   pauseTask: (id: number) => request<Task>(`/tasks/${id}/pause`, { method: 'POST' }),
   resumeTask: (id: number) => request<Task>(`/tasks/${id}/resume`, { method: 'POST' }),
   cancelTask: (id: number) => request<Task>(`/tasks/${id}/cancel`, { method: 'POST' }),
-  pauseTasks: (taskIds: number[]) =>
-    request<BulkTaskResult>('/tasks/pause', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
-  resumeTasks: (taskIds: number[]) =>
-    request<BulkTaskResult>('/tasks/resume', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
-  cancelTasks: (taskIds: number[]) =>
-    request<BulkTaskResult>('/tasks/cancel', { method: 'POST', body: JSON.stringify({ task_ids: taskIds }) }),
   pauseAllTasks: () => request<BulkTaskResult>('/tasks/pause/all', { method: 'POST' }),
   resumeAllTasks: () => request<BulkTaskResult>('/tasks/resume/all', { method: 'POST' }),
   cancelAllTasks: () => request<BulkTaskResult>('/tasks/cancel/all', { method: 'POST' }),
+  retryFailedTasks: () => request<BulkTaskResult>('/tasks/retry/failed', { method: 'POST' }),
   pauseSyncTasks: () => request<BulkTaskResult>('/tasks/pause/sync', { method: 'POST' }),
   resumeSyncTasks: () => request<BulkTaskResult>('/tasks/resume/sync', { method: 'POST' }),
   pauseDownloadTasks: () => request<BulkTaskResult>('/tasks/pause/download', { method: 'POST' }),
@@ -109,18 +117,42 @@ export const api = {
     if (params?.action) query.set('action', params.action)
     return request<HistoryEntry[]>(`/history?${query}`)
   },
-
-  // List-specific tasks and history
-  getListTasks: (listId: number, params?: { limit?: number }) => {
+  getHistoryPaginated: (params: {
+    page: number
+    pageSize: number
+    entity_type?: string
+    action?: string
+    search?: string
+  }): Promise<HistoryPaginatedResponse> => {
     const query = new URLSearchParams()
-    query.set('list_id', String(listId))
-    if (params?.limit) query.set('limit', String(params.limit))
-    return request<Task[]>(`/lists/${listId}/tasks?${query}`)
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    if (params.entity_type) query.set('entity_type', params.entity_type)
+    if (params.action) query.set('action', params.action)
+    if (params.search) query.set('search', params.search)
+    return request<HistoryPaginatedResponse>(`/history?${query}`)
   },
-  getListHistory: (listId: number, params?: { limit?: number }) => {
+
+  // List-specific tasks and history (paginated)
+  getListTasksPaginated: (
+    listId: number,
+    params: { page: number; pageSize: number; search?: string }
+  ) => {
     const query = new URLSearchParams()
-    if (params?.limit) query.set('limit', String(params.limit))
-    return request<HistoryEntry[]>(`/lists/${listId}/history?${query}`)
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    if (params.search) query.set('search', params.search)
+    return request<ListTasksPaginatedResponse>(`/lists/${listId}/tasks?${query}`)
+  },
+  getListHistoryPaginated: (
+    listId: number,
+    params: { page: number; pageSize: number; search?: string }
+  ) => {
+    const query = new URLSearchParams()
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    if (params.search) query.set('search', params.search)
+    return request<ListHistoryPaginatedResponse>(`/lists/${listId}/history?${query}`)
   },
 }
 
@@ -139,8 +171,8 @@ export interface Profile {
   audio_track_language: string
   output_template: string
   output_format: string
-  sponsorblock_behavior: string
-  sponsorblock_categories: string
+  sponsorblock_behaviour: string
+  sponsorblock_categories: string[]
   created_at: string
   updated_at: string
 }
@@ -161,6 +193,7 @@ export interface VideoList {
   description: string | null
   thumbnail: string | null
   tags: string[]
+  deleting?: boolean
   created_at: string
   updated_at: string
   videos?: Video[]
@@ -188,6 +221,7 @@ export interface Video {
   media_type: string | null
   labels: VideoLabels
   list_id: number
+  list?: VideoList
   downloaded: boolean
   download_path: string | null
   error_message: string | null
@@ -266,32 +300,99 @@ export interface DownloadProgress {
 
 export type ProgressMap = Record<number, DownloadProgress>
 
+export interface VideosPaginatedResponse {
+  videos: Video[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface VideoListStats {
+  total: number
+  downloaded: number
+  failed: number
+  pending: number
+  newest_id: number | null
+  last_updated: string | null
+}
+
+export interface VideoListStatsUpdate {
+  stats: VideoListStats
+  tasks: ActiveTasks
+  changed_video_ids: number[]
+}
+
+export interface HistoryPaginatedResponse {
+  entries: HistoryEntry[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface ListTasksPaginatedResponse {
+  tasks: Task[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface ListHistoryPaginatedResponse {
+  entries: HistoryEntry[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface TasksPaginatedResponse {
+  tasks: Task[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
 export function getProgressStreamUrl(): string {
   return `${getApiBase()}/progress`
 }
 
 export function getVideoListStreamUrl(listId: number): string {
-  return `${getApiBase()}/videos/list/${listId}`
+  return `${getApiBase()}/lists/${listId}/videos/stats`
 }
 
-export function getTasksStreamUrl(params?: { type?: string; status?: string; limit?: number }): string {
+export function getTasksStreamUrl(params?: {
+  type?: string
+  status?: string
+  search?: string
+  page?: number
+  pageSize?: number
+}): string {
   const query = new URLSearchParams()
   if (params?.type) query.set('type', params.type)
   if (params?.status) query.set('status', params.status)
-  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.search) query.set('search', params.search)
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.pageSize) query.set('page_size', String(params.pageSize))
   const queryStr = query.toString()
   return `${getApiBase()}/tasks${queryStr ? `?${queryStr}` : ''}`
 }
 
 export function getHistoryStreamUrl(params?: {
-  limit?: number
   entity_type?: string
   action?: string
+  search?: string
+  page?: number
+  page_size?: number
 }): string {
   const query = new URLSearchParams()
-  if (params?.limit) query.set('limit', String(params.limit))
   if (params?.entity_type) query.set('entity_type', params.entity_type)
   if (params?.action) query.set('action', params.action)
+  if (params?.search) query.set('search', params.search)
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.page_size) query.set('page_size', String(params.page_size))
   const queryStr = query.toString()
   return `${getApiBase()}/history${queryStr ? `?${queryStr}` : ''}`
 }
@@ -300,16 +401,26 @@ export function getTaskStatsStreamUrl(): string {
   return `${getApiBase()}/tasks/stats`
 }
 
-export function getListTasksStreamUrl(listId: number, params?: { limit?: number }): string {
+export function getListTasksStreamUrl(
+  listId: number,
+  params?: { page?: number; pageSize?: number; search?: string }
+): string {
   const query = new URLSearchParams()
-  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.pageSize) query.set('page_size', String(params.pageSize))
+  if (params?.search) query.set('search', params.search)
   const queryStr = query.toString()
   return `${getApiBase()}/lists/${listId}/tasks${queryStr ? `?${queryStr}` : ''}`
 }
 
-export function getListHistoryStreamUrl(listId: number, params?: { limit?: number }): string {
+export function getListHistoryStreamUrl(
+  listId: number,
+  params?: { page?: number; pageSize?: number; search?: string }
+): string {
   const query = new URLSearchParams()
-  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.pageSize) query.set('page_size', String(params.pageSize))
+  if (params?.search) query.set('search', params.search)
   const queryStr = query.toString()
   return `${getApiBase()}/lists/${listId}/history${queryStr ? `?${queryStr}` : ''}`
 }
@@ -318,8 +429,28 @@ export function getListsStreamUrl(): string {
   return `${getApiBase()}/lists`
 }
 
+export function getListVideosStreamUrl(
+  listId: number,
+  params?: {
+    page?: number
+    pageSize?: number
+    downloaded?: boolean
+    failed?: boolean
+    search?: string
+  }
+): string {
+  const query = new URLSearchParams()
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.pageSize) query.set('page_size', String(params.pageSize))
+  if (params?.downloaded !== undefined) query.set('downloaded', String(params.downloaded))
+  if (params?.failed !== undefined) query.set('failed', String(params.failed))
+  if (params?.search) query.set('search', params.search)
+  const queryStr = query.toString()
+  return `${getApiBase()}/lists/${listId}/videos${queryStr ? `?${queryStr}` : ''}`
+}
+
 export interface SponsorBlockOptions {
-  behaviors: string[]
+  behaviours: string[]
   categories: string[]
   category_labels: Record<string, string>
 }
@@ -335,8 +466,8 @@ export interface ProfileDefaults {
   subtitle_languages: string
   audio_track_language: string
   output_format: string
-  sponsorblock_behavior: string
-  sponsorblock_categories: string
+  sponsorblock_behaviour: string
+  sponsorblock_categories: string[]
   extra_args: string
 }
 

@@ -12,9 +12,10 @@ const STAGE_LABELS: Record<string, string> = {
 
 function formatEta(seconds: number | null): string {
   if (!seconds || seconds < 0) return ''
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+  const secs = Math.round(seconds)
+  if (secs < 60) return `${secs}s`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
 }
 
 export function DownloadProgress({ progress }: { progress: ProgressData }) {

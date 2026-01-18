@@ -1,3 +1,10 @@
+"""
+yt-dlp service for video extraction and downloading.
+
+Wraps yt-dlp functionality for extracting metadata from channels/playlists
+and downloading individual videos based on the list profile configuration.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -17,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("ytdlp")
 
-MAX_METADATA_WORKERS = 5  # experimental amount
+MAX_METADATA_WORKERS = 5  # Experimental amount
 
 # Thumbnail ID to filename mapping for list artwork
 THUMBNAIL_ARTWORK_MAP = {
@@ -28,14 +35,25 @@ THUMBNAIL_ARTWORK_MAP = {
 
 
 class YtDlpService:
+    """
+    Service for interacting with yt-dlp.
+    """
+
     DEFAULT_OUTPUT_DIR = Path("/downloads")
 
     @classmethod
     def extract_list_metadata(cls, url: str) -> dict:
-        """Extract only channel/playlist metadata without fetching videos.
+        """
+        Extract channel/playlist metadata without fetching videos.
+
+        Args:
+            url: The channel or playlist URL.
 
         Returns:
-            Dict with: name, description, thumbnail, thumbnails, tags, extractor
+            Dictionary with name, description, thumbnail, thumbnails, tags, extractor.
+
+        Raises:
+            Exception: If metadata extraction fails.
         """
         logger.info("Extracting metadata from: %s", url)
 
@@ -83,26 +101,26 @@ class YtDlpService:
         on_video_fetched: Callable[[dict], None] | None = None,
         existing_video_ids: set[str] | None = None,
     ) -> list[dict]:
-        """Extract video information from a URL (channel/playlist) using parallel fetching.
+        """
+        Extract video information from a channel or playlist URL.
+
+        Uses parallel fetching for improved performance on large channels.
 
         Args:
-            url: Channel or playlist URL
-            from_date: Optional date filter - only return videos uploaded on or after this date
-            on_video_fetched: Optional callback called for each video as it's fetched.
-                              Signature: (video_data: dict) -> None
-            existing_video_ids: Optional set of video IDs to skip (already in database)
+            url: Channel or playlist URL.
+            from_date: Only return videos uploaded on or after this date.
+            on_video_fetched: Callback called for each video as it's fetched.
+            existing_video_ids: Set of video IDs to skip (already in database).
 
         Returns:
-            List of video dicts
+            List of video dictionaries.
         """
         logger.info("Extracting videos from: %s", url)
 
-        # Fast flat extraction to get video IDs and URLs
         video_entries = cls._extract_video_entries(url)
         if not video_entries:
             return []
 
-        # Filter out existing videos before parallel fetching
         if existing_video_ids:
             original_count = len(video_entries)
             video_entries = [
@@ -120,7 +138,6 @@ class YtDlpService:
             "Found %d new videos, fetching metadata in parallel...", len(video_entries)
         )
 
-        # Fetch full metadata in parallel
         video_urls = [e["url"] for e in video_entries]
         videos = cls._fetch_metadata_parallel(video_urls, from_date, on_video_fetched)
 
@@ -129,12 +146,18 @@ class YtDlpService:
 
     @classmethod
     def _extract_video_entries(cls, url: str) -> list[dict]:
-        """Extract video entries (id + url) from a playlist/channel without full metadata.
+        """
+        Extract video entries (id + url) without full metadata.
+        This is a super quick query in yt-dlp, so we use this to fetch the urls,
+        then drop the full-fat gathering into threads.
 
-        Works with any site supported by yt-dlp (YouTube, Vimeo, SoundCloud, etc.)
+        Works with any site supported by yt-dlp.
+
+        Args:
+            url: Channel or playlist URL.
 
         Returns:
-            List of dicts with 'video_id' and 'url' keys
+            List of dicts with 'video_id' and 'url' keys.
         """
         ydl_opts = {
             "extract_flat": True,
@@ -172,27 +195,24 @@ class YtDlpService:
                     flattened.extend(entry["entries"])
             entries = flattened
 
-        # Build video entries with both ID and URL
         video_entries = []
         for entry in entries:
             if not entry:
                 continue
             video_id = entry.get("id")
             video_url = entry.get("webpage_url") or entry.get("url")
-            if video_id and video_url:
-                video_entries.append({"video_id": video_id, "url": video_url})
-            else:
-                logger.info("Skipping entry without ID or URL: %s", entry.get("id"))
+            if not video_url:
+                logger.info("Skipping entry without URL: %s", entry.get("id"))
+                continue
+            video_entries.append({"video_id": video_id, "url": video_url})
 
         return video_entries
 
     @classmethod
     def _get_best_thumbnail(cls, thumbnails: list[dict]) -> str | None:
-        """Get the best quality thumbnail URL from a list of thumbnails."""
+        """Get the best quality thumbnail URL from a list."""
         if not thumbnails:
             return None
-        # Sort by preference - prefer higher resolution
-        # yt-dlp typically orders them, but let's be explicit
         for thumb in reversed(thumbnails):
             if thumb.get("url"):
                 return thumb["url"]
@@ -202,23 +222,21 @@ class YtDlpService:
     def download_list_artwork(
         cls, thumbnails: list[dict], output_dir: Path
     ) -> dict[str, bool]:
-        """Download list artwork (fanart, poster, banner) from thumbnails.
-
-        Downloads specific thumbnails based on their ID:
+        """
+        Download list artwork (fanart, poster, banner) from thumbnails.
         - banner_uncropped -> fanart.jpg
         - avatar_uncropped -> poster.jpg
         - 0 -> banner.jpg
 
         Args:
-            thumbnails: List of thumbnail dicts with 'id' and 'url' keys
-            output_dir: Directory to save the artwork files
+            thumbnails: List of thumbnail dicts with 'id' and 'url' keys.
+            output_dir: Directory to save the artwork files.
 
         Returns:
-            Dict mapping filename to success status
+            Dictionary mapping filename to success status.
         """
         results = {}
 
-        # Build a lookup of thumbnail ID to URL
         thumb_lookup = {}
         for thumb in thumbnails:
             thumb_id = thumb.get("id")
@@ -226,7 +244,6 @@ class YtDlpService:
             if thumb_id is not None and thumb_url:
                 thumb_lookup[str(thumb_id)] = thumb_url
 
-        # Download each mapped thumbnail
         for thumb_id, filename in THUMBNAIL_ARTWORK_MAP.items():
             url = thumb_lookup.get(thumb_id)
             if not url:
@@ -244,15 +261,16 @@ class YtDlpService:
     def write_channel_nfo(
         cls, metadata: dict, output_dir: Path, channel_id: str | None = None
     ) -> bool:
-        """Write a tvshow.nfo file for a channel/playlist.
+        """
+        Write a tvshow.nfo file for a channel/playlist.
 
         Args:
-            metadata: Dict with name, description, tags, extractor, etc.
-            output_dir: Directory to save the tvshow.nfo file
-            channel_id: YouTube channel ID (e.g., @Fireship)
+            metadata: Dictionary with name, description, tags, extractor.
+            output_dir: Directory to save the tvshow.nfo file.
+            channel_id: Platform-specific channel ID.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -272,11 +290,9 @@ class YtDlpService:
             ET.SubElement(root, "title").text = name
             ET.SubElement(root, "genre").text = extractor.capitalize()
 
-            # Add platform-specific ID
             if channel_id:
                 ET.SubElement(root, f"{extractor}id").text = channel_id
 
-            # Art paths
             art = ET.SubElement(root, "art")
             ET.SubElement(art, "poster").text = str(output_dir / "poster.jpg")
             ET.SubElement(art, "fanart").text = str(output_dir / "fanart.jpg")
@@ -284,7 +300,6 @@ class YtDlpService:
             ET.SubElement(root, "season").text = "-1"
             ET.SubElement(root, "episode").text = "-1"
 
-            # Unique ID
             unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
             unique_id.text = channel_id or name
 
@@ -303,15 +318,16 @@ class YtDlpService:
     def write_video_nfo(
         cls, video: Video, video_path: str, info: dict | None = None
     ) -> bool:
-        """Write an NFO file for a downloaded video.
+        """
+        Write an NFO file for a downloaded video.
 
         Args:
-            video: Video model instance
-            video_path: Path to the downloaded video file
-            info: Optional yt-dlp info dict for additional metadata
+            video: Video model instance.
+            video_path: Path to the downloaded video file.
+            info: Optional yt-dlp info dict for additional metadata.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         try:
             video_file = Path(video_path)
@@ -320,7 +336,6 @@ class YtDlpService:
 
             root = ET.Element("episodedetails")
 
-            # Basic metadata
             ET.SubElement(root, "plot").text = video.description or ""
             ET.SubElement(root, "lockdata").text = "false"
             ET.SubElement(root, "dateadded").text = datetime.now().strftime(
@@ -328,16 +343,13 @@ class YtDlpService:
             )
             ET.SubElement(root, "title").text = video.title or "Unknown"
 
-            # Year and dates
             if video.upload_date:
                 ET.SubElement(root, "year").text = str(video.upload_date.year)
                 ET.SubElement(root, "aired").text = video.upload_date.strftime(
                     "%Y-%m-%d"
                 )
-                # Season is the year
                 ET.SubElement(root, "season").text = str(video.upload_date.year)
 
-            # Runtime in minutes
             if video.duration:
                 ET.SubElement(root, "runtime").text = str(video.duration // 60)
 
@@ -345,24 +357,19 @@ class YtDlpService:
             ET.SubElement(root, "genre").text = extractor.capitalize()
             ET.SubElement(root, "studio").text = ""
 
-            # Platform-specific video ID
             ET.SubElement(root, f"{extractor}id").text = video.video_id
 
-            # Art - thumbnail path (video.mp4 -> video-thumb.jpg)
             thumb_path = video_file.parent / f"{video_file.stem}-thumb.jpg"
             art = ET.SubElement(root, "art")
             ET.SubElement(art, "poster").text = str(thumb_path)
 
-            # Show title from the list
             if video.video_list:
                 ET.SubElement(root, "showtitle").text = video.video_list.name
 
-            # Episode number (can be derived from video_id hash or left as placeholder)
             ET.SubElement(root, "episode").text = str(
                 abs(hash(video.video_id)) % 1000000
             )
 
-            # Unique ID
             unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
             unique_id.text = video.video_id
 
@@ -378,15 +385,7 @@ class YtDlpService:
 
     @classmethod
     def _download_image(cls, url: str, output_path: Path) -> bool:
-        """Download an image from URL to the specified path.
-
-        Args:
-            url: URL of the image to download
-            output_path: Path to save the image
-
-        Returns:
-            True if successful, False otherwise
-        """
+        """Download an image from URL to the specified path."""
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -423,12 +422,6 @@ class YtDlpService:
                 for url in video_urls
             }
 
-            # Some channels are _incredibly_ large.
-            # Due to the way we have to fetch metadata, it can take a very long time.
-            # To aid with this, we break out our metadata fetching in to threads.
-            # Due to this, can be friendly to the user,
-            # and add the db entries when the threads complete.
-            # This along with the UI auto refreshing, it gives a better feedback experience.
             for future in as_completed(futures):
                 try:
                     video = future.result()
@@ -459,7 +452,6 @@ class YtDlpService:
             if not info:
                 return None
 
-            # Filter by date if specified
             upload_date = info.get("upload_date")
             if from_date_str and upload_date and upload_date < from_date_str:
                 return None
@@ -479,7 +471,6 @@ class YtDlpService:
 
         upload_date = cls._parse_upload_date(entry.get("upload_date"))
 
-        # Use webpage_url as the canonical URL (works for any site)
         video_url = entry.get("webpage_url") or entry.get("url")
         if not video_url:
             logger.warning("No URL found for video: %s", video_id)
@@ -499,33 +490,29 @@ class YtDlpService:
 
     @classmethod
     def _extract_labels(cls, info: dict) -> dict:
-        """Extract video metadata labels from yt-dlp info dict.
+        """
+        Extract video metadata labels from yt-dlp info dict.
 
-        Extracts: container format, audio codec, resolution, audio channels, dynamic range, filesize.
+        Extracts: container format, audio codec, resolution, audio channels,
+        dynamic range, filesize.
         """
         labels = {}
 
-        # Container format (mp4, mkv, webm, etc.)
         if ext := info.get("ext"):
             labels["format"] = ext
 
-        # Audio codec
         if acodec := info.get("acodec"):
             labels["acodec"] = acodec
 
-        # Resolution (height with 'p' suffix)
         if height := info.get("height"):
             labels["resolution"] = f"{height}p"
 
-        # Audio channels
         if audio_channels := info.get("audio_channels"):
             labels["audio_channels"] = audio_channels
 
-        # Dynamic range (SDR/HDR)
         if dynamic_range := info.get("dynamic_range"):
             labels["dynamic_range"] = dynamic_range
 
-        # Approximate filesize in bytes
         if filesize := info.get("filesize_approx"):
             labels["filesize_approx"] = filesize
 
@@ -548,10 +535,16 @@ class YtDlpService:
         profile: Profile,
         output_dir: Path | None = None,
     ) -> tuple[bool, str, dict]:
-        """Download a video using the specified profile settings.
+        """
+        Download a video using the specified profile settings.
+
+        Args:
+            video: Video model instance.
+            profile: Profile with download settings.
+            output_dir: Optional output directory override.
 
         Returns:
-            Tuple of (success, filename_or_error, labels)
+            Tuple of (success, filename_or_error, labels).
         """
         from app.services import progress_service
 
@@ -566,19 +559,14 @@ class YtDlpService:
                 info = ydl.extract_info(video.url, download=True)
 
                 if not info:
-                    msg = "Failed to extract video info. Will retry..."
+                    msg = "Failed to extract video info."
                     progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 
                 filename = ydl.prepare_filename(info)
-
-                # Extract updated labels from downloaded file info
                 labels = cls._extract_labels(info)
 
-                # Write video NFO file
                 cls.write_video_nfo(video, filename)
-
-                # Mark the download as done
                 progress_service.mark_done(video.id)
 
                 logger.info("Downloaded: %s", filename)

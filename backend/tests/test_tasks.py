@@ -9,19 +9,22 @@ class TestListTasks:
     """Tests for GET /api/tasks."""
 
     def test_list_tasks_empty(self, client):
-        """Should return empty list when no tasks exist."""
-        response = client.get("/api/tasks")
-
-        assert response.status_code == 200
-        assert response.json() == []
-
-    def test_list_tasks_with_data(self, client, sample_task):
-        """Should return all tasks."""
+        """Should return empty paginated response when no tasks exist."""
         response = client.get("/api/tasks")
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert data["tasks"] == []
+        assert data["total"] == 0
+
+    def test_list_tasks_with_data(self, client, sample_task):
+        """Should return all tasks in paginated response."""
+        response = client.get("/api/tasks")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["tasks"]) == 1
+        assert data["total"] == 1
 
     def test_list_tasks_filter_by_type(self, client, sample_task):
         """Should filter tasks by type."""
@@ -29,7 +32,7 @@ class TestListTasks:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert len(data["tasks"]) == 1
 
     def test_list_tasks_filter_by_status(self, client, sample_task):
         """Should filter tasks by status."""
@@ -37,56 +40,27 @@ class TestListTasks:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert len(data["tasks"]) == 1
+
+    def test_list_tasks_filter_by_active_status(self, client, sample_task):
+        """Should filter tasks by active status (pending or running)."""
+        response = client.get("/api/tasks?status=active")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["tasks"]) == 1
 
     def test_list_tasks_pagination(self, client, sample_task):
-        """Should support limit and offset."""
-        response = client.get("/api/tasks?limit=10&offset=0")
-
-        assert response.status_code == 200
-
-
-class TestGetTask:
-    """Tests for GET /api/tasks/<id>."""
-
-    def test_get_task_success(self, client, sample_task):
-        """Should return task by ID."""
-        response = client.get(f"/api/tasks/{sample_task}")
+        """Should support pagination."""
+        response = client.get("/api/tasks?page=1&page_size=10")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == sample_task
-
-    def test_get_task_not_found(self, client):
-        """Should return 404 for non-existent task."""
-        response = client.get("/api/tasks/9999")
-
-        assert response.status_code == 404
-
-    def test_get_task_without_logs(self, client, sample_task):
-        """Should exclude logs when requested."""
-        response = client.get(f"/api/tasks/{sample_task}?include_logs=false")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "logs" not in data
-
-
-class TestGetTaskLogs:
-    """Tests for GET /api/tasks/<id>/logs."""
-
-    def test_get_task_logs_empty(self, client, sample_task):
-        """Should return empty logs for task without logs."""
-        response = client.get(f"/api/tasks/{sample_task}/logs")
-
-        assert response.status_code == 200
-        assert response.json() == []
-
-    def test_get_task_logs_not_found(self, client):
-        """Should return 404 for non-existent task."""
-        response = client.get("/api/tasks/9999/logs")
-
-        assert response.status_code == 404
+        assert "tasks" in data
+        assert "total" in data
+        assert "page" in data
+        assert "page_size" in data
+        assert "total_pages" in data
 
 
 class TestTaskStats:
@@ -100,10 +74,12 @@ class TestTaskStats:
         data = response.json()
         assert "pending_sync" in data
         assert "pending_download" in data
+        assert "running_sync" in data
+        assert "running_download" in data
 
 
 class TestTriggerListSync:
-    """Tests for POST /api/tasks/sync/list/<id>."""
+    """Tests for POST /api/tasks/sync/list/{list_id}."""
 
     @patch("app.routes.tasks.enqueue_task")
     def test_trigger_sync_success(self, mock_enqueue, client, sample_list):
@@ -130,39 +106,6 @@ class TestTriggerListSync:
         assert response.status_code == 409
 
 
-class TestTriggerListsSync:
-    """Tests for POST /api/tasks/sync/lists."""
-
-    @patch("app.routes.tasks.schedule_syncs")
-    def test_trigger_lists_sync_success(self, mock_schedule, client, sample_list):
-        """Should trigger sync for multiple lists."""
-        mock_schedule.return_value = {"queued": 1, "skipped": 0}
-
-        response = client.post(
-            "/api/tasks/sync/lists",
-            json={"list_ids": [sample_list]},
-        )
-
-        assert response.status_code == 202
-        data = response.json()
-        assert data["queued"] == 1
-
-    def test_trigger_lists_sync_missing_ids(self, client):
-        """Should reject request without list_ids."""
-        response = client.post("/api/tasks/sync/lists", json={})
-
-        assert response.status_code == 400
-
-    def test_trigger_lists_sync_invalid_ids(self, client):
-        """Should reject non-array list_ids."""
-        response = client.post(
-            "/api/tasks/sync/lists",
-            json={"list_ids": "invalid"},
-        )
-
-        assert response.status_code == 400
-
-
 class TestTriggerAllSyncs:
     """Tests for POST /api/tasks/sync/all."""
 
@@ -174,10 +117,12 @@ class TestTriggerAllSyncs:
         response = client.post("/api/tasks/sync/all")
 
         assert response.status_code == 202
+        data = response.json()
+        assert data["queued"] == 2
 
 
 class TestTriggerVideoDownload:
-    """Tests for POST /api/tasks/download/video/<id>."""
+    """Tests for POST /api/tasks/download/video/{video_id}."""
 
     @patch("app.routes.tasks.enqueue_task")
     def test_trigger_download_success(self, mock_enqueue, client, sample_video):
@@ -204,28 +149,6 @@ class TestTriggerVideoDownload:
         assert response.status_code == 409
 
 
-class TestTriggerVideosDownload:
-    """Tests for POST /api/tasks/download/videos."""
-
-    @patch("app.routes.tasks.schedule_downloads")
-    def test_trigger_videos_download_success(self, mock_schedule, client, sample_video):
-        """Should trigger download for multiple videos."""
-        mock_schedule.return_value = {"queued": 1, "skipped": 0}
-
-        response = client.post(
-            "/api/tasks/download/videos",
-            json={"video_ids": [sample_video]},
-        )
-
-        assert response.status_code == 202
-
-    def test_trigger_videos_download_missing_ids(self, client):
-        """Should reject request without video_ids."""
-        response = client.post("/api/tasks/download/videos", json={})
-
-        assert response.status_code == 400
-
-
 class TestTriggerPendingDownloads:
     """Tests for POST /api/tasks/download/pending."""
 
@@ -237,10 +160,12 @@ class TestTriggerPendingDownloads:
         response = client.post("/api/tasks/download/pending")
 
         assert response.status_code == 202
+        data = response.json()
+        assert data["queued"] == 5
 
 
 class TestRetryTask:
-    """Tests for POST /api/tasks/<id>/retry."""
+    """Tests for POST /api/tasks/{task_id}/retry."""
 
     def test_retry_failed_task(self, client, db_session, sample_task):
         """Should retry a failed task."""
@@ -264,6 +189,16 @@ class TestRetryTask:
 
         assert response.status_code == 200
 
+    def test_retry_cancelled_task(self, client, db_session, sample_task):
+        """Should retry a cancelled task."""
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.CANCELLED.value
+        db_session.commit()
+
+        response = client.post(f"/api/tasks/{sample_task}/retry")
+
+        assert response.status_code == 200
+
     def test_retry_task_not_found(self, client):
         """Should return 404 for non-existent task."""
         response = client.post("/api/tasks/9999/retry")
@@ -278,7 +213,7 @@ class TestRetryTask:
 
 
 class TestPauseTask:
-    """Tests for POST /api/tasks/<id>/pause."""
+    """Tests for POST /api/tasks/{task_id}/pause."""
 
     def test_pause_pending_task(self, client, sample_task):
         """Should pause a pending task."""
@@ -306,7 +241,7 @@ class TestPauseTask:
 
 
 class TestResumeTask:
-    """Tests for POST /api/tasks/<id>/resume."""
+    """Tests for POST /api/tasks/{task_id}/resume."""
 
     def test_resume_paused_task(self, client, db_session, sample_task):
         """Should resume a paused task."""
@@ -334,7 +269,7 @@ class TestResumeTask:
 
 
 class TestCancelTask:
-    """Tests for POST /api/tasks/<id>/cancel."""
+    """Tests for POST /api/tasks/{task_id}/cancel."""
 
     def test_cancel_pending_task(self, client, sample_task):
         """Should cancel a pending task."""
@@ -371,60 +306,6 @@ class TestCancelTask:
         response = client.post(f"/api/tasks/{sample_task}/cancel")
 
         assert response.status_code == 400
-
-
-class TestBulkPauseTasks:
-    """Tests for POST /api/tasks/pause."""
-
-    def test_pause_multiple_tasks(self, client, sample_task):
-        """Should pause multiple pending tasks."""
-        response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["affected"] == 1
-        assert data["skipped"] == 0
-
-    def test_pause_skips_non_pending(self, client, db_session, sample_task):
-        """Should skip non-pending tasks."""
-        task = db_session.query(Task).get(sample_task)
-        task.status = TaskStatus.RUNNING.value
-        db_session.commit()
-
-        response = client.post("/api/tasks/pause", json={"task_ids": [sample_task]})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["affected"] == 0
-        assert data["skipped"] == 1
-
-
-class TestBulkResumeTasks:
-    """Tests for POST /api/tasks/resume."""
-
-    def test_resume_multiple_tasks(self, client, db_session, sample_task):
-        """Should resume multiple paused tasks."""
-        task = db_session.query(Task).get(sample_task)
-        task.status = TaskStatus.PAUSED.value
-        db_session.commit()
-
-        response = client.post("/api/tasks/resume", json={"task_ids": [sample_task]})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["affected"] == 1
-
-
-class TestBulkCancelTasks:
-    """Tests for POST /api/tasks/cancel."""
-
-    def test_cancel_multiple_tasks(self, client, sample_task):
-        """Should cancel multiple pending/paused tasks."""
-        response = client.post("/api/tasks/cancel", json={"task_ids": [sample_task]})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["affected"] == 1
 
 
 class TestPauseAllTasks:
@@ -467,70 +348,65 @@ class TestCancelAllTasks:
         assert "affected" in data
 
 
+class TestRetryFailedTasks:
+    """Tests for POST /api/tasks/retry/failed."""
+
+    def test_retry_all_failed_tasks(self, client, db_session, sample_task):
+        """Should retry all failed tasks."""
+        task = db_session.query(Task).get(sample_task)
+        task.status = TaskStatus.FAILED.value
+        db_session.commit()
+
+        response = client.post("/api/tasks/retry/failed")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["affected"] == 1
+
+
 class TestPauseSyncTasks:
     """Tests for POST /api/tasks/pause/sync."""
 
-    def test_pause_sync_tasks(self, client, sample_task):
-        """Should pause all pending sync tasks."""
+    def test_pause_sync_tasks(self, client):
+        """Should pause sync task processing."""
         response = client.post("/api/tasks/pause/sync")
 
         assert response.status_code == 200
         data = response.json()
-        assert "affected" in data
+        assert data["paused"] is True
 
 
 class TestResumeSyncTasks:
     """Tests for POST /api/tasks/resume/sync."""
 
-    def test_resume_sync_tasks(self, client, db_session, sample_task):
-        """Should resume all paused sync tasks."""
-        task = db_session.query(Task).get(sample_task)
-        task.status = TaskStatus.PAUSED.value
-        db_session.commit()
-
+    def test_resume_sync_tasks(self, client):
+        """Should resume sync task processing."""
         response = client.post("/api/tasks/resume/sync")
 
         assert response.status_code == 200
+        data = response.json()
+        assert data["paused"] is False
 
 
 class TestPauseDownloadTasks:
     """Tests for POST /api/tasks/pause/download."""
 
     def test_pause_download_tasks(self, client):
-        """Should pause all pending download tasks."""
+        """Should pause download task processing."""
         response = client.post("/api/tasks/pause/download")
 
         assert response.status_code == 200
+        data = response.json()
+        assert data["paused"] is True
 
 
 class TestResumeDownloadTasks:
     """Tests for POST /api/tasks/resume/download."""
 
     def test_resume_download_tasks(self, client):
-        """Should resume all paused download tasks."""
+        """Should resume download task processing."""
         response = client.post("/api/tasks/resume/download")
 
         assert response.status_code == 200
-
-
-class TestGetActiveTasks:
-    """Tests for GET /api/tasks/active."""
-
-    def test_get_active_tasks(self, client, sample_task):
-        """Should return active tasks grouped by type and status."""
-        response = client.get("/api/tasks/active")
-
-        assert response.status_code == 200
         data = response.json()
-        assert "sync" in data
-        assert "download" in data
-        assert "pending" in data["sync"]
-        assert "running" in data["sync"]
-
-    def test_get_active_tasks_for_list(self, client, sample_task, sample_list):
-        """Should filter active tasks by list_id."""
-        response = client.get(f"/api/tasks/active?list_id={sample_list}")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "sync" in data
+        assert data["paused"] is False

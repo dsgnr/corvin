@@ -1,3 +1,10 @@
+"""
+Background task queue with thread pool workers.
+
+Uses the database as the task backend with separate thread pools for sync and
+download operations. Supports pause/resume at both global and task-type levels.
+"""
+
 import json
 import threading
 from collections.abc import Callable
@@ -6,6 +13,7 @@ from datetime import datetime
 
 from app.core.logging import get_logger
 from app.extensions import SessionLocal
+from app.sse_hub import Channel, notify
 
 logger = get_logger("task_queue")
 
@@ -16,7 +24,12 @@ SETTING_DOWNLOAD_PAUSED = "download_paused"
 
 
 class TaskWorker:
-    """Task queue with thread pool workers. Uses SQLite for backend."""
+    """
+    Task queue worker with separate thread pools for sync and download tasks.
+
+    Uses the database for task persistence and supports pause/resume functionality.
+    Tasks are polled periodically or triggered immediately via notify().
+    """
 
     def __init__(
         self,
@@ -24,6 +37,14 @@ class TaskWorker:
         max_download_workers: int = 2,
         poll_interval: float = 30.0,
     ):
+        """
+        Initialise the task worker.
+
+        Args:
+            max_sync_workers: Maximum concurrent sync tasks.
+            max_download_workers: Maximum concurrent download tasks.
+            poll_interval: Seconds between automatic task polling.
+        """
         self.max_sync_workers = max_sync_workers
         self.max_download_workers = max_download_workers
         self.poll_interval = poll_interval
@@ -52,7 +73,13 @@ class TaskWorker:
         )
 
     def register_handler(self, task_type: str, handler: Callable) -> None:
-        """Register a handler function for a task type."""
+        """
+        Register a handler function for a task type.
+
+        Args:
+            task_type: The task type identifier (e.g., "sync", "download").
+            handler: Function to call with entity_id when processing tasks.
+        """
         self._handlers[task_type] = handler
         logger.info("Registered handler for task type: %s", task_type)
 
@@ -64,10 +91,15 @@ class TaskWorker:
         logger.info("TaskWorker started")
 
     def stop(self, wait: bool = True) -> None:
-        """Stop the worker and try to wait for tasks to complete."""
+        """
+        Stop the worker and optionally wait for tasks to complete.
+
+        Args:
+            wait: Whether to wait for in-progress tasks to finish.
+        """
         logger.info("TaskWorker stopping")
         self._shutdown = True
-        self._task_event.set()  # Wake up the poll loop
+        self._task_event.set()
         if self._poll_thread:
             self._poll_thread.join(timeout=5.0)
         self._sync_executor.shutdown(wait=wait)
@@ -79,10 +111,11 @@ class TaskWorker:
         self._task_event.set()
 
     def pause(self, task_type: str | None = None) -> None:
-        """Pause the worker from picking up new tasks (persisted to DB).
+        """
+        Pause the worker from picking up new tasks.
 
         Args:
-            task_type: 'sync', 'download', or None for all
+            task_type: 'sync', 'download', or None for all tasks.
         """
         from app.models.settings import Settings
 
@@ -96,12 +129,16 @@ class TaskWorker:
             else:
                 Settings.set_bool(db, SETTING_WORKER_PAUSED, True)
                 logger.info("All tasks paused")
+        logger.info(
+            "After pause(%s): is_paused=%s", task_type, self.is_paused(task_type)
+        )
 
     def resume(self, task_type: str | None = None) -> None:
-        """Resume the worker to pick up new tasks (persisted to DB).
+        """
+        Resume the worker to pick up new tasks.
 
         Args:
-            task_type: 'sync', 'download', or None for all
+            task_type: 'sync', 'download', or None for all tasks.
         """
         from app.models.settings import Settings
 
@@ -115,19 +152,27 @@ class TaskWorker:
             else:
                 Settings.set_bool(db, SETTING_WORKER_PAUSED, False)
                 logger.info("All tasks resumed")
-        self._task_event.set()  # Wake up to process pending tasks
+        with SessionLocal() as db:
+            is_still_paused = self.is_paused(task_type)
+            logger.info("After resume(%s): is_paused=%s", task_type, is_still_paused)
+        self._task_event.set()
 
     def is_paused(self, task_type: str | None = None) -> bool:
-        """Check if the worker is paused (from DB).
+        """
+        Check if the worker is paused.
 
         Args:
-            task_type: 'sync', 'download', or None for global pause
+            task_type: 'sync', 'download', or None for global pause.
+
+        Returns:
+            True if paused, False otherwise.
         """
         from app.models.settings import Settings
 
         with SessionLocal() as db:
             # Global pause takes precedence
-            if Settings.get_bool(db, SETTING_WORKER_PAUSED, False):
+            global_paused = Settings.get_bool(db, SETTING_WORKER_PAUSED, False)
+            if global_paused:
                 return True
             if task_type == "sync":
                 return Settings.get_bool(db, SETTING_SYNC_PAUSED, False)
@@ -143,14 +188,23 @@ class TaskWorker:
             except Exception:
                 logger.exception("Error in task poll loop")
             # Wait for notification or timeout (fallback poll)
-            self._task_event.wait(timeout=self.poll_interval)
+            triggered = self._task_event.wait(timeout=self.poll_interval)
             self._task_event.clear()
+            if triggered:
+                logger.debug("Poll loop woken by event signal")
 
     def _process_pending_tasks(self) -> None:
         """Check for pending tasks and submit to executors."""
-        if not self.is_paused("sync"):
+        sync_paused = self.is_paused("sync")
+        download_paused = self.is_paused("download")
+        logger.debug(
+            "Processing pending tasks (sync_paused=%s, download_paused=%s)",
+            sync_paused,
+            download_paused,
+        )
+        if not sync_paused:
             self._process_task_type("sync", self._sync_executor, self.max_sync_workers)
-        if not self.is_paused("download"):
+        if not download_paused:
             self._process_task_type(
                 "download", self._download_executor, self.max_download_workers
             )
@@ -171,6 +225,14 @@ class TaskWorker:
                 available = max_workers - self._running_download
 
             if available <= 0:
+                logger.debug(
+                    "No available workers for %s. %d tasks are already running.",
+                    task_type,
+                    self._running_download
+                    if task_type == "download"
+                    else self._running_sync,
+                    max_workers,
+                )
                 return
 
             with SessionLocal() as db:
@@ -183,7 +245,12 @@ class TaskWorker:
                 )
 
                 if not tasks:
+                    logger.debug("No pending %s tasks found", task_type)
                     return
+
+                logger.info(
+                    "Found %d pending %s tasks to process", len(tasks), task_type
+                )
 
                 # Increment counters while holding lock to prevent race conditions
                 if task_type == "sync":
@@ -208,6 +275,13 @@ class TaskWorker:
                     task.status = TaskStatus.RUNNING.value
                     task.started_at = datetime.utcnow()
                     db.commit()
+
+                    # Notify SSE subscribers
+                    channels = [Channel.TASKS, Channel.TASKS_STATS]
+                    if task_type == "sync":
+                        channels.append(Channel.list_tasks(task.entity_id))
+                        channels.append(Channel.list_videos(task.entity_id))
+                    notify(*channels)
 
                     logger.info(
                         "Starting task %d (%s) for entity %d",
@@ -261,6 +335,21 @@ class TaskWorker:
                 db.commit()
                 logger.info("Task %d completed successfully", task_id)
 
+                # Record metrics
+                from app.metrics import task_duration_seconds, tasks_completed_total
+
+                tasks_completed_total.labels(task_type=task_type).inc()
+                if task.started_at and task.completed_at:
+                    duration = (task.completed_at - task.started_at).total_seconds()
+                    task_duration_seconds.labels(task_type=task_type).observe(duration)
+
+                # Notify SSE subscribers
+                channels = [Channel.TASKS, Channel.TASKS_STATS]
+                if task_type == "sync":
+                    channels.append(Channel.list_tasks(task.entity_id))
+                    channels.append(Channel.list_videos(task.entity_id))
+                notify(*channels)
+
             except Exception as e:
                 self._handle_task_failure(db, task, e, attempt)
 
@@ -274,6 +363,13 @@ class TaskWorker:
         task.add_log(db, f"Failed: {error_message}", TaskLogLevel.ERROR.value)
         db.commit()
         logger.error("Task %d failed: %s", task.id, error_message)
+
+        # Record failure metric
+        from app.metrics import tasks_failed_total
+
+        tasks_failed_total.labels(task_type=task.task_type).inc()
+
+        notify(Channel.TASKS, Channel.TASKS_STATS)
 
     def _handle_task_failure(
         self, db, task, exception: Exception, attempt: int
@@ -317,18 +413,38 @@ class TaskWorker:
                 exception,
             )
 
+            # Record failure metric
+            from app.metrics import task_duration_seconds, tasks_failed_total
+
+            tasks_failed_total.labels(task_type=task.task_type).inc()
+            if task.started_at and task.completed_at:
+                duration = (task.completed_at - task.started_at).total_seconds()
+                task_duration_seconds.labels(task_type=task.task_type).observe(duration)
+
         db.commit()
+        notify(Channel.TASKS, Channel.TASKS_STATS)
 
     def _decrement_running_count(self, task_type: str) -> None:
-        """Reduce the running task count."""
+        """Reduce the running task count and wake the poll loop."""
         with self._lock:
             if task_type == "sync":
                 self._running_sync = max(0, self._running_sync - 1)
+                logger.debug("Decremented running_sync to %d", self._running_sync)
             else:
                 self._running_download = max(0, self._running_download - 1)
+                logger.debug(
+                    "Decremented running_download to %d", self._running_download
+                )
+        # Wake up poll loop to pick up more tasks
+        self._task_event.set()
 
     def get_stats(self) -> dict:
-        """Get current worker stats."""
+        """
+        Get current worker statistics.
+
+        Returns:
+            Dictionary with running counts, max workers, and pause states.
+        """
         with self._lock:
             return {
                 "running_sync": self._running_sync,
@@ -345,10 +461,21 @@ _worker: TaskWorker | None = None
 
 
 def get_worker() -> TaskWorker | None:
+    """Get the global TaskWorker instance."""
     return _worker
 
 
 def init_worker(max_sync_workers: int = 2, max_download_workers: int = 3) -> TaskWorker:
+    """
+    Initialise the global TaskWorker instance.
+
+    Args:
+        max_sync_workers: Maximum concurrent sync tasks.
+        max_download_workers: Maximum concurrent download tasks.
+
+    Returns:
+        The initialised TaskWorker instance.
+    """
     global _worker
     _worker = TaskWorker(max_sync_workers, max_download_workers)
     return _worker

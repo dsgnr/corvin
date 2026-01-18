@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -9,14 +9,21 @@ import {
   Video,
   Profile,
   ActiveTasks,
+  VideoListStats,
   Task,
   HistoryEntry,
+  ListTasksPaginatedResponse,
+  ListHistoryPaginatedResponse,
+  VideosPaginatedResponse,
   getListTasksStreamUrl,
   getListHistoryStreamUrl,
+  getListVideosStreamUrl,
 } from '@/lib/api'
 import { useProgress } from '@/lib/ProgressContext'
 import { useVideoListStream } from '@/lib/useVideoListStream'
-import { formatDuration, formatFileSize } from '@/lib/utils'
+import { useEventSource } from '@/lib/useEventSource'
+import { formatDuration } from '@/lib/utils'
+import { linkifyText } from '@/lib/text'
 import {
   ArrowLeft,
   Download,
@@ -31,7 +38,6 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
-  Pause,
   ListVideo,
   Film,
   Plus,
@@ -42,23 +48,10 @@ import { Pagination } from '@/components/Pagination'
 import { DownloadProgress } from '@/components/DownloadProgress'
 import { ListForm } from '@/components/ListForm'
 import { Select } from '@/components/Select'
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
-const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
-
-// Convert URLs in text to clickable links and escape HTML
-function linkifyText(text: string): string {
-  // First escape HTML to prevent XSS
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-
-  // Then convert URLs to links
-  const urlRegex = /(https?:\/\/[^\s<]+)/g
-  return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
-}
+import { TaskStatusIcon } from '@/components/TaskStatusIcon'
+import { VideoLabels } from '@/components/VideoLabels'
+import { ExtractorIcon } from '@/components/ExtractorIcon'
+import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 export default function ListDetailPage() {
   const params = useParams()
@@ -76,26 +69,39 @@ export default function ListDetailPage() {
   const [runningDownloadIds, setRunningDownloadIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<'all' | 'pending' | 'downloaded' | 'failed'>('all')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalVideos, setTotalVideos] = useState<number | null>(null)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
 
-  // Tasks state
+  // Tasks state (server-side pagination)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksTotal, setTasksTotal] = useState(0)
+  const [tasksTotalPages, setTasksTotalPages] = useState(1)
   const [tasksSearch, setTasksSearch] = useState('')
+  const [debouncedTasksSearch, setDebouncedTasksSearch] = useState('')
   const [tasksPageSize, setTasksPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [tasksCurrentPage, setTasksCurrentPage] = useState(1)
 
-  // History state
+  // History state (server-side pagination)
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyTotalPages, setHistoryTotalPages] = useState(1)
   const [historySearch, setHistorySearch] = useState('')
+  const [debouncedHistorySearch, setDebouncedHistorySearch] = useState('')
   const [historyPageSize, setHistoryPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1)
 
-  // Handle combined SSE stream updates (videos + tasks)
+  // Stats from SSE (accurate totals)
+  const [serverStats, setServerStats] = useState<VideoListStats | null>(null)
+
+  // Handle SSE stream updates (stats + change notifications)
   const handleStreamUpdate = useCallback(
-    (videos: Video[], tasks: ActiveTasks) => {
-      setVideos(videos)
+    (stats: VideoListStats, tasks: ActiveTasks) => {
+      // Update server stats
+      setServerStats(stats)
 
       const isRunning = tasks.sync.running.includes(listId)
       const isQueued = tasks.sync.pending.includes(listId)
@@ -114,68 +120,177 @@ export default function ListDetailPage() {
     [listId]
   )
 
-  // Use SSE stream for real-time video and task updates
+  // Use SSE stream for real-time stats and change notifications
   useVideoListStream(listId, !loading, handleStreamUpdate)
 
-  // SSE stream for tasks
+  // SSE stream URLs for tasks and history (with pagination params)
+  const tasksStreamUrl = useMemo(
+    () =>
+      loading
+        ? null
+        : getListTasksStreamUrl(listId, {
+            page: tasksCurrentPage,
+            pageSize: tasksPageSize,
+            search: debouncedTasksSearch || undefined,
+          }),
+    [listId, loading, tasksCurrentPage, tasksPageSize, debouncedTasksSearch]
+  )
+  const historyStreamUrl = useMemo(
+    () =>
+      loading
+        ? null
+        : getListHistoryStreamUrl(listId, {
+            page: historyCurrentPage,
+            pageSize: historyPageSize,
+            search: debouncedHistorySearch || undefined,
+          }),
+    [listId, loading, historyCurrentPage, historyPageSize, debouncedHistorySearch]
+  )
+
+  const handleTasksMessage = useCallback((data: ListTasksPaginatedResponse) => {
+    setTasks(data.tasks)
+    setTasksTotal(data.total)
+    setTasksTotalPages(data.total_pages)
+  }, [])
+  const handleTasksError = useCallback(() => {
+    api
+      .getListTasksPaginated(listId, {
+        page: tasksCurrentPage,
+        pageSize: tasksPageSize,
+        search: debouncedTasksSearch || undefined,
+      })
+      .then(data => {
+        setTasks(data.tasks)
+        setTasksTotal(data.total)
+        setTasksTotalPages(data.total_pages)
+      })
+      .catch(console.error)
+  }, [listId, tasksCurrentPage, tasksPageSize, debouncedTasksSearch])
+
+  const handleHistoryMessage = useCallback((data: ListHistoryPaginatedResponse) => {
+    setHistory(data.entries)
+    setHistoryTotal(data.total)
+    setHistoryTotalPages(data.total_pages)
+  }, [])
+  const handleHistoryError = useCallback(() => {
+    api
+      .getListHistoryPaginated(listId, {
+        page: historyCurrentPage,
+        pageSize: historyPageSize,
+        search: debouncedHistorySearch || undefined,
+      })
+      .then(data => {
+        setHistory(data.entries)
+        setHistoryTotal(data.total)
+        setHistoryTotalPages(data.total_pages)
+      })
+      .catch(console.error)
+  }, [listId, historyCurrentPage, historyPageSize, debouncedHistorySearch])
+
+  useEventSource(tasksStreamUrl, handleTasksMessage, handleTasksError)
+  useEventSource(historyStreamUrl, handleHistoryMessage, handleHistoryError)
+
+  // SSE stream URL for videos (with pagination and filter params)
+  const videosStreamUrl = useMemo(() => {
+    if (loading || !list) return null
+    // For disabled lists (auto_download=false), pending filter should show nothing
+    if (filter === 'pending' && !list.auto_download) return null
+
+    const downloaded =
+      filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
+    const failed = filter === 'failed' ? true : undefined
+
+    return getListVideosStreamUrl(listId, {
+      page: currentPage,
+      pageSize,
+      downloaded: filter === 'failed' ? undefined : downloaded,
+      failed,
+      search: debouncedSearch || undefined,
+    })
+  }, [listId, loading, list, filter, currentPage, pageSize, debouncedSearch])
+
+  const handleVideosMessage = useCallback((data: VideosPaginatedResponse) => {
+    setVideos(data.videos)
+    setTotalPages(data.total_pages)
+    setTotalVideos(data.total)
+  }, [])
+
+  const handleVideosError = useCallback(() => {
+    // Fallback to regular fetch on SSE error
+    if (!list) return
+    if (filter === 'pending' && !list.auto_download) {
+      setVideos([])
+      setTotalPages(1)
+      setTotalVideos(0)
+      return
+    }
+
+    const downloaded =
+      filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
+    const failed = filter === 'failed' ? true : undefined
+
+    api
+      .getVideosPaginated(listId, {
+        page: currentPage,
+        pageSize,
+        downloaded: filter === 'failed' ? undefined : downloaded,
+        failed,
+        search: debouncedSearch || undefined,
+      })
+      .then(response => {
+        setVideos(response.videos)
+        setTotalPages(response.total_pages)
+        setTotalVideos(response.total)
+      })
+      .catch(console.error)
+  }, [listId, list, filter, currentPage, pageSize, debouncedSearch])
+
+  useEventSource(videosStreamUrl, handleVideosMessage, handleVideosError)
+
+  // Handle pending filter for non-auto-download lists
   useEffect(() => {
-    if (loading) return
-
-    const eventSource = new EventSource(getListTasksStreamUrl(listId, { limit: 200 }))
-
-    eventSource.onmessage = (event) => {
-      const data: Task[] = JSON.parse(event.data)
-      setTasks(data)
+    if (filter === 'pending' && list && !list.auto_download) {
+      setVideos([])
+      setTotalPages(1)
+      setTotalVideos(0)
     }
+  }, [filter, list])
 
-    eventSource.onerror = () => {
-      api
-        .getListTasks(listId, { limit: 200 })
-        .then(setTasks)
-        .catch(console.error)
-      eventSource.close()
-    }
-
-    return () => eventSource.close()
-  }, [listId, loading])
-
-  // SSE stream for history
-  useEffect(() => {
-    if (loading) return
-
-    const eventSource = new EventSource(getListHistoryStreamUrl(listId, { limit: 200 }))
-
-    eventSource.onmessage = (event) => {
-      const data: HistoryEntry[] = JSON.parse(event.data)
-      setHistory(data)
-    }
-
-    eventSource.onerror = () => {
-      api
-        .getListHistory(listId, { limit: 200 })
-        .then(setHistory)
-        .catch(console.error)
-      eventSource.close()
-    }
-
-    return () => eventSource.close()
-  }, [listId, loading])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const [listData, profilesData] = await Promise.all([api.getList(listId), api.getProfiles()])
+      const [listData, profilesData, statsResponse] = await Promise.all([
+        api.getList(listId),
+        api.getProfiles(),
+        api.getVideoListStats(listId),
+      ])
       setList(listData)
       setProfiles(profilesData)
+      setServerStats(statsResponse.stats)
     } catch (err) {
       console.error('Failed to fetch list:', err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [listId])
 
   useEffect(() => {
     fetchData()
-  }, [listId])
+  }, [fetchData])
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    if (debouncedSearch) {
+      setCurrentPage(1)
+    }
+  }, [debouncedSearch])
 
   const handleSync = async () => {
     setSyncStatus('queued')
@@ -242,87 +357,36 @@ export default function ListDetailPage() {
     }
   }
 
-  const filteredVideos = videos
-    .filter(v => {
-      // Status filter
-      if (filter === 'pending' && (v.downloaded || v.error_message)) return false
-      if (filter === 'downloaded' && !v.downloaded) return false
-      if (filter === 'failed' && !v.error_message) return false
-      // Search filter
-      if (search) {
-        const searchLower = search.toLowerCase()
-        return v.title?.toLowerCase().includes(searchLower)
-      }
-      return true
-    })
-    .sort((a, b) => {
-      const dateA = a.upload_date ? new Date(a.upload_date).getTime() : 0
-      const dateB = b.upload_date ? new Date(b.upload_date).getTime() : 0
-      return dateB - dateA
-    })
-
-  const totalPages = Math.ceil(filteredVideos.length / pageSize)
-  const paginatedVideos = filteredVideos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  // Reset to page 1 when filter or search changes
+  // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [filter, search])
+  }, [filter])
 
-  // Reset tasks page when search changes
+  // Debounce tasks search and reset page
   useEffect(() => {
-    setTasksCurrentPage(1)
-  }, [tasksSearch])
+    const timer = setTimeout(() => {
+      if (tasksSearch !== debouncedTasksSearch) {
+        setDebouncedTasksSearch(tasksSearch)
+        setTasksCurrentPage(1)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [tasksSearch, debouncedTasksSearch])
 
-  // Reset history page when search changes
+  // Debounce history search and reset page
   useEffect(() => {
-    setHistoryCurrentPage(1)
-  }, [historySearch])
+    const timer = setTimeout(() => {
+      if (historySearch !== debouncedHistorySearch) {
+        setDebouncedHistorySearch(historySearch)
+        setHistoryCurrentPage(1)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [historySearch, debouncedHistorySearch])
 
-  // Filtered and paginated tasks
-  const filteredTasks = tasks
-    .filter(t => {
-      if (!tasksSearch) return true
-      const searchLower = tasksSearch.toLowerCase()
-      return (
-        t.task_type.toLowerCase().includes(searchLower) ||
-        t.status.toLowerCase().includes(searchLower) ||
-        t.entity_name?.toLowerCase().includes(searchLower)
-      )
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-  const tasksTotalPages = Math.ceil(filteredTasks.length / tasksPageSize)
-  const paginatedTasks = filteredTasks.slice(
-    (tasksCurrentPage - 1) * tasksPageSize,
-    tasksCurrentPage * tasksPageSize
-  )
-
-  // Filtered and paginated history
-  const filteredHistory = history
-    .filter(e => {
-      if (!historySearch) return true
-      const searchLower = historySearch.toLowerCase()
-      const details = typeof e.details === 'string' ? e.details : JSON.stringify(e.details)
-      return (
-        e.action.toLowerCase().includes(searchLower) ||
-        e.entity_type.toLowerCase().includes(searchLower) ||
-        details.toLowerCase().includes(searchLower)
-      )
-    })
-
-  const historyTotalPages = Math.ceil(filteredHistory.length / historyPageSize)
-  const paginatedHistory = filteredHistory.slice(
-    (historyCurrentPage - 1) * historyPageSize,
-    historyCurrentPage * historyPageSize
-  )
-
-  const stats = {
-    total: videos.length,
-    downloaded: videos.filter(v => v.downloaded).length,
-    pending: videos.filter(v => !v.downloaded && !v.error_message).length,
-    failed: videos.filter(v => !!v.error_message).length,
-  }
+  // Use server stats - show loading placeholder until available
+  const statsLoading = !serverStats
+  const stats = serverStats || { total: 0, downloaded: 0, pending: 0, failed: 0 }
 
   if (loading) {
     return (
@@ -358,11 +422,7 @@ export default function ListDetailPage() {
           )}
           <div>
             <div className="flex items-center gap-2">
-              {list.extractor?.toLowerCase().includes('youtube') && (
-                <svg viewBox="0 0 24 24" className="w-6 h-6 flex-shrink-0" fill="#FF0000">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                </svg>
-              )}
+              <ExtractorIcon extractor={list.extractor} size="lg" />
               <h1 className="text-2xl font-semibold">{list.name}</h1>
             </div>
             <a
@@ -490,34 +550,52 @@ export default function ListDetailPage() {
           onClick={() => setFilter('all')}
           className={clsx(
             'p-3 rounded-lg border transition-colors text-left',
-            filter === 'all' ? 'bg-[var(--accent)]/10 border-[var(--accent)]' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+            filter === 'all'
+              ? 'bg-[var(--accent)]/10 border-[var(--accent)]'
+              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
           )}
         >
-          <p className="text-2xl font-semibold">{stats.total}</p>
+          <p className="text-2xl font-semibold">
+            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.total}
+          </p>
           <p className="text-xs text-[var(--muted)]">Total found</p>
         </button>
         <button
           onClick={() => setFilter('downloaded')}
           className={clsx(
             'p-3 rounded-lg border transition-colors text-left',
-            filter === 'downloaded' ? 'bg-[var(--success)]/10 border-[var(--success)]' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+            filter === 'downloaded'
+              ? 'bg-[var(--success)]/10 border-[var(--success)]'
+              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
           )}
         >
-          <p className="text-2xl font-semibold text-[var(--success)]">{stats.downloaded}</p>
+          <p className="text-2xl font-semibold text-[var(--success)]">
+            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.downloaded}
+          </p>
           <p className="text-xs text-[var(--muted)]">Downloaded</p>
         </button>
         <button
           onClick={() => setFilter('pending')}
           className={clsx(
             'p-3 rounded-lg border transition-colors text-left',
-            filter === 'pending' ? 'bg-[var(--warning)]/10 border-[var(--warning)]' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+            filter === 'pending'
+              ? 'bg-[var(--warning)]/10 border-[var(--warning)]'
+              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
           )}
         >
-          <p className={clsx(
-            'text-2xl font-semibold',
-            list?.auto_download ? 'text-[var(--warning)]' : 'text-[var(--muted)]'
-          )}>
-            {list?.auto_download ? stats.pending : 0}
+          <p
+            className={clsx(
+              'text-2xl font-semibold',
+              list?.auto_download ? 'text-[var(--warning)]' : 'text-[var(--muted)]'
+            )}
+          >
+            {statsLoading ? (
+              <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" />
+            ) : list?.auto_download ? (
+              stats.pending
+            ) : (
+              0
+            )}
           </p>
           <p className="text-xs text-[var(--muted)]">
             {list?.auto_download ? 'Pending' : 'Not queued (manual)'}
@@ -527,10 +605,14 @@ export default function ListDetailPage() {
           onClick={() => setFilter('failed')}
           className={clsx(
             'p-3 rounded-lg border transition-colors text-left',
-            filter === 'failed' ? 'bg-[var(--error)]/10 border-[var(--error)]' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+            filter === 'failed'
+              ? 'bg-[var(--error)]/10 border-[var(--error)]'
+              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
           )}
         >
-          <p className="text-2xl font-semibold text-[var(--error)]">{stats.failed}</p>
+          <p className="text-2xl font-semibold text-[var(--error)]">
+            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.failed}
+          </p>
           <p className="text-xs text-[var(--muted)]">Failed</p>
         </button>
       </div>
@@ -538,7 +620,26 @@ export default function ListDetailPage() {
       {/* Videos */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
-          <h2 className="font-medium">Videos ({filteredVideos.length})</h2>
+          <h2 className="font-medium">
+            Videos (
+            {debouncedSearch ? (
+              // When searching, show the count from the paginated response
+              totalVideos ?? <span className="inline-block w-8 h-4 bg-[var(--border)] rounded animate-pulse align-middle" />
+            ) : statsLoading ? (
+              <span className="inline-block w-8 h-4 bg-[var(--border)] rounded animate-pulse align-middle" />
+            ) : filter === 'all' ? (
+              stats.total
+            ) : filter === 'downloaded' ? (
+              stats.downloaded
+            ) : filter === 'pending' ? (
+              list?.auto_download ? stats.pending : 0
+            ) : filter === 'failed' ? (
+              stats.failed
+            ) : (
+              stats.total
+            )}
+            )
+          </h2>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
@@ -565,12 +666,12 @@ export default function ListDetailPage() {
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {paginatedVideos.length === 0 ? (
+          {videos.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No videos found</p>
           ) : (
-            paginatedVideos.map(video => (
+            videos.map((video: Video) => (
               <VideoRow
-                key={video.id}
+                key={video.video_id}
                 video={video}
                 downloading={downloadingIds.has(video.id)}
                 downloadQueued={queuedDownloadIds.has(video.id)}
@@ -587,7 +688,7 @@ export default function ListDetailPage() {
       {/* Tasks */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
-          <h2 className="font-medium">Tasks ({filteredTasks.length})</h2>
+          <h2 className="font-medium">Tasks ({tasksTotal})</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
@@ -614,10 +715,10 @@ export default function ListDetailPage() {
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {paginatedTasks.length === 0 ? (
+          {tasks.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No tasks found</p>
           ) : (
-            paginatedTasks.map(task => (
+            tasks.map(task => (
               <TaskRow key={task.id} task={task} />
             ))
           )}
@@ -628,7 +729,7 @@ export default function ListDetailPage() {
       {/* History */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
-          <h2 className="font-medium">History ({filteredHistory.length})</h2>
+          <h2 className="font-medium">History ({historyTotal})</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
@@ -655,10 +756,10 @@ export default function ListDetailPage() {
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {paginatedHistory.length === 0 ? (
+          {history.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
           ) : (
-            paginatedHistory.map(entry => (
+            history.map(entry => (
               <HistoryRow key={entry.id} entry={entry} />
             ))
           )}
@@ -746,47 +847,9 @@ function VideoRow({
           {video.upload_date && (
             <span>{new Date(video.upload_date).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
           )}
-          {hasLabels && (
-            <div className="flex items-center gap-1.5">
-              {video.labels.format && (
-                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px] font-medium">
-                  {video.labels.format.toUpperCase()}
-                </span>
-              )}
-              {video.labels.resolution && (
-                <span className="px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded text-[10px] font-medium">
-                  {video.labels.resolution}
-                </span>
-              )}
-              {video.labels.dynamic_range && (
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                  video.labels.dynamic_range.toLowerCase().includes('hdr')
-                    ? 'bg-purple-500/10 text-purple-400'
-                    : 'bg-[var(--muted)]/10 text-[var(--muted)]'
-                }`}>
-                  {video.labels.dynamic_range}
-                </span>
-              )}
-              {video.labels.acodec && (
-                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
-                  {video.labels.acodec.toUpperCase()}
-                </span>
-              )}
-              {video.labels.audio_channels && (
-                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
-                  {video.labels.audio_channels === 2 ? 'Stereo' : video.labels.audio_channels === 6 ? '5.1' : `${video.labels.audio_channels}ch`}
-                </span>
-              )}
-              {video.labels.filesize_approx && (
-                <span className="px-1.5 py-0.5 bg-[var(--muted)]/10 text-[var(--prose-color)] rounded text-[10px]">
-                  {formatFileSize(video.labels.filesize_approx)}
-                </span>
-              )}
-            </div>
-          )}
+          {hasLabels && <VideoLabels labels={video.labels} compact />}
         </div>
-        {/* Show progress bar when we have progress data */}
-        {progress && progress.status !== 'completed' && (
+        {progress && progress.status !== 'completed' && progress.status !== 'error' && !video.error_message && (
           <div className="mt-2 max-w-sm">
             <DownloadProgress progress={progress} />
           </div>
@@ -799,7 +862,7 @@ function VideoRow({
         {renderStatusIcon()}
         {!video.downloaded && !downloadRunning && !downloadQueued && (
           <button
-            onClick={(e) => { e.preventDefault(); onDownload() }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDownload() }}
             disabled={downloading}
             className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
             title="Download"
@@ -817,26 +880,9 @@ function VideoRow({
 }
 
 function TaskRow({ task }: { task: Task }) {
-  const TaskStatusIcon = ({ status }: { status: string }) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle size={16} className="text-[var(--success)]" />
-      case 'failed':
-        return <XCircle size={16} className="text-[var(--error)]" />
-      case 'running':
-        return <Loader2 size={16} className="text-[var(--accent)] animate-spin" />
-      case 'paused':
-        return <Pause size={16} className="text-[var(--muted)]" />
-      case 'cancelled':
-        return <XCircle size={16} className="text-[var(--muted)]" />
-      default:
-        return <Clock size={16} className="text-[var(--warning)]" />
-    }
-  }
-
   return (
     <div className="p-4 flex items-center gap-3">
-      <TaskStatusIcon status={task.status} />
+      <TaskStatusIcon status={task.status} size={16} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">
           {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name || `#${task.entity_id}`}

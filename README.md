@@ -1,17 +1,17 @@
 # Corvin
 
-Corvin is a self-hosted media ingestion and archiving tool. It monitors channels and playlists, keeps them in sync, and downloads new videos using flexible, configurable profiles.
+A self-hosted media archiver that monitors subscribed channels and playlists, keeps them in sync, and downloads new videos using configurable profiles.
 
-While YouTube is my most common use case, it should work with anything supported by yt-dlp.
+Works with anything yt-dlp supports, though YouTube is the primary use case.
 
-The project is API first by design. The included web interface is optional, making it easy to automate workflows or build a custom frontend.
+The project is API-first by design. The web interface is optional, making it straightforward to automate workflows or build a custom frontend.
 
 ## Features
 
 - Monitor channels and playlists from YouTube and other yt-dlp supported platforms
-- Optimised indexing approach using threads
+- Optimised indexing approach
 - Automatic syncing on configurable schedules (daily, weekly, monthly)
-- Download profiles with granular control over format, quality, and post-processing
+- Download profiles with control over format, quality, and post-processing
 - SponsorBlock integration to skip or mark sponsored segments
 - Subtitle downloading and embedding
 - Metadata and thumbnail embedding
@@ -27,37 +27,40 @@ The project is API first by design. The included web interface is optional, maki
 > **Be sure to define the volume paths to suit you!**
 
 ```bash
-docker compose up
+docker compose up -d
 ```
 
-The frontend will be running at [http://localhost](http://localhost) (port 80) and the API at [http://localhost:5000](http://localhost:5000).
+Once running:
+- Web UI: http://localhost
+- API: http://localhost:5000
+- API Docs: http://localhost:5000/api/docs
 
 ## Configuration
 
 ### Directory Structure
 
 ```
-./corvin_data/  # SQLite database
-./downloads/    # Downloaded media files
+./corvin_data/    # SQLite database
+./downloads/      # Downloaded media files
 ```
 
 Both directories are mounted as volumes and persist between container restarts.
 
 ### Environment Variables
 
-#### Backend
+**Backend:**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TZ` | `UTC` | Timezone for the container |
-| `MAX_SYNC_WORKERS` | `2` | Concurrent list sync operations |
-| `MAX_DOWNLOAD_WORKERS` | `2` | Concurrent video downloads |
+| `TZ` | `UTC` | Container timezone |
+| `MAX_SYNC_WORKERS` | `2` | Concurrent sync operations |
+| `MAX_DOWNLOAD_WORKERS` | `2` | Concurrent downloads |
 
-#### Frontend
+**Frontend:**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://backend:5000` | Backend API URL (internal Docker network) |
+| `NEXT_PUBLIC_API_URL` | `http://backend:5000` | Backend API URL (Docker internal network) |
 
 ## API
 
@@ -77,19 +80,18 @@ Standard REST conventions apply. `GET`, `POST`, `PUT`, `DELETE` where appropriat
 
 ## Download Profiles
 
-Profiles control how videos are downloaded and processed. Each profile supports:
+Profiles control how videos are downloaded and processed:
 
-- **Output format**: mp4, webm, mp3, etc.
-- **Output template**: Customise file naming and folder structure using standard yt-dlp template syntax
-- **Metadata embedding**: Include video metadata in the file
-- **Thumbnail embedding**: Embed thumbnails as cover art
-- **Subtitles**: Download, embed, or fetch auto-generated subtitles
-- **Audio track language**: Prefer specific audio languages
-- **SponsorBlock**: Skip or mark sponsored segments, intros, outros, etc.
-- **Extra arguments**: Pass additional yt-dlp options as JSON
+- **Output format** — mp4, webm, mp3, etc.
+- **Output template** — file naming using yt-dlp template syntax
+- **Metadata embedding** — include video metadata in the file
+- **Thumbnail embedding** — embed thumbnails as cover art
+- **Subtitles** — download, embed, or fetch auto-generated
+- **Audio language** — prefer specific audio tracks
+- **SponsorBlock** — skip or mark sponsors, intros, outros
+- **Extra arguments** — additional yt-dlp options as JSON
 
-### Default Output Template
-
+Default output template:
 ```
 %(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s
 ```
@@ -98,12 +100,14 @@ This organises downloads by uploader, with files named by season (year) and epis
 
 ## Video Lists
 
-Lists represent channels or playlists to monitor. Each list is assigned a download profile and supports:
+Lists represent channels or playlists to monitor:
 
-- **Sync frequency**: How often to check for new videos
-- **From date**: Only sync videos uploaded after this date
-- **Auto-download**: Automatically queue new videos for download. This can be disabled for an "index only" mode, with the ability to manually download specific videos.
-- **Exclude shorts**: Skip YouTube Shorts (profile setting)
+- **Sync frequency** — how often to check for new videos
+- **From date** — only sync videos uploaded after this date
+- **Auto-download** — automatically queue new videos for download
+- **Exclude shorts** — skip YouTube Shorts
+
+Disable auto-download for an "index only" mode, then manually download specific videos as needed.
 
 ## Development
 
@@ -113,7 +117,23 @@ For local development with live reloading:
 docker compose -f docker-compose-dev.yml up
 ```
 
-This mounts source directories and enables debug mode. The frontend runs on port 3000 in dev mode.
+The frontend runs on port 3000 in development mode.
+
+### Local Setup
+
+**Backend:**
+```bash
+cd backend
+uv sync
+uv run python run.py
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ### Code Quality
 

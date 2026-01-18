@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { api, VideoList, Profile, Task, getListsStreamUrl, getTasksStreamUrl } from '@/lib/api'
+import { useEffect, useState, useCallback } from 'react'
+import { api, VideoList, Profile, TasksPaginatedResponse, getListsStreamUrl, getTasksStreamUrl } from '@/lib/api'
+import { useEventSource } from '@/lib/useEventSource'
 import { Plus, RefreshCw, Trash2, Edit2, ExternalLink, Loader2, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import Link from 'next/link'
 import { ListForm } from '@/components/ListForm'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50]
+import { ExtractorIcon } from '@/components/ExtractorIcon'
+import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 export default function ListsPage() {
   const [lists, setLists] = useState<VideoList[]>([])
@@ -20,51 +21,35 @@ export default function ListsPage() {
   const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [syncingAll, setSyncingAll] = useState(false)
   const [search, setSearch] = useState('')
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [currentPage, setCurrentPage] = useState(1)
 
-  useEffect(() => {
-    // Set up SSE stream for lists
-    const listsSource = new EventSource(getListsStreamUrl())
+  const handleListsMessage = useCallback((data: VideoList[]) => {
+    setLists(data)
+    setLoading(false)
+  }, [])
 
-    listsSource.onmessage = (event) => {
-      const data: VideoList[] = JSON.parse(event.data)
+  const handleListsError = useCallback(() => {
+    api.getLists().then(data => {
       setLists(data)
       setLoading(false)
-    }
-
-    listsSource.onerror = () => {
-      // Fallback to regular fetch on SSE error
-      api.getLists().then(data => {
-        setLists(data)
-        setLoading(false)
-      }).catch(err => {
-        console.error('Failed to fetch lists:', err)
-        setLoading(false)
-      })
-      listsSource.close()
-    }
-
-    // Set up SSE stream for sync tasks
-    const tasksSource = new EventSource(getTasksStreamUrl({ type: 'sync' }))
-
-    tasksSource.onmessage = (event) => {
-      const tasks: Task[] = JSON.parse(event.data)
-      const runningIds = new Set(tasks.filter(t => t.status === 'running').map(t => t.entity_id))
-      const pendingIds = new Set(tasks.filter(t => t.status === 'pending').map(t => t.entity_id))
-      setSyncingIds(runningIds)
-      setQueuedIds(pendingIds)
-    }
-
-    tasksSource.onerror = () => {
-      tasksSource.close()
-    }
-
-    return () => {
-      listsSource.close()
-      tasksSource.close()
-    }
+    }).catch(err => {
+      console.error('Failed to fetch lists:', err)
+      setLoading(false)
+    })
   }, [])
+
+  const handleTasksMessage = useCallback((data: TasksPaginatedResponse) => {
+    const tasks = data.tasks
+    const runningIds = new Set(tasks.filter(t => t.status === 'running').map(t => t.entity_id))
+    const pendingIds = new Set(tasks.filter(t => t.status === 'pending').map(t => t.entity_id))
+    setSyncingIds(runningIds)
+    setQueuedIds(pendingIds)
+  }, [])
+
+  useEventSource(getListsStreamUrl(), handleListsMessage, handleListsError)
+  // Fetch only active (pending/running) sync tasks
+  useEventSource(getTasksStreamUrl({ type: 'sync', status: 'active', pageSize: 100 }), handleTasksMessage)
 
   // Fetch profiles and poll for changes (they may be added via API)
   useEffect(() => {
@@ -113,8 +98,10 @@ export default function ListsPage() {
     if (!confirm(`Delete "${list.name}"? This will also delete all associated videos.`)) return
     try {
       await api.deleteList(list.id)
-      setLists(lists.filter(l => l.id !== list.id))
+      // SSE will update the list with deleting=true, no need to manually update
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete list'
+      alert(message)
       console.error('Failed to delete:', err)
     }
   }
@@ -279,12 +266,21 @@ function ListCard({ list, profiles, syncing, queued, onSync, onEdit, onDelete }:
   onDelete: () => void
 }) {
   const profile = profiles.find(p => p.id === list.profile_id)
+  const isDeleting = list.deleting
+  const isSyncing = syncing
+  const _isBusy = isDeleting || isSyncing || queued
+  void _isBusy // Suppress unused variable warning
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+    <div className={clsx(
+      "bg-[var(--card)] rounded-lg border p-4",
+      isDeleting && "border-[var(--error)]/50 opacity-60",
+      isSyncing && !isDeleting && "border-[var(--accent)]/50",
+      !isDeleting && !isSyncing && "border-[var(--border)]"
+    )}>
       <div className="flex gap-4">
         {list.thumbnail && (
-          <Link href={`/lists/${list.id}`} className="flex-shrink-0">
+          <Link href={`/lists/${list.id}`} className={clsx("flex-shrink-0", isDeleting && "pointer-events-none")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={list.thumbnail}
@@ -299,34 +295,48 @@ function ListCard({ list, profiles, syncing, queued, onSync, onEdit, onDelete }:
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                {list.extractor?.toLowerCase().includes('youtube') && (
-                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="#FF0000">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                  </svg>
-                )}
-                <Link href={`/lists/${list.id}`} className="font-medium hover:text-[var(--accent)] transition-colors">
+                <ExtractorIcon extractor={list.extractor} size="md" />
+                <Link href={`/lists/${list.id}`} className={clsx("font-medium hover:text-[var(--accent)] transition-colors", isDeleting && "pointer-events-none")}>
                   {list.name}
                 </Link>
-                <span className={clsx(
-                  'text-xs px-2 py-0.5 rounded',
-                  list.enabled ? 'bg-[var(--success)]/20 text-[var(--success)]' : 'bg-[var(--muted)]/20 text-[var(--muted)]'
-                )}>
-                  {list.enabled ? 'Enabled' : 'Disabled'}
-                </span>
-                {!list.auto_download && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
-                    Manual DL
+                {isDeleting ? (
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--error)]/20 text-[var(--error)] flex items-center gap-1">
+                    <Loader2 size={10} className="animate-spin" />
+                    Deleting...
                   </span>
+                ) : syncing ? (
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/20 text-[var(--accent)] flex items-center gap-1">
+                    <Loader2 size={10} className="animate-spin" />
+                    Syncing...
+                  </span>
+                ) : queued ? (
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)] flex items-center gap-1">
+                    Sync Queued
+                  </span>
+                ) : (
+                  <>
+                    <span className={clsx(
+                      'text-xs px-2 py-0.5 rounded',
+                      list.enabled ? 'bg-[var(--success)]/20 text-[var(--success)]' : 'bg-[var(--muted)]/20 text-[var(--muted)]'
+                    )}>
+                      {list.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    {!list.auto_download && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
+                        Manual DL
+                      </span>
+                    )}
+                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
+                      {list.list_type}
+                    </span>
+                  </>
                 )}
-                <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
-                  {list.list_type}
-                </span>
               </div>
               <a
                 href={list.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 mt-1"
+                className={clsx("text-sm text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 mt-1", isDeleting && "pointer-events-none")}
               >
                 {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
                 <ExternalLink size={12} />
@@ -339,32 +349,34 @@ function ListCard({ list, profiles, syncing, queued, onSync, onEdit, onDelete }:
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button
-                onClick={onSync}
-                disabled={syncing || queued}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
-                title="Sync now"
-              >
-                <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-                {syncing && <span className="text-xs">Syncing</span>}
-                {queued && !syncing && <span className="text-xs">Queued</span>}
-              </button>
-              <button
-                onClick={onEdit}
-                className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                title="Edit"
-              >
-                <Edit2 size={16} />
-              </button>
-              <button
-                onClick={onDelete}
-                className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
-                title="Delete"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+            {!isDeleting && (
+              <div className="flex items-center gap-2 ml-4">
+                <button
+                  onClick={onSync}
+                  disabled={syncing || queued}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+                  title="Sync now"
+                >
+                  <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+                </button>
+                <button
+                  onClick={onEdit}
+                  disabled={isSyncing}
+                  className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+                  title="Edit"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  onClick={onDelete}
+                  disabled={isSyncing}
+                  className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors disabled:opacity-50"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

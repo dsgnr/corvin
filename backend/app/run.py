@@ -1,3 +1,9 @@
+"""
+Application entry point for development.
+
+Run directly with `python -m app.run` or via uvicorn.
+"""
+
 import uvicorn
 
 from app import create_app

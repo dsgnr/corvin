@@ -28,8 +28,8 @@ class ProfileCreate(BaseModel):
     sponsorblock_behaviour: str = Field(
         "disabled", description="SponsorBlock behaviour"
     )
-    sponsorblock_categories: str = Field(
-        "", description="SponsorBlock categories (comma-separated)"
+    sponsorblock_categories: list[str] = Field(
+        default_factory=list, description="SponsorBlock categories"
     )
     output_format: str = Field("mp4", description="Output format")
     extra_args: str = Field("{}", description="Extra yt-dlp arguments as JSON")
@@ -57,8 +57,8 @@ class ProfileUpdate(BaseModel):
     sponsorblock_behaviour: str | None = Field(
         None, description="SponsorBlock behaviour"
     )
-    sponsorblock_categories: str | None = Field(
-        None, description="SponsorBlock categories (comma-separated)"
+    sponsorblock_categories: list[str] | None = Field(
+        None, description="SponsorBlock categories"
     )
     output_format: str | None = Field(None, description="Output format")
     extra_args: str | None = Field(None, description="Extra yt-dlp arguments as JSON")
@@ -84,7 +84,41 @@ class ProfileResponse(BaseModel):
         "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
     )
     sponsorblock_behaviour: str = "disabled"
-    sponsorblock_categories: str = ""
+    sponsorblock_categories: list[str] = []
     output_format: str = "mp4"
     created_at: str
     updated_at: str
+
+
+class ProfileDefaults(BaseModel):
+    """Default profile settings."""
+
+    output_template: str
+    embed_metadata: bool
+    embed_thumbnail: bool
+    include_shorts: bool
+    download_subtitles: bool
+    embed_subtitles: bool
+    auto_generated_subtitles: bool
+    subtitle_languages: str
+    audio_track_language: str
+    sponsorblock_behaviour: str
+    sponsorblock_categories: list[str]
+    output_format: str
+    extra_args: str
+
+
+class SponsorBlockOptions(BaseModel):
+    """SponsorBlock configuration options."""
+
+    behaviours: list[str]
+    categories: list[str]
+    category_labels: dict[str, str]
+
+
+class ProfileOptionsResponse(BaseModel):
+    """Profile options and defaults."""
+
+    defaults: ProfileDefaults
+    sponsorblock: SponsorBlockOptions
+    output_formats: list[str]

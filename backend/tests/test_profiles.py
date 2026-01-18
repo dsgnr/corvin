@@ -62,13 +62,14 @@ class TestCreateProfile:
             json={
                 "name": "Sponsorblock Profile",
                 "sponsorblock_behaviour": "delete",
-                "sponsorblock_categories": "sponsor,intro",
+                "sponsorblock_categories": ["sponsor", "intro"],
             },
         )
 
         assert response.status_code == 201
         data = response.json()
         assert data["sponsorblock_behaviour"] == "delete"
+        assert data["sponsorblock_categories"] == ["sponsor", "intro"]
 
     def test_create_profile_invalid_sponsorblock_behaviour(self, client):
         """Should reject invalid sponsorblock behaviour."""
@@ -88,7 +89,7 @@ class TestCreateProfile:
             "/api/profiles",
             json={
                 "name": "Bad Profile",
-                "sponsorblock_categories": "invalid_category",
+                "sponsorblock_categories": ["invalid_category"],
             },
         )
 

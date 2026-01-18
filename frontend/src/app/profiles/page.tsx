@@ -1,34 +1,58 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { api, Profile, ProfileOptions } from '@/lib/api'
 import { Plus, Trash2, Edit2, Loader2, Copy, X, Check } from 'lucide-react'
 import { Select } from '@/components/Select'
+import { ToggleOption } from '@/components/ToggleOption'
 
 export default function ProfilesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
+      </div>
+    }>
+      <ProfilesContent />
+    </Suspense>
+  )
+}
+
+function ProfilesContent() {
+  const searchParams = useSearchParams()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOptions | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
 
-  const fetchData = async () => {
-    try {
-      const [profilesData, options] = await Promise.all([
-        api.getProfiles(),
-        api.getProfileOptions(),
-      ])
-      setProfiles(profilesData)
-      setProfileOptions(options)
-    } catch (err) {
-      console.error('Failed to fetch profiles:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [profilesData, options] = await Promise.all([
+          api.getProfiles(),
+          api.getProfileOptions(),
+        ])
+        setProfiles(profilesData)
+        setProfileOptions(options)
+
+        // Check for edit query param
+        const editParam = searchParams.get('edit')
+        if (editParam) {
+          const editId = parseInt(editParam, 10)
+          if (!isNaN(editId) && profilesData.some(p => p.id === editId)) {
+            setEditingId(editId)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch profiles:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchData()
-  }, [])
+  }, [searchParams])
 
   const handleDelete = async (profile: Profile) => {
     if (!confirm(`Delete profile "${profile.name}"?`)) return
@@ -140,7 +164,7 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   if (profile.embed_thumbnail) features.push('Thumbnail')
   if (profile.download_subtitles) features.push('Subtitles')
   if (!profile.include_shorts) features.push('No Shorts')
-  if (profile.sponsorblock_behavior !== 'disabled') features.push('SponsorBlock')
+  if (profile.sponsorblock_behaviour !== 'disabled') features.push('SponsorBlock')
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
@@ -192,7 +216,22 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
   onSave: (data: Partial<Profile>) => void
   onCancel: () => void
 }) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string
+    output_template: string
+    output_format: string
+    embed_metadata: boolean
+    embed_thumbnail: boolean
+    include_shorts: boolean
+    download_subtitles: boolean
+    embed_subtitles: boolean
+    auto_generated_subtitles: boolean
+    subtitle_languages: string
+    audio_track_language: string
+    sponsorblock_behaviour: string
+    sponsorblock_categories: string[]
+    extra_args: string
+  }>({
     name: profile?.name || '',
     output_template: profile?.output_template || defaults.output_template,
     output_format: profile?.output_format || defaults.output_format,
@@ -204,7 +243,7 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
     auto_generated_subtitles: profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
     subtitle_languages: profile?.subtitle_languages || defaults.subtitle_languages,
     audio_track_language: profile?.audio_track_language || defaults.audio_track_language,
-    sponsorblock_behavior: profile?.sponsorblock_behavior || defaults.sponsorblock_behavior,
+    sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
     sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
     extra_args: profile?.extra_args || defaults.extra_args,
   })
@@ -218,14 +257,14 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
   }
 
   const toggleCategory = (cat: string) => {
-    const current = form.sponsorblock_categories.split(',').filter(Boolean)
+    const current = form.sponsorblock_categories
     const updated = current.includes(cat)
       ? current.filter((c: string) => c !== cat)
       : [...current, cat]
-    setForm({ ...form, sponsorblock_categories: updated.join(',') })
+    setForm({ ...form, sponsorblock_categories: updated })
   }
 
-  const selectedCategories = form.sponsorblock_categories.split(',').filter(Boolean)
+  const selectedCategories = form.sponsorblock_categories
 
   return (
     <form onSubmit={handleSubmit} className="bg-[var(--card)] rounded-lg border border-[var(--accent)] p-4 space-y-4">
@@ -344,14 +383,14 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
           <label className="block text-sm font-medium mb-1">SponsorBlock</label>
           <p className="text-xs text-[var(--muted)] mb-2">Automatically handle sponsored segments using SponsorBlock data</p>
           <Select
-            value={form.sponsorblock_behavior}
-            onChange={e => setForm({ ...form, sponsorblock_behavior: e.target.value })}
+            value={form.sponsorblock_behaviour}
+            onChange={e => setForm({ ...form, sponsorblock_behaviour: e.target.value })}
           >
             <option value="disabled">Disabled</option>
             <option value="delete">Remove segments</option>
             <option value="mark_chapter">Mark as chapters</option>
           </Select>
-          {form.sponsorblock_behavior !== 'disabled' && (
+          {form.sponsorblock_behaviour !== 'disabled' && (
             <div className="flex flex-wrap gap-2 mt-3">
               {sponsorBlockOpts.categories.map((cat: string) => (
                 <button
@@ -389,30 +428,5 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         </button>
       </div>
     </form>
-  )
-}
-
-function ToggleOption({ label, description, checked, onChange }: {
-  label: string
-  description: string
-  checked: boolean
-  onChange: () => void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex-1">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-[var(--muted)]">{description}</p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={onChange}
-        className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${checked ? 'translate-x-4' : ''}`} />
-      </button>
-    </div>
   )
 }

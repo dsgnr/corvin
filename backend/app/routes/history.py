@@ -1,84 +1,81 @@
-import asyncio
-import json
+"""
+History routes.
+"""
 
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-from sse_starlette.sse import EventSourceResponse
+from fastapi import APIRouter, Query, Request
 
-from app.extensions import SessionLocal, get_db
+from app.extensions import ReadSessionLocal
 from app.models.history import History
-from app.services import HistoryService
+from app.schemas.lists import HistoryPaginatedResponse
+from app.sse_hub import Channel
+from app.sse_stream import sse_response, wants_sse
 
 router = APIRouter(prefix="/api/history", tags=["History"])
 
 
-def _get_history_fingerprint(entity_type: str | None, action: str | None) -> tuple:
-    """Get fingerprint for change detection."""
-    with SessionLocal() as db:
-        q = db.query(func.count(History.id), func.max(History.created_at))
+def _fetch_history_paginated(
+    entity_type: str | None,
+    action: str | None,
+    search: str | None,
+    page: int,
+    page_size: int,
+) -> dict:
+    """Fetch paginated history entries."""
+    with ReadSessionLocal() as db:
+        base_query = db.query(History)
         if entity_type:
-            q = q.filter(History.entity_type == entity_type)
+            base_query = base_query.filter(History.entity_type == entity_type)
         if action:
-            q = q.filter(History.action == action)
-        stats = q.first()
-        return (stats[0], str(stats[1]) if stats[1] else None)
+            base_query = base_query.filter(History.action == action)
+        if search:
+            search_pattern = f"%{search}%"
+            base_query = base_query.filter(
+                (History.action.ilike(search_pattern))
+                | (History.entity_type.ilike(search_pattern))
+                | (History.details.ilike(search_pattern))
+            )
 
+        total = base_query.count()
+        total_pages = max(1, (total + page_size - 1) // page_size)
 
-def _get_history_for_stream(
-    entity_type: str | None, action: str | None, limit: int | None
-) -> list[dict]:
-    """Get history data optimised for SSE stream."""
-    with SessionLocal() as db:
-        entries = HistoryService.get_all(
-            db,
-            limit=limit,
-            entity_type=entity_type,
-            action=action,
+        entries = (
+            base_query.order_by(History.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
         )
-        return [e.to_dict() for e in entries]
+
+        return {
+            "entries": [entry.to_dict() for entry in entries],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        }
 
 
-@router.get("/")
+@router.get("", response_model=HistoryPaginatedResponse)
 async def get_history(
     request: Request,
     entity_type: str | None = Query(None),
     action: str | None = Query(None),
-    limit: int | None = Query(None),
-    offset: int = Query(0),
-    db: Session = Depends(get_db),
+    search: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
 ):
-    """Get history entries with optional filtering. Supports SSE streaming."""
-    accept = request.headers.get("accept", "")
-    if "text/event-stream" not in accept:
-        entries = HistoryService.get_all(
-            db,
-            limit=limit,
-            offset=offset,
-            entity_type=entity_type,
-            action=action,
-        )
-        return [e.to_dict() for e in entries]
+    """
+    Get history entries with optional filtering and pagination.
 
-    # SSE stream
-    async def generate():
-        last_fingerprint = None
-        heartbeat_counter = 0
+    Supports two modes:
+    - Regular JSON response for standard requests (with pagination)
+    - Server-Sent Events (SSE) stream for real-time updates when Accept header
+      includes 'text/event-stream'
+    """
+    if not wants_sse(request):
+        return _fetch_history_paginated(entity_type, action, search, page, page_size)
 
-        while True:
-            fingerprint = _get_history_fingerprint(entity_type, action)
-
-            if fingerprint != last_fingerprint:
-                data = _get_history_for_stream(entity_type, action, limit)
-                yield {"data": json.dumps(data, default=str)}
-                last_fingerprint = fingerprint
-                heartbeat_counter = 0
-            else:
-                heartbeat_counter += 1
-                if heartbeat_counter >= 30:
-                    yield {"comment": "heartbeat"}
-                    heartbeat_counter = 0
-
-            await asyncio.sleep(1)
-
-    return EventSourceResponse(generate())
+    return sse_response(
+        request,
+        Channel.HISTORY,
+        lambda: _fetch_history_paginated(entity_type, action, search, page, page_size),
+    )

@@ -1,14 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { api, HistoryEntry, getHistoryStreamUrl } from '@/lib/api'
-import { Loader2, ListVideo, FolderCog, Film, RefreshCw, Download, Trash2, Plus, Edit2, Search } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { api, HistoryEntry, HistoryPaginatedResponse, getHistoryStreamUrl } from '@/lib/api'
+import { useEventSource } from '@/lib/useEventSource'
+import {
+  Loader2,
+  ListVideo,
+  FolderCog,
+  Film,
+  RefreshCw,
+  Download,
+  Trash2,
+  Plus,
+  Edit2,
+  Search,
+} from 'lucide-react'
 import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
 import Link from 'next/link'
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 const actionIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   profile_created: Plus,
@@ -37,56 +48,96 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
+  // Debounce search input and reset page
   useEffect(() => {
-    const eventSource = new EventSource(getHistoryStreamUrl({ limit: 200 }))
+    const timer = setTimeout(() => {
+      if (search !== debouncedSearch) {
+        setDebouncedSearch(search)
+        setCurrentPage(1)
+        setLoading(true)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search, debouncedSearch])
 
-    eventSource.onmessage = (event) => {
-      const data: HistoryEntry[] = JSON.parse(event.data)
-      setEntries(data)
-      setLoading(false)
+  // Set loading when page changes
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+    setLoading(true)
+  }, [])
+
+  // Build SSE stream URL with current filters
+  const streamUrl = useMemo(() => {
+    const params: {
+      entity_type?: string
+      search?: string
+      page: number
+      page_size: number
+    } = {
+      page: currentPage,
+      page_size: pageSize,
     }
+    if (filter !== 'all') {
+      params.entity_type = filter
+    }
+    if (debouncedSearch) {
+      params.search = debouncedSearch
+    }
+    return getHistoryStreamUrl(params)
+  }, [filter, debouncedSearch, currentPage, pageSize])
 
-    eventSource.onerror = () => {
-      // Fallback to regular fetch on SSE error
-      api.getHistory({ limit: 200 }).then(data => {
-        setEntries(data)
+  // Handle SSE message with paginated response
+  const handleMessage = useCallback((data: HistoryPaginatedResponse) => {
+    setEntries(data.entries)
+    setTotal(data.total)
+    setTotalPages(data.total_pages)
+    setLoading(false)
+  }, [])
+
+  // Fallback to REST API on SSE error
+  const handleError = useCallback(() => {
+    const params: {
+      page: number
+      pageSize: number
+      entity_type?: string
+      search?: string
+    } = {
+      page: currentPage,
+      pageSize: pageSize,
+    }
+    if (filter !== 'all') {
+      params.entity_type = filter
+    }
+    if (debouncedSearch) {
+      params.search = debouncedSearch
+    }
+    api.getHistoryPaginated(params)
+      .then(data => {
+        setEntries(data.entries)
+        setTotal(data.total)
+        setTotalPages(data.total_pages)
         setLoading(false)
-      }).catch(err => {
+      })
+      .catch(err => {
         console.error('Failed to fetch history:', err)
         setLoading(false)
       })
-      eventSource.close()
-    }
+  }, [currentPage, pageSize, filter, debouncedSearch])
 
-    return () => {
-      eventSource.close()
-    }
-  }, [])
+  useEventSource(streamUrl, handleMessage, handleError)
 
-  const filteredEntries = entries.filter(e => {
-    if (filter !== 'all' && e.entity_type !== filter) return false
-    if (search) {
-      const searchLower = search.toLowerCase()
-      const details = typeof e.details === 'string' ? e.details : JSON.stringify(e.details)
-      return (
-        e.action.toLowerCase().includes(searchLower) ||
-        e.entity_type.toLowerCase().includes(searchLower) ||
-        details.toLowerCase().includes(searchLower)
-      )
-    }
-    return true
-  })
-
-  const totalPages = Math.ceil(filteredEntries.length / pageSize)
-  const paginatedEntries = filteredEntries.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  // Reset to page 1 when filter or search changes
-  useEffect(() => {
+  // Handle filter change with page reset
+  const handleFilterChange = useCallback((newFilter: string) => {
+    setFilter(newFilter)
     setCurrentPage(1)
-  }, [filter, search])
+    setLoading(true)
+  }, [])
 
   const formatAction = (action: string) => {
     return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -103,14 +154,6 @@ export default function HistoryPage() {
     return details || {}
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -123,7 +166,7 @@ export default function HistoryPage() {
           {['all', 'profile', 'list', 'video'].map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => handleFilterChange(f)}
               className={clsx(
                 'px-3 py-1.5 text-sm rounded-md transition-colors',
                 filter === f
@@ -163,11 +206,20 @@ export default function HistoryPage() {
 
       {/* Entries */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h2 className="font-medium">
+            Entries ({loading ? <Loader2 size={14} className="inline-block animate-spin" /> : total})
+          </h2>
+        </div>
         <div className="divide-y divide-[var(--border)]">
-          {paginatedEntries.length === 0 ? (
+          {loading ? (
+            <div className="p-4 flex items-center justify-center">
+              <Loader2 className="animate-spin text-[var(--muted)]" size={24} />
+            </div>
+          ) : entries.length === 0 ? (
             <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
           ) : (
-            paginatedEntries.map(entry => {
+            entries.map(entry => {
               const ActionIcon = actionIcons[entry.action] || RefreshCw
               const EntityIcon = entityIcons[entry.entity_type] || Film
               const details = getDetails(entry.details)
@@ -176,8 +228,8 @@ export default function HistoryPage() {
 
               // Determine link targets based on entity type and details
               const listId = entry.entity_type === 'list' ? entry.entity_id : (details.list_id as number | undefined)
-              // For video entities, use entity_id; for video_discovered, entity_id may be null
               const videoId = entry.entity_type === 'video' && entry.entity_id ? entry.entity_id : undefined
+              const profileId = entry.entity_type === 'profile' && entry.entity_id ? entry.entity_id : undefined
 
               return (
                 <div key={entry.id} className="p-4 flex items-start gap-3">
@@ -204,12 +256,17 @@ export default function HistoryPage() {
                     </div>
                     {Object.keys(details).length > 0 && (
                       <p className="text-xs text-[var(--muted)] mt-1">
-                        {'name' in details && listId && (
+                        {'name' in details && profileId && (
+                          <Link href={`/profiles?edit=${profileId}`} className="hover:text-[var(--accent)] transition-colors">
+                            {String(details.name)}
+                          </Link>
+                        )}
+                        {'name' in details && listId && !profileId && (
                           <Link href={`/lists/${listId}`} className="hover:text-[var(--accent)] transition-colors">
                             {String(details.name)}
                           </Link>
                         )}
-                        {'name' in details && !listId && (
+                        {'name' in details && !listId && !profileId && (
                           <span>{String(details.name)}</span>
                         )}
                         {'name' in details && 'title' in details && (
@@ -240,7 +297,7 @@ export default function HistoryPage() {
             })
           )}
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
       </div>
     </div>
   )

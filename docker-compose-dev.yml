@@ -13,7 +13,6 @@ services:
       - TZ=UTC
       - DEBUG=true
       - DEBUG_METRICS=1
-      - DEV_MODE=true
 
   frontend:
     build:

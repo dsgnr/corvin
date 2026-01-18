@@ -17,7 +17,7 @@ class TaskResponse(BaseModel):
     error: str | None = None
     retry_count: int = 0
     max_retries: int = 3
-    created_at: str
+    created_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
 
@@ -34,6 +34,16 @@ class TaskLogResponse(BaseModel):
     created_at: str
 
 
+class WorkerStats(BaseModel):
+    """Worker statistics."""
+
+    running: bool
+    paused_sync: bool
+    paused_download: bool
+    current_task_id: int | None = None
+    current_task_type: str | None = None
+
+
 class TaskStatsResponse(BaseModel):
     """Task statistics response."""
 
@@ -41,14 +51,31 @@ class TaskStatsResponse(BaseModel):
     pending_download: int
     running_sync: int
     running_download: int
-    worker: dict | None = None
+    worker: WorkerStats | None = None
+
+
+class TaskStatusList(BaseModel):
+    """List of entity IDs by status."""
+
+    pending: list[int] = []
+    running: list[int] = []
 
 
 class ActiveTasksResponse(BaseModel):
     """Active tasks response."""
 
-    sync: dict
-    download: dict
+    sync: TaskStatusList
+    download: TaskStatusList
+
+
+class TasksPaginatedResponse(BaseModel):
+    """Paginated tasks response."""
+
+    tasks: list[TaskResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class BulkSyncRequest(BaseModel):

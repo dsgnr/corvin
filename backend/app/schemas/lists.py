@@ -2,6 +2,9 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.history import HistoryResponse
+from app.schemas.tasks import ActiveTasksResponse, TaskResponse
+
 
 class ListCreate(BaseModel):
     """List creation request."""
@@ -48,6 +51,7 @@ class ListResponse(BaseModel):
     sync_frequency: str = "daily"
     enabled: bool = True
     auto_download: bool = True
+    deleting: bool = False
     last_synced: str | None = None
     next_sync_at: str | None = None
     description: str | None = None
@@ -55,3 +59,66 @@ class ListResponse(BaseModel):
     tags: list[str] = []
     created_at: str
     updated_at: str
+
+
+class VideoStatsResponse(BaseModel):
+    """Video statistics for a list."""
+
+    total: int
+    downloaded: int
+    failed: int
+    pending: int
+    newest_id: int | None = None
+    last_updated: str | None = None
+
+
+class ListVideoStatsResponse(BaseModel):
+    """Combined stats and active tasks for a list."""
+
+    stats: VideoStatsResponse
+    tasks: ActiveTasksResponse
+    changed_video_ids: list[int] = []
+
+
+class VideoSummary(BaseModel):
+    """Minimal video info for list views."""
+
+    id: int
+    video_id: str
+    title: str
+    duration: int | None = None
+    upload_date: str | None = None
+    media_type: str = "video"
+    thumbnail: str | None = None
+    downloaded: bool = False
+    error_message: str | None = None
+
+
+class VideosPaginatedResponse(BaseModel):
+    """Paginated videos response."""
+
+    videos: list[VideoSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class TasksPaginatedResponse(BaseModel):
+    """Paginated tasks response for a list."""
+
+    tasks: list[TaskResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class HistoryPaginatedResponse(BaseModel):
+    """Paginated history response for a list."""
+
+    entries: list[HistoryResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
