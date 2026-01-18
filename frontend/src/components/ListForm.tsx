@@ -36,63 +36,70 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
   const isEditing = !!list
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[var(--card)] rounded-lg border border-[var(--accent)] p-4 space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
+    >
       <div>
-        <label className="block text-sm font-medium mb-1">Name</label>
+        <label className="mb-1 block text-sm font-medium">Name</label>
         <input
           type="text"
           value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
           required
         />
       </div>
 
       {!isEditing && (
         <div>
-          <label className="block text-sm font-medium mb-1">URL</label>
-          <p className="text-xs text-[var(--muted)] mb-2">YouTube channel or playlist URL to monitor</p>
+          <label className="mb-1 block text-sm font-medium">URL</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            YouTube channel or playlist URL to monitor
+          </p>
           <input
             type="text"
             value={form.url}
-            onChange={e => setForm({ ...form, url: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+            onChange={(e) => setForm({ ...form, url: e.target.value })}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
             placeholder="https://youtube.com/..."
             required
           />
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium mb-1">Type</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Whether this is a channel or playlist</p>
+          <label className="mb-1 block text-sm font-medium">Type</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">Whether this is a channel or playlist</p>
           <Select
             value={form.list_type}
-            onChange={e => setForm({ ...form, list_type: e.target.value })}
+            onChange={(e) => setForm({ ...form, list_type: e.target.value })}
           >
             <option value="channel">Channel</option>
             <option value="playlist">Playlist</option>
           </Select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Profile</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Download settings to use for this list</p>
+          <label className="mb-1 block text-sm font-medium">Profile</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">Download settings to use for this list</p>
           <Select
             value={form.profile_id}
-            onChange={e => setForm({ ...form, profile_id: Number(e.target.value) })}
+            onChange={(e) => setForm({ ...form, profile_id: Number(e.target.value) })}
           >
-            {profiles.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </Select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Sync Frequency</label>
-          <p className="text-xs text-[var(--muted)] mb-2">How often to check for new videos</p>
+          <label className="mb-1 block text-sm font-medium">Sync Frequency</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">How often to check for new videos</p>
           <Select
             value={form.sync_frequency}
-            onChange={e => setForm({ ...form, sync_frequency: e.target.value })}
+            onChange={(e) => setForm({ ...form, sync_frequency: e.target.value })}
           >
             <option value="hourly">Hourly</option>
             <option value="6h">Every 6 hours</option>
@@ -103,18 +110,24 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
           </Select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">From Date</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Only sync videos uploaded after this date</p>
+          <label className="mb-1 block text-sm font-medium">From Date</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Only sync videos uploaded after this date
+          </p>
           <input
             type="date"
-            value={form.from_date ? `${form.from_date.slice(0,4)}-${form.from_date.slice(4,6)}-${form.from_date.slice(6,8)}` : ''}
-            onChange={e => setForm({ ...form, from_date: e.target.value.replace(/-/g, '') })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+            value={
+              form.from_date
+                ? `${form.from_date.slice(0, 4)}-${form.from_date.slice(4, 6)}-${form.from_date.slice(6, 8)}`
+                : ''
+            }
+            onChange={(e) => setForm({ ...form, from_date: e.target.value.replace(/-/g, '') })}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
           />
         </div>
       </div>
 
-      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+      <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <ToggleOption
           label="Enabled"
           description="When disabled, this list will not be synced automatically"
@@ -134,14 +147,14 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+          className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
         >
           <X size={18} />
         </button>
         <button
           type="submit"
           disabled={saving || !form.name || (!isEditing && !form.url) || !form.profile_id}
-          className="p-2 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-50"
+          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
         >
           <Check size={18} />
         </button>

@@ -186,7 +186,10 @@ export default function TasksPage() {
     }
   }
 
-  const handleTaskAction = async (taskId: number, action: 'retry' | 'pause' | 'resume' | 'cancel') => {
+  const handleTaskAction = async (
+    taskId: number,
+    action: 'retry' | 'pause' | 'resume' | 'cancel'
+  ) => {
     try {
       switch (action) {
         case 'retry':
@@ -221,21 +224,21 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
       </div>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Tasks</h1>
         <div className="flex gap-2">
           {hasPendingTasks && (
             <button
               onClick={handlePauseAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--foreground)] border border-[var(--border)] rounded-md transition-colors"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
             >
               <Pause size={14} />
               Pause Queued
@@ -243,21 +246,21 @@ export default function TasksPage() {
           )}
           <button
             onClick={handleResumeAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
           >
             <Play size={14} />
             Resume Paused
           </button>
           <button
             onClick={handleCancelAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--error)] hover:opacity-90 text-white rounded-md transition-colors"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--error)] px-3 py-1.5 text-sm text-white transition-colors hover:opacity-90"
           >
             <Ban size={14} />
             Cancel Queued
           </button>
           <button
             onClick={handleRetryFailed}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--foreground)] border border-[var(--border)] rounded-md transition-colors"
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
           >
             <RotateCcw size={14} />
             Retry Failed
@@ -266,7 +269,7 @@ export default function TasksPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
           label="Syncs"
           value={stats?.pending_sync ?? 0}
@@ -288,17 +291,27 @@ export default function TasksPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          {['all', 'sync', 'download', 'queued', 'paused', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          {[
+            'all',
+            'sync',
+            'download',
+            'queued',
+            'paused',
+            'running',
+            'completed',
+            'failed',
+            'cancelled',
+          ].map((f) => (
             <button
               key={f}
               onClick={() => handleFilterChange(f)}
               className={clsx(
-                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                'rounded-md px-3 py-1.5 text-sm transition-colors',
                 filter === f
                   ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                  : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]'
               )}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -307,13 +320,16 @@ export default function TasksPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <Search
+              size={14}
+              className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+            />
             <input
               type="text"
               placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
             />
           </div>
           <Select
@@ -334,20 +350,22 @@ export default function TasksPage() {
       </div>
 
       {/* Tasks */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)]">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div className="border-b border-[var(--border)] p-4">
           <h2 className="font-medium">Tasks ({total})</h2>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {tasks.length === 0 ? (
-            <p className="p-4 text-[var(--muted)] text-sm">No tasks found</p>
+            <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
           ) : (
-            tasks.map((task) => (
-              <TaskRow key={task.id} task={task} onAction={handleTaskAction} />
-            ))
+            tasks.map((task) => <TaskRow key={task.id} task={task} onAction={handleTaskAction} />)
           )}
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   )
@@ -373,16 +391,16 @@ function StatCard({
   return (
     <div
       className={clsx(
-        'bg-[var(--card)] rounded-lg border p-4',
+        'rounded-lg border bg-[var(--card)] p-4',
         paused ? 'border-[var(--warning)]' : 'border-[var(--border)]'
       )}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon size={18} className={paused ? 'text-[var(--muted)]' : 'text-[var(--accent)]'} />
           <p className="text-sm font-medium">{label}</p>
           {paused && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
+            <span className="rounded bg-[var(--warning)]/20 px-1.5 py-0.5 text-xs text-[var(--warning)]">
               Paused
             </span>
           )}
@@ -390,7 +408,7 @@ function StatCard({
         {paused ? (
           <button
             onClick={onResume}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-[var(--accent)] text-white hover:opacity-90 transition-colors"
+            className="flex items-center gap-1 rounded-md bg-[var(--accent)] px-2 py-1 text-xs text-white transition-colors hover:opacity-90"
           >
             <Play size={12} />
             Resume
@@ -398,7 +416,7 @@ function StatCard({
         ) : (
           <button
             onClick={onPause}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
+            className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
           >
             <Pause size={12} />
             Pause
@@ -427,7 +445,8 @@ function TaskRow({
   onAction: (taskId: number, action: 'retry' | 'pause' | 'resume' | 'cancel') => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const linkHref = task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
+  const linkHref =
+    task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
 
   return (
     <div className="p-4">
@@ -441,16 +460,16 @@ function TaskRow({
               <span className="cursor-default" onClick={() => setExpanded(!expanded)}>
                 {task.task_type === 'sync' ? 'Sync' : 'Download'} •
               </span>{' '}
-              <Link
-                href={linkHref}
-                className="hover:text-[var(--accent)] transition-colors"
-              >
+              <Link href={linkHref} className="transition-colors hover:text-[var(--accent)]">
                 {task.entity_name || `#${task.entity_id}`}
               </Link>
             </p>
             <p className="text-xs text-[var(--muted)]">
               Started{' '}
-              {new Date(task.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+              {new Date(task.created_at).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
               {task.completed_at &&
                 ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
             </p>
@@ -459,7 +478,7 @@ function TaskRow({
         <div className="flex items-center gap-2">
           <span
             className={clsx(
-              'text-xs px-2 py-1 rounded cursor-default',
+              'cursor-default rounded px-2 py-1 text-xs',
               task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
               task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
               task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
@@ -474,14 +493,14 @@ function TaskRow({
             <>
               <button
                 onClick={() => onAction(task.id, 'pause')}
-                className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
                 title="Pause"
               >
                 <Pause size={14} />
               </button>
               <button
                 onClick={() => onAction(task.id, 'cancel')}
-                className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
+                className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--error)]"
                 title="Cancel"
               >
                 <Square size={14} />
@@ -492,24 +511,26 @@ function TaskRow({
             <>
               <button
                 onClick={() => onAction(task.id, 'resume')}
-                className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
+                className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--accent)]"
                 title="Resume"
               >
                 <Play size={14} />
               </button>
               <button
                 onClick={() => onAction(task.id, 'cancel')}
-                className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
+                className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--error)]"
                 title="Cancel"
               >
                 <Square size={14} />
               </button>
             </>
           )}
-          {(task.status === 'failed' || task.status === 'completed' || task.status === 'cancelled') && (
+          {(task.status === 'failed' ||
+            task.status === 'completed' ||
+            task.status === 'cancelled') && (
             <button
               onClick={() => onAction(task.id, 'retry')}
-              className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
               title="Retry"
             >
               <RotateCcw size={14} />
@@ -518,10 +539,12 @@ function TaskRow({
         </div>
       </div>
       {expanded && task.error && (
-        <div className="mt-3 p-3 bg-[var(--error)]/10 rounded text-sm text-[var(--error)]">{task.error}</div>
+        <div className="mt-3 rounded bg-[var(--error)]/10 p-3 text-sm text-[var(--error)]">
+          {task.error}
+        </div>
       )}
       {expanded && task.logs && task.logs.length > 0 && (
-        <div className="mt-3 space-y-1 text-xs font-mono bg-[var(--background)] rounded p-3 max-h-40 overflow-y-auto">
+        <div className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded bg-[var(--background)] p-3 font-mono text-xs">
           {task.logs.map((log) => (
             <div
               key={log.id}

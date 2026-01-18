@@ -9,11 +9,13 @@ import { ToggleOption } from '@/components/ToggleOption'
 
 export default function ProfilesPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
+        </div>
+      }
+    >
       <ProfilesContent />
     </Suspense>
   )
@@ -40,7 +42,7 @@ function ProfilesContent() {
         const editParam = searchParams.get('edit')
         if (editParam) {
           const editId = parseInt(editParam, 10)
-          if (!isNaN(editId) && profilesData.some(p => p.id === editId)) {
+          if (!isNaN(editId) && profilesData.some((p) => p.id === editId)) {
             setEditingId(editId)
           }
         }
@@ -58,7 +60,7 @@ function ProfilesContent() {
     if (!confirm(`Delete profile "${profile.name}"?`)) return
     try {
       await api.deleteProfile(profile.id)
-      setProfiles(profiles.filter(p => p.id !== profile.id))
+      setProfiles(profiles.filter((p) => p.id !== profile.id))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete'
       alert(message)
@@ -69,7 +71,7 @@ function ProfilesContent() {
     try {
       if (id) {
         const updated = await api.updateProfile(id, data)
-        setProfiles(profiles.map(p => p.id === updated.id ? updated : p))
+        setProfiles(profiles.map((p) => (p.id === updated.id ? updated : p)))
       } else {
         const created = await api.createProfile(data)
         setProfiles([...profiles, created])
@@ -89,20 +91,20 @@ function ProfilesContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
       </div>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Profiles</h1>
         {editingId !== 'new' && (
           <button
             onClick={() => setEditingId('new')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
           >
             <Plus size={14} />
             Add Profile
@@ -122,11 +124,11 @@ function ProfilesContent() {
         )}
 
         {profiles.length === 0 && editingId !== 'new' ? (
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-8 text-center">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center">
             <p className="text-[var(--muted)]">No profiles yet. Create one to get started.</p>
           </div>
         ) : (
-          profiles.map(profile => (
+          profiles.map((profile) =>
             editingId === profile.id && profileOptions ? (
               <ProfileForm
                 key={profile.id}
@@ -146,14 +148,19 @@ function ProfilesContent() {
                 onDelete={() => handleDelete(profile)}
               />
             )
-          ))
+          )
         )}
       </div>
     </div>
   )
 }
 
-function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
+function ProfileCard({
+  profile,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
   profile: Profile
   onEdit: () => void
   onDuplicate: () => void
@@ -167,14 +174,17 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   if (profile.sponsorblock_behaviour !== 'disabled') features.push('SponsorBlock')
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-medium">{profile.name}</h3>
-          <p className="text-sm text-[var(--muted)] mt-1 font-mono">{profile.output_template}</p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {features.map(f => (
-              <span key={f} className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
+          <p className="mt-1 font-mono text-sm text-[var(--muted)]">{profile.output_template}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {features.map((f) => (
+              <span
+                key={f}
+                className="rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]"
+              >
                 {f}
               </span>
             ))}
@@ -183,21 +193,21 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
         <div className="flex items-center gap-1">
           <button
             onClick={onDuplicate}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
             title="Duplicate"
           >
             <Copy size={16} />
           </button>
           <button
             onClick={onEdit}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
             title="Edit"
           >
             <Edit2 size={16} />
           </button>
           <button
             onClick={onDelete}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--error)] transition-colors"
+            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--error)]"
             title="Delete"
           >
             <Trash2 size={16} />
@@ -208,7 +218,14 @@ function ProfileCard({ profile, onEdit, onDuplicate, onDelete }: {
   )
 }
 
-function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSave, onCancel }: {
+function ProfileForm({
+  profile,
+  defaults,
+  sponsorBlockOpts,
+  outputFormats,
+  onSave,
+  onCancel,
+}: {
   profile?: Profile
   defaults: ProfileOptions['defaults']
   sponsorBlockOpts: ProfileOptions['sponsorblock']
@@ -240,7 +257,8 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
     include_shorts: profile?.include_shorts ?? defaults.include_shorts,
     download_subtitles: profile?.download_subtitles ?? defaults.download_subtitles,
     embed_subtitles: profile?.embed_subtitles ?? defaults.embed_subtitles,
-    auto_generated_subtitles: profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
+    auto_generated_subtitles:
+      profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
     subtitle_languages: profile?.subtitle_languages || defaults.subtitle_languages,
     audio_track_language: profile?.audio_track_language || defaults.audio_track_language,
     sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
@@ -267,44 +285,54 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
   const selectedCategories = form.sponsorblock_categories
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[var(--card)] rounded-lg border border-[var(--accent)] p-4 space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
+    >
       <div>
-        <label className="block text-sm font-medium mb-1">Name</label>
+        <label className="mb-1 block text-sm font-medium">Name</label>
         <input
           type="text"
           value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Output Template</label>
-        <p className="text-xs text-[var(--muted)] mb-2">yt-dlp output path template. Default outputs in a format Plex likes, (eg. s2026e0101 - title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s</p>
+        <label className="mb-1 block text-sm font-medium">Output Template</label>
+        <p className="mb-2 text-xs text-[var(--muted)]">
+          yt-dlp output path template. Default outputs in a format Plex likes, (eg. s2026e0101 -
+          title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s
+        </p>
         <input
           type="text"
           value={form.output_template}
-          onChange={e => setForm({ ...form, output_template: e.target.value })}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] font-mono text-sm"
+          onChange={(e) => setForm({ ...form, output_template: e.target.value })}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm focus:border-[var(--accent)] focus:outline-none"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Output Format</label>
-        <p className="text-xs text-[var(--muted)] mb-2">Remux video to a specific container format (leave empty to keep original)</p>
+        <label className="mb-1 block text-sm font-medium">Output Format</label>
+        <p className="mb-2 text-xs text-[var(--muted)]">
+          Remux video to a specific container format (leave empty to keep original)
+        </p>
         <Select
           value={form.output_format}
-          onChange={e => setForm({ ...form, output_format: e.target.value })}
+          onChange={(e) => setForm({ ...form, output_format: e.target.value })}
         >
           <option value="">Keep original</option>
           {outputFormats.map((fmt: string) => (
-            <option key={fmt} value={fmt}>{fmt}</option>
+            <option key={fmt} value={fmt}>
+              {fmt}
+            </option>
           ))}
         </Select>
       </div>
 
-      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+      <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <ToggleOption
           label="Embed metadata"
           description="Write video info (title, description, upload date) into the file"
@@ -327,7 +355,7 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         />
       </div>
 
-      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+      <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <p className="text-sm font-medium">Subtitles</p>
 
         <ToggleOption
@@ -348,56 +376,64 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
           label="Auto-generated subtitles"
           description="Include YouTube's auto-generated captions if no manual subtitles exist"
           checked={form.auto_generated_subtitles}
-          onChange={() => setForm({ ...form, auto_generated_subtitles: !form.auto_generated_subtitles })}
+          onChange={() =>
+            setForm({ ...form, auto_generated_subtitles: !form.auto_generated_subtitles })
+          }
         />
 
         <div>
-          <label className="block text-sm font-medium mb-1">Subtitle languages</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Comma-separated language codes (e.g. en, es, fr)</p>
+          <label className="mb-1 block text-sm font-medium">Subtitle languages</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Comma-separated language codes (e.g. en, es, fr)
+          </p>
           <input
             type="text"
             value={form.subtitle_languages}
-            onChange={e => setForm({ ...form, subtitle_languages: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+            onChange={(e) => setForm({ ...form, subtitle_languages: e.target.value })}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
             placeholder="en"
           />
         </div>
       </div>
 
-      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+      <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Audio language</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Preferred audio track language code (leave empty for default)</p>
+          <label className="mb-1 block text-sm font-medium">Audio language</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Preferred audio track language code (leave empty for default)
+          </p>
           <input
             type="text"
             value={form.audio_track_language}
-            onChange={e => setForm({ ...form, audio_track_language: e.target.value })}
-            className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] text-sm"
+            onChange={(e) => setForm({ ...form, audio_track_language: e.target.value })}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
             placeholder="en"
           />
         </div>
       </div>
 
-      <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+      <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <div>
-          <label className="block text-sm font-medium mb-1">SponsorBlock</label>
-          <p className="text-xs text-[var(--muted)] mb-2">Automatically handle sponsored segments using SponsorBlock data</p>
+          <label className="mb-1 block text-sm font-medium">SponsorBlock</label>
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Automatically handle sponsored segments using SponsorBlock data
+          </p>
           <Select
             value={form.sponsorblock_behaviour}
-            onChange={e => setForm({ ...form, sponsorblock_behaviour: e.target.value })}
+            onChange={(e) => setForm({ ...form, sponsorblock_behaviour: e.target.value })}
           >
             <option value="disabled">Disabled</option>
             <option value="delete">Remove segments</option>
             <option value="mark_chapter">Mark as chapters</option>
           </Select>
           {form.sponsorblock_behaviour !== 'disabled' && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               {sponsorBlockOpts.categories.map((cat: string) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => toggleCategory(cat)}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                  className={`rounded px-2 py-1 text-xs transition-colors ${
                     selectedCategories.includes(cat)
                       ? 'bg-[var(--accent)] text-white'
                       : 'bg-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
@@ -415,14 +451,14 @@ function ProfileForm({ profile, defaults, sponsorBlockOpts, outputFormats, onSav
         <button
           type="button"
           onClick={onCancel}
-          className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+          className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
         >
           <X size={18} />
         </button>
         <button
           type="submit"
           disabled={saving || !form.name}
-          className="p-2 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-50"
+          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
         >
           <Check size={18} />
         </button>

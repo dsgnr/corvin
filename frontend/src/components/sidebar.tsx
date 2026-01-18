@@ -62,11 +62,11 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="fixed top-0 left-0 flex flex-col h-screen bg-[var(--card)] border-r border-[var(--border)] z-10 w-[var(--sidebar-width)] transition-[width] duration-300">
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+      <aside className="fixed top-0 left-0 z-10 flex h-screen w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--card)] transition-[width] duration-300">
+        <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
           <span
             className={clsx(
-              'text-lg font-semibold tracking-tight overflow-hidden whitespace-nowrap',
+              'overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap',
               collapsed && mounted ? 'w-0' : 'w-auto'
             )}
           >
@@ -74,14 +74,14 @@ export function Sidebar() {
           </span>
           <button
             onClick={toggleCollapsed}
-            className="p-1.5 rounded-md hover:bg-[var(--card-hover)] text-[var(--prose-color)] hover:text-[var(--foreground)] transition-colors"
+            className="rounded-md p-1.5 text-[var(--prose-color)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
             aria-label={collapsed && mounted ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed && mounted ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
 
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 space-y-1 p-2">
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
             return (
@@ -89,7 +89,7 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-md transition-colors overflow-hidden',
+                  'flex items-center gap-3 overflow-hidden rounded-md px-3 py-2 transition-colors',
                   isActive
                     ? 'bg-[var(--accent)] text-white'
                     : 'text-[var(--prose-color)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
@@ -110,10 +110,10 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-[var(--border)] overflow-hidden">
+        <div className="overflow-hidden border-t border-[var(--border)] p-4">
           <p
             className={clsx(
-              'text-xs text-[var(--prose-color)] whitespace-nowrap',
+              'text-xs whitespace-nowrap text-[var(--prose-color)]',
               collapsed && mounted ? 'opacity-0' : 'opacity-100'
             )}
           >
@@ -122,7 +122,7 @@ export function Sidebar() {
         </div>
       </aside>
       {/* Spacer to push main content */}
-      <div className="shrink-0 w-[var(--sidebar-width)] transition-[width] duration-300" />
+      <div className="w-[var(--sidebar-width)] shrink-0 transition-[width] duration-300" />
     </>
   )
 }

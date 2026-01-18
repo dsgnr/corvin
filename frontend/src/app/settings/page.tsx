@@ -5,9 +5,7 @@ import { ExternalLink } from 'lucide-react'
 
 export default function SettingsPage() {
   const [apiUrl, setApiUrl] = useState(
-    typeof window !== 'undefined'
-      ? localStorage.getItem('corvin_api_url') || ''
-      : ''
+    typeof window !== 'undefined' ? localStorage.getItem('corvin_api_url') || '' : ''
   )
   const [saved, setSaved] = useState(false)
 
@@ -22,31 +20,29 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
 
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 space-y-6">
+      <div className="space-y-6 rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
         <div>
-          <h2 className="font-medium mb-4">API Configuration</h2>
+          <h2 className="mb-4 font-medium">API Configuration</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-[var(--muted)] mb-1">
+              <label className="mb-1 block text-sm text-[var(--muted)]">
                 API URL (leave empty for default)
               </label>
               <input
                 type="url"
                 value={apiUrl}
-                onChange={e => setApiUrl(e.target.value)}
+                onChange={(e) => setApiUrl(e.target.value)}
                 placeholder="http://localhost:5001/api"
-                className="w-full max-w-md px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+                className="w-full max-w-md rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
               />
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Default: http://localhost:5001/api
-              </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Default: http://localhost:5001/api</p>
             </div>
             <button
               onClick={handleSave}
-              className="px-4 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors"
+              className="rounded-md bg-[var(--accent)] px-4 py-2 text-white transition-colors hover:bg-[var(--accent-hover)]"
             >
               {saved ? 'Saved!' : 'Save'}
             </button>
@@ -56,7 +52,7 @@ export default function SettingsPage() {
         <hr className="border-[var(--border)]" />
 
         <div>
-          <h2 className="font-medium mb-4">About</h2>
+          <h2 className="mb-4 font-medium">About</h2>
           <div className="space-y-2 text-sm text-[var(--muted)]">
             <p>Corvin is a video download manager powered by yt-dlp.</p>
             <p className="flex items-center gap-2">
@@ -64,7 +60,7 @@ export default function SettingsPage() {
                 href="https://github.com/yt-dlp/yt-dlp"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[var(--accent)] hover:underline flex items-center gap-1"
+                className="flex items-center gap-1 text-[var(--accent)] hover:underline"
               >
                 yt-dlp Documentation
                 <ExternalLink size={12} />
@@ -76,8 +72,8 @@ export default function SettingsPage() {
         <hr className="border-[var(--border)]" />
 
         <div>
-          <h2 className="font-medium mb-4">Output Template Variables</h2>
-          <div className="text-sm text-[var(--muted)] space-y-1 font-mono bg-[var(--background)] p-4 rounded-md">
+          <h2 className="mb-4 font-medium">Output Template Variables</h2>
+          <div className="space-y-1 rounded-md bg-[var(--background)] p-4 font-mono text-sm text-[var(--muted)]">
             <p>%(title)s - Video title</p>
             <p>%(uploader)s - Channel name</p>
             <p>%(upload_date)s - Upload date (YYYYMMDD)</p>

@@ -21,14 +21,26 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
   const padding = compact ? 'px-1.5 py-0.5' : 'px-2 py-1'
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="flex flex-wrap items-center gap-1.5">
       {labels.format && (
-        <span className={clsx(padding, textSize, 'bg-[var(--muted)]/10 text-[var(--prose-color)] rounded font-medium')}>
+        <span
+          className={clsx(
+            padding,
+            textSize,
+            'rounded bg-[var(--muted)]/10 font-medium text-[var(--prose-color)]'
+          )}
+        >
           {labels.format.toUpperCase()}
         </span>
       )}
       {labels.resolution && (
-        <span className={clsx(padding, textSize, 'bg-[var(--accent)]/10 text-[var(--accent)] rounded font-medium')}>
+        <span
+          className={clsx(
+            padding,
+            textSize,
+            'rounded bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
+          )}
+        >
           {labels.resolution}
         </span>
       )}
@@ -47,17 +59,35 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
         </span>
       )}
       {labels.acodec && (
-        <span className={clsx(padding, textSize, 'bg-[var(--muted)]/10 text-[var(--prose-color)] rounded')}>
+        <span
+          className={clsx(
+            padding,
+            textSize,
+            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+          )}
+        >
           {labels.acodec.toUpperCase()}
         </span>
       )}
       {labels.audio_channels && (
-        <span className={clsx(padding, textSize, 'bg-[var(--muted)]/10 text-[var(--prose-color)] rounded')}>
+        <span
+          className={clsx(
+            padding,
+            textSize,
+            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+          )}
+        >
           {formatAudioChannels(labels.audio_channels)}
         </span>
       )}
       {labels.filesize_approx && (
-        <span className={clsx(padding, textSize, 'bg-[var(--muted)]/10 text-[var(--prose-color)] rounded')}>
+        <span
+          className={clsx(
+            padding,
+            textSize,
+            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+          )}
+        >
           {formatFileSize(labels.filesize_approx)}
         </span>
       )}

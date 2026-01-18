@@ -1,10 +1,5 @@
 import { useEffect, useRef } from 'react'
-import {
-  ActiveTasks,
-  VideoListStats,
-  VideoListStatsUpdate,
-  getVideoListStreamUrl,
-} from './api'
+import { ActiveTasks, VideoListStats, VideoListStatsUpdate, getVideoListStreamUrl } from './api'
 
 /**
  * Check if the current tab is active (visible and focused).

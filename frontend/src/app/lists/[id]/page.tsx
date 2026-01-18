@@ -159,7 +159,7 @@ export default function ListDetailPage() {
         pageSize: tasksPageSize,
         search: debouncedTasksSearch || undefined,
       })
-      .then(data => {
+      .then((data) => {
         setTasks(data.tasks)
         setTasksTotal(data.total)
         setTasksTotalPages(data.total_pages)
@@ -179,7 +179,7 @@ export default function ListDetailPage() {
         pageSize: historyPageSize,
         search: debouncedHistorySearch || undefined,
       })
-      .then(data => {
+      .then((data) => {
         setHistory(data.entries)
         setHistoryTotal(data.total)
         setHistoryTotalPages(data.total_pages)
@@ -196,8 +196,7 @@ export default function ListDetailPage() {
     // For disabled lists (auto_download=false), pending filter should show nothing
     if (filter === 'pending' && !list.auto_download) return null
 
-    const downloaded =
-      filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
+    const downloaded = filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
     const failed = filter === 'failed' ? true : undefined
 
     return getListVideosStreamUrl(listId, {
@@ -225,8 +224,7 @@ export default function ListDetailPage() {
       return
     }
 
-    const downloaded =
-      filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
+    const downloaded = filter === 'downloaded' ? true : filter === 'pending' ? false : undefined
     const failed = filter === 'failed' ? true : undefined
 
     api
@@ -237,7 +235,7 @@ export default function ListDetailPage() {
         failed,
         search: debouncedSearch || undefined,
       })
-      .then(response => {
+      .then((response) => {
         setVideos(response.videos)
         setTotalPages(response.total_pages)
         setTotalVideos(response.total)
@@ -303,12 +301,12 @@ export default function ListDetailPage() {
   }
 
   const handleDownloadPending = async () => {
-    const pendingVideos = videos.filter(v => !v.downloaded && !v.error_message)
+    const pendingVideos = videos.filter((v) => !v.downloaded && !v.error_message)
     if (pendingVideos.length === 0) return
 
     setDownloadingPending(true)
     try {
-      await Promise.all(pendingVideos.map(v => api.triggerVideoDownload(v.id)))
+      await Promise.all(pendingVideos.map((v) => api.triggerVideoDownload(v.id)))
     } catch (err) {
       console.error('Failed to queue downloads:', err)
     } finally {
@@ -317,12 +315,12 @@ export default function ListDetailPage() {
   }
 
   const handleRetryFailed = async () => {
-    const failedVideos = videos.filter(v => !!v.error_message)
+    const failedVideos = videos.filter((v) => !!v.error_message)
     if (failedVideos.length === 0) return
 
     setRetryingFailed(true)
     try {
-      await Promise.all(failedVideos.map(v => api.retryVideo(v.id)))
+      await Promise.all(failedVideos.map((v) => api.retryVideo(v.id)))
       setTimeout(fetchData, 1000)
     } catch (err) {
       console.error('Failed to retry videos:', err)
@@ -342,14 +340,14 @@ export default function ListDetailPage() {
   }
 
   const handleDownload = async (videoId: number) => {
-    setDownloadingIds(prev => new Set(prev).add(videoId))
+    setDownloadingIds((prev) => new Set(prev).add(videoId))
     try {
       await api.triggerVideoDownload(videoId)
-      setQueuedDownloadIds(prev => new Set(prev).add(videoId))
+      setQueuedDownloadIds((prev) => new Set(prev).add(videoId))
     } catch (err) {
       console.error('Failed to queue download:', err)
     } finally {
-      setDownloadingIds(prev => {
+      setDownloadingIds((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
         return next
@@ -390,7 +388,7 @@ export default function ListDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
       </div>
     )
@@ -405,18 +403,17 @@ export default function ListDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center gap-4">
-        <Link href="/lists" className="p-2 rounded-md hover:bg-[var(--card)] transition-colors">
+        <Link href="/lists" className="rounded-md p-2 transition-colors hover:bg-[var(--card)]">
           <ArrowLeft size={20} />
         </Link>
-        <div className="flex-1 flex items-center gap-4">
+        <div className="flex flex-1 items-center gap-4">
           {list.thumbnail && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={list.thumbnail}
               alt={list.name}
-              className="w-16 h-16 rounded-lg object-cover"
+              className="h-16 w-16 rounded-lg object-cover"
               referrerPolicy="no-referrer"
             />
           )}
@@ -429,7 +426,7 @@ export default function ListDetailPage() {
               href={list.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+              className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               {list.url}
               <ExternalLink size={12} />
@@ -438,7 +435,7 @@ export default function ListDetailPage() {
         </div>
         <button
           onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors"
+          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)]"
         >
           <Edit2 size={14} />
           Edit
@@ -447,10 +444,10 @@ export default function ListDetailPage() {
           onClick={handleSync}
           disabled={syncStatus !== 'idle'}
           className={clsx(
-            'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors disabled:opacity-50',
+            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
             syncStatus === 'queued'
               ? 'bg-[var(--warning)] text-black'
-              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white'
+              : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
           )}
         >
           {syncStatus === 'running' ? (
@@ -466,9 +463,13 @@ export default function ListDetailPage() {
           <button
             onClick={handleDownloadPending}
             disabled={downloadingPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
           >
-            {downloadingPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {downloadingPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
             Download {list?.auto_download ? 'Pending' : 'All'}
           </button>
         )}
@@ -476,9 +477,13 @@ export default function ListDetailPage() {
           <button
             onClick={handleRetryFailed}
             disabled={retryingFailed}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
           >
-            {retryingFailed ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {retryingFailed ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
             Retry Failed
           </button>
         )}
@@ -496,14 +501,14 @@ export default function ListDetailPage() {
 
       {/* Description and Tags */}
       {(list.description || (list.tags && list.tags.length > 0)) && (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 space-y-4">
+        <div className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
           {list.description && (
             <div>
-              <h3 className="text-sm font-medium mb-2">Description</h3>
+              <h3 className="mb-2 text-sm font-medium">Description</h3>
               <div className="relative">
                 <div
                   className={clsx(
-                    'text-sm text-[var(--muted)] whitespace-pre-line prose prose-sm prose-invert max-w-none [&_a]:text-[var(--accent)] [&_a]:underline overflow-hidden transition-all',
+                    'prose prose-sm prose-invert max-w-none overflow-hidden text-sm whitespace-pre-line text-[var(--muted)] transition-all [&_a]:text-[var(--accent)] [&_a]:underline',
                     !descriptionExpanded && 'max-h-[3em]'
                   )}
                   dangerouslySetInnerHTML={{ __html: linkifyText(list.description) }}
@@ -511,7 +516,7 @@ export default function ListDetailPage() {
                 {list.description.split('\n').length > 3 || list.description.length > 300 ? (
                   <button
                     onClick={() => setDescriptionExpanded(!descriptionExpanded)}
-                    className="flex items-center gap-1 text-xs text-[var(--accent)] hover:underline mt-2"
+                    className="mt-2 flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
                   >
                     {descriptionExpanded ? (
                       <>
@@ -531,10 +536,13 @@ export default function ListDetailPage() {
           )}
           {list.tags && list.tags.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium mb-2">Tags</h3>
+              <h3 className="mb-2 text-sm font-medium">Tags</h3>
               <div className="flex flex-wrap gap-1.5">
                 {list.tags.map((tag, i) => (
-                  <span key={i} className="text-xs px-2 py-1 rounded bg-[var(--border)] text-[var(--muted)]">
+                  <span
+                    key={i}
+                    className="rounded bg-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]"
+                  >
                     {tag}
                   </span>
                 ))}
@@ -549,38 +557,46 @@ export default function ListDetailPage() {
         <button
           onClick={() => setFilter('all')}
           className={clsx(
-            'p-3 rounded-lg border transition-colors text-left',
+            'rounded-lg border p-3 text-left transition-colors',
             filter === 'all'
-              ? 'bg-[var(--accent)]/10 border-[var(--accent)]'
-              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+              ? 'border-[var(--accent)] bg-[var(--accent)]/10'
+              : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted)]'
           )}
         >
           <p className="text-2xl font-semibold">
-            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.total}
+            {statsLoading ? (
+              <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--border)]" />
+            ) : (
+              stats.total
+            )}
           </p>
           <p className="text-xs text-[var(--muted)]">Total found</p>
         </button>
         <button
           onClick={() => setFilter('downloaded')}
           className={clsx(
-            'p-3 rounded-lg border transition-colors text-left',
+            'rounded-lg border p-3 text-left transition-colors',
             filter === 'downloaded'
-              ? 'bg-[var(--success)]/10 border-[var(--success)]'
-              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+              ? 'border-[var(--success)] bg-[var(--success)]/10'
+              : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted)]'
           )}
         >
           <p className="text-2xl font-semibold text-[var(--success)]">
-            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.downloaded}
+            {statsLoading ? (
+              <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--border)]" />
+            ) : (
+              stats.downloaded
+            )}
           </p>
           <p className="text-xs text-[var(--muted)]">Downloaded</p>
         </button>
         <button
           onClick={() => setFilter('pending')}
           className={clsx(
-            'p-3 rounded-lg border transition-colors text-left',
+            'rounded-lg border p-3 text-left transition-colors',
             filter === 'pending'
-              ? 'bg-[var(--warning)]/10 border-[var(--warning)]'
-              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+              ? 'border-[var(--warning)] bg-[var(--warning)]/10'
+              : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted)]'
           )}
         >
           <p
@@ -590,7 +606,7 @@ export default function ListDetailPage() {
             )}
           >
             {statsLoading ? (
-              <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" />
+              <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--border)]" />
             ) : list?.auto_download ? (
               stats.pending
             ) : (
@@ -604,35 +620,45 @@ export default function ListDetailPage() {
         <button
           onClick={() => setFilter('failed')}
           className={clsx(
-            'p-3 rounded-lg border transition-colors text-left',
+            'rounded-lg border p-3 text-left transition-colors',
             filter === 'failed'
-              ? 'bg-[var(--error)]/10 border-[var(--error)]'
-              : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)]'
+              ? 'border-[var(--error)] bg-[var(--error)]/10'
+              : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted)]'
           )}
         >
           <p className="text-2xl font-semibold text-[var(--error)]">
-            {statsLoading ? <span className="inline-block w-12 h-7 bg-[var(--border)] rounded animate-pulse" /> : stats.failed}
+            {statsLoading ? (
+              <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--border)]" />
+            ) : (
+              stats.failed
+            )}
           </p>
           <p className="text-xs text-[var(--muted)]">Failed</p>
         </button>
       </div>
 
       {/* Videos */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
           <h2 className="font-medium">
             Videos (
             {debouncedSearch ? (
               // When searching, show the count from the paginated response
-              totalVideos ?? <span className="inline-block w-8 h-4 bg-[var(--border)] rounded animate-pulse align-middle" />
+              (totalVideos ?? (
+                <span className="inline-block h-4 w-8 animate-pulse rounded bg-[var(--border)] align-middle" />
+              ))
             ) : statsLoading ? (
-              <span className="inline-block w-8 h-4 bg-[var(--border)] rounded animate-pulse align-middle" />
+              <span className="inline-block h-4 w-8 animate-pulse rounded bg-[var(--border)] align-middle" />
             ) : filter === 'all' ? (
               stats.total
             ) : filter === 'downloaded' ? (
               stats.downloaded
             ) : filter === 'pending' ? (
-              list?.auto_download ? stats.pending : 0
+              list?.auto_download ? (
+                stats.pending
+              ) : (
+                0
+              )
             ) : filter === 'failed' ? (
               stats.failed
             ) : (
@@ -642,32 +668,37 @@ export default function ListDetailPage() {
           </h2>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search
+                size={14}
+                className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+              />
               <input
                 type="text"
                 placeholder="Search videos..."
                 value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
               />
             </div>
             <Select
               value={pageSize}
-              onChange={e => {
+              onChange={(e) => {
                 setPageSize(Number(e.target.value))
                 setCurrentPage(1)
               }}
               fullWidth={false}
             >
-              {PAGE_SIZE_OPTIONS.map(size => (
-                <option key={size} value={size}>{size} rows</option>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size} rows
+                </option>
               ))}
             </Select>
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {videos.length === 0 ? (
-            <p className="p-4 text-[var(--muted)] text-sm">No videos found</p>
+            <p className="p-4 text-sm text-[var(--muted)]">No videos found</p>
           ) : (
             videos.map((video: Video) => (
               <VideoRow
@@ -682,89 +713,107 @@ export default function ListDetailPage() {
             ))
           )}
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* Tasks */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
           <h2 className="font-medium">Tasks ({tasksTotal})</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search
+                size={14}
+                className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+              />
               <input
                 type="text"
                 placeholder="Search tasks..."
                 value={tasksSearch}
-                onChange={e => setTasksSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+                onChange={(e) => setTasksSearch(e.target.value)}
+                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
               />
             </div>
             <Select
               value={tasksPageSize}
-              onChange={e => {
+              onChange={(e) => {
                 setTasksPageSize(Number(e.target.value))
                 setTasksCurrentPage(1)
               }}
               fullWidth={false}
             >
-              {PAGE_SIZE_OPTIONS.map(size => (
-                <option key={size} value={size}>{size} rows</option>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size} rows
+                </option>
               ))}
             </Select>
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {tasks.length === 0 ? (
-            <p className="p-4 text-[var(--muted)] text-sm">No tasks found</p>
+            <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
           ) : (
-            tasks.map(task => (
-              <TaskRow key={task.id} task={task} />
-            ))
+            tasks.map((task) => <TaskRow key={task.id} task={task} />)
           )}
         </div>
-        <Pagination currentPage={tasksCurrentPage} totalPages={tasksTotalPages} onPageChange={setTasksCurrentPage} />
+        <Pagination
+          currentPage={tasksCurrentPage}
+          totalPages={tasksTotalPages}
+          onPageChange={setTasksCurrentPage}
+        />
       </div>
 
       {/* History */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
           <h2 className="font-medium">History ({historyTotal})</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search
+                size={14}
+                className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+              />
               <input
                 type="text"
                 placeholder="Search history..."
                 value={historySearch}
-                onChange={e => setHistorySearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
               />
             </div>
             <Select
               value={historyPageSize}
-              onChange={e => {
+              onChange={(e) => {
                 setHistoryPageSize(Number(e.target.value))
                 setHistoryCurrentPage(1)
               }}
               fullWidth={false}
             >
-              {PAGE_SIZE_OPTIONS.map(size => (
-                <option key={size} value={size}>{size} rows</option>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size} rows
+                </option>
               ))}
             </Select>
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {history.length === 0 ? (
-            <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
+            <p className="p-4 text-sm text-[var(--muted)]">No history entries</p>
           ) : (
-            history.map(entry => (
-              <HistoryRow key={entry.id} entry={entry} />
-            ))
+            history.map((entry) => <HistoryRow key={entry.id} entry={entry} />)
           )}
         </div>
-        <Pagination currentPage={historyCurrentPage} totalPages={historyTotalPages} onPageChange={setHistoryCurrentPage} />
+        <Pagination
+          currentPage={historyCurrentPage}
+          totalPages={historyTotalPages}
+          onPageChange={setHistoryCurrentPage}
+        />
       </div>
     </div>
   )
@@ -798,7 +847,7 @@ function VideoRow({
     if (downloadRunning) {
       return (
         <span title="Downloading...">
-          <Loader2 size={18} className="text-[var(--accent)] animate-spin" />
+          <Loader2 size={18} className="animate-spin text-[var(--accent)]" />
         </span>
       )
     }
@@ -820,58 +869,66 @@ function VideoRow({
   }
 
   return (
-    <div className="p-4 flex items-center gap-4">
+    <div className="flex items-center gap-4 p-4">
       <Link href={`/videos/${video.id}`} className="shrink-0">
         {video.thumbnail ? (
           <img
             src={video.thumbnail}
             alt=""
-            className="w-24 h-14 object-cover rounded bg-[var(--border)] hover:opacity-80 transition-opacity"
+            className="h-14 w-24 rounded bg-[var(--border)] object-cover transition-opacity hover:opacity-80"
           />
         ) : (
-          <div className="w-24 h-14 rounded bg-[var(--border)]" />
+          <div className="h-14 w-24 rounded bg-[var(--border)]" />
         )}
       </Link>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <Link
           href={`/videos/${video.id}`}
-          className="font-medium text-sm hover:text-[var(--accent)] transition-colors line-clamp-1"
+          className="line-clamp-1 text-sm font-medium transition-colors hover:text-[var(--accent)]"
         >
           {video.title}
         </Link>
-        <div className="flex items-center gap-3 mt-1 text-xs text-[var(--muted)]">
-          <span className="px-1.5 py-0.5 bg-[var(--accent)]/20 text-[var(--accent)] rounded text-[10px] font-medium">
+        <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted)]">
+          <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
             {video.media_type}
           </span>
           <span>{formatDuration(video.duration)}</span>
           {video.upload_date && (
-            <span>{new Date(video.upload_date).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}</span>
+            <span>
+              {new Date(video.upload_date).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+            </span>
           )}
           {hasLabels && <VideoLabels labels={video.labels} compact />}
         </div>
-        {progress && progress.status !== 'completed' && progress.status !== 'error' && !video.error_message && (
-          <div className="mt-2 max-w-sm">
-            <DownloadProgress progress={progress} />
-          </div>
-        )}
+        {progress &&
+          progress.status !== 'completed' &&
+          progress.status !== 'error' &&
+          !video.error_message && (
+            <div className="mt-2 max-w-sm">
+              <DownloadProgress progress={progress} />
+            </div>
+          )}
         {video.error_message && (
-          <p className="text-xs text-[var(--error)] mt-1 line-clamp-1">{video.error_message}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{video.error_message}</p>
         )}
       </div>
       <div className="flex items-center gap-2">
         {renderStatusIcon()}
         {!video.downloaded && !downloadRunning && !downloadQueued && (
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDownload() }}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onDownload()
+            }}
             disabled={downloading}
-            className="p-2 rounded-md hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] disabled:opacity-50"
             title="Download"
           >
-            {downloading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Download size={16} />
-            )}
+            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           </button>
         )}
       </div>
@@ -881,29 +938,36 @@ function VideoRow({
 
 function TaskRow({ task }: { task: Task }) {
   return (
-    <div className="p-4 flex items-center gap-3">
+    <div className="flex items-center gap-3 p-4">
       <TaskStatusIcon status={task.status} size={16} />
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">
-          {task.task_type === 'sync' ? 'Sync' : 'Download'} • {task.entity_name || `#${task.entity_id}`}
+          {task.task_type === 'sync' ? 'Sync' : 'Download'} •{' '}
+          {task.entity_name || `#${task.entity_id}`}
         </p>
         <p className="text-xs text-[var(--muted)]">
-          {new Date(task.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-          {task.completed_at && ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+          {new Date(task.created_at).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}
+          {task.completed_at &&
+            ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
         </p>
         {task.error && (
-          <p className="text-xs text-[var(--error)] mt-1 line-clamp-1">{task.error}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{task.error}</p>
         )}
       </div>
-      <span className={clsx(
-        'text-xs px-2 py-1 rounded',
-        task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
-        task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
-        task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
-        task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
-        task.status === 'paused' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
-        task.status === 'cancelled' && 'bg-[var(--border)] text-[var(--muted)]'
-      )}>
+      <span
+        className={clsx(
+          'rounded px-2 py-1 text-xs',
+          task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
+          task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
+          task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
+          task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
+          task.status === 'paused' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
+          task.status === 'cancelled' && 'bg-[var(--border)] text-[var(--muted)]'
+        )}
+      >
         {task.status === 'pending' ? 'queued' : task.status}
       </span>
     </div>
@@ -929,7 +993,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   }
 
   const formatAction = (action: string) => {
-    return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    return action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   }
 
   const getDetails = (details: Record<string, unknown> | string): Record<string, unknown> => {
@@ -950,22 +1014,27 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
 
   return (
-    <div className="p-4 flex items-start gap-3">
-      <div className={clsx(
-        'p-2 rounded-md',
-        isError && 'bg-[var(--error)]/10',
-        isSuccess && 'bg-[var(--success)]/10',
-        !isError && !isSuccess && 'bg-[var(--border)]'
-      )}>
-        <ActionIcon size={14} className={clsx(
-          isError && 'text-[var(--error)]',
-          isSuccess && 'text-[var(--success)]',
-          !isError && !isSuccess && 'text-[var(--muted)]'
-        )} />
+    <div className="flex items-start gap-3 p-4">
+      <div
+        className={clsx(
+          'rounded-md p-2',
+          isError && 'bg-[var(--error)]/10',
+          isSuccess && 'bg-[var(--success)]/10',
+          !isError && !isSuccess && 'bg-[var(--border)]'
+        )}
+      >
+        <ActionIcon
+          size={14}
+          className={clsx(
+            isError && 'text-[var(--error)]',
+            isSuccess && 'text-[var(--success)]',
+            !isError && !isSuccess && 'text-[var(--muted)]'
+          )}
+        />
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{formatAction(entry.action)}</span>
+          <span className="text-sm font-medium">{formatAction(entry.action)}</span>
           <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
             <EntityIcon size={12} />
             {entry.entity_type}
@@ -973,13 +1042,18 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
           </span>
         </div>
         {Object.keys(details).length > 0 && (
-          <p className="text-xs text-[var(--muted)] mt-1">
-            {'name' in details && <span className="pr-1 after:content-['•'] after:ml-1">{String(details.name)}</span>}
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {'name' in details && (
+              <span className="pr-1 after:ml-1 after:content-['•']">{String(details.name)}</span>
+            )}
             {'title' in details && <span>{String(details.title)}</span>}
           </p>
         )}
-        <p className="text-xs text-[var(--muted)] mt-1">
-          {new Date(entry.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          {new Date(entry.created_at).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}
         </p>
       </div>
     </div>

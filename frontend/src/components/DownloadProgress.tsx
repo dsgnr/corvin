@@ -33,9 +33,9 @@ export function DownloadProgress({ progress }: { progress: ProgressData }) {
         {showStats && progress.eta && progress.eta > 0 && <span>{formatEta(progress.eta)}</span>}
         <span className="ml-auto tabular-nums">{Math.round(percent)}%</span>
       </div>
-      <div className="h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
         <div
-          className={`h-full transition-all duration-300 ${isProcessing ? 'bg-[var(--warning)] animate-pulse' : 'bg-[var(--accent)]'}`}
+          className={`h-full transition-all duration-300 ${isProcessing ? 'animate-pulse bg-[var(--warning)]' : 'bg-[var(--accent)]'}`}
           style={{ width: `${percent}%` }}
         />
       </div>

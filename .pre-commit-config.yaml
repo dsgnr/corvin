@@ -5,6 +5,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
+  # Backend: Python linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.13
     hooks:
@@ -14,8 +15,33 @@ repos:
       - id: ruff-format
         files: ^backend/.*\.py$
 
+  # Frontend: ESLint and Prettier
   - repo: local
     hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && npm run lint:fix'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        stages: [pre-commit]
+
+      - id: prettier
+        name: prettier
+        entry: bash -c 'cd frontend && npm run format'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md)$
+        stages: [pre-commit]
+
+      - id: typescript
+        name: typescript
+        entry: bash -c 'cd frontend && npm run typecheck'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+        stages: [pre-commit]
+
       - id: pytest
         name: pytest
         entry: bash -c 'cd backend && uv run pytest'

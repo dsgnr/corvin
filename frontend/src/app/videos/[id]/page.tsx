@@ -48,8 +48,8 @@ export default function VideoDetailPage() {
   // SSE stream for download task status
   const handleTasksMessage = useCallback(
     (tasks: Task[]) => {
-      const isQueued = tasks.some(t => t.status === 'pending' && t.entity_id === videoId)
-      const isRunning = tasks.some(t => t.status === 'running' && t.entity_id === videoId)
+      const isQueued = tasks.some((t) => t.status === 'pending' && t.entity_id === videoId)
+      const isRunning = tasks.some((t) => t.status === 'running' && t.entity_id === videoId)
       setDownloadQueued(isQueued)
       setDownloadRunning(isRunning)
     },
@@ -132,7 +132,7 @@ export default function VideoDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="animate-spin text-[var(--muted)]" size={32} />
       </div>
     )
@@ -147,22 +147,22 @@ export default function VideoDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       {/* Channel Header */}
       <div className="flex items-center gap-4">
         <Link
           href={`/lists/${video.list_id}`}
-          className="p-2 rounded-md hover:bg-[var(--card)] transition-colors"
+          className="rounded-md p-2 transition-colors hover:bg-[var(--card)]"
         >
           <ArrowLeft size={20} />
         </Link>
-        <div className="flex-1 flex items-center gap-4">
+        <div className="flex flex-1 items-center gap-4">
           {list?.thumbnail && (
             <Link href={`/lists/${video.list_id}`}>
               <img
                 src={list.thumbnail}
                 alt={list.name}
-                className="w-12 h-12 rounded-lg object-cover hover:opacity-80 transition-opacity"
+                className="h-12 w-12 rounded-lg object-cover transition-opacity hover:opacity-80"
                 referrerPolicy="no-referrer"
               />
             </Link>
@@ -172,7 +172,7 @@ export default function VideoDetailPage() {
               <ExtractorIcon extractor={list?.extractor} size="md" />
               <Link
                 href={`/lists/${video.list_id}`}
-                className="font-medium hover:text-[var(--accent)] transition-colors"
+                className="font-medium transition-colors hover:text-[var(--accent)]"
               >
                 {list?.name || 'Loading...'}
               </Link>
@@ -182,7 +182,7 @@ export default function VideoDetailPage() {
                 href={list.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+                className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
               >
                 {list.url.length > 50 ? list.url.slice(0, 50) + '...' : list.url}
                 <ExternalLink size={10} />
@@ -193,38 +193,38 @@ export default function VideoDetailPage() {
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Left Column - Thumbnail & Actions */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4 lg:col-span-2">
           {/* Thumbnail with status overlay */}
-          <div className="relative group">
+          <div className="group relative">
             {video.thumbnail ? (
               <img
                 src={video.thumbnail}
                 alt={video.title}
-                className="w-full aspect-video object-cover rounded-lg bg-[var(--card)]"
+                className="aspect-video w-full rounded-lg bg-[var(--card)] object-cover"
               />
             ) : (
-              <div className="w-full aspect-video bg-[var(--card)] rounded-lg flex items-center justify-center">
+              <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-[var(--card)]">
                 <span className="text-[var(--muted)]">No thumbnail</span>
               </div>
             )}
             {/* Duration badge */}
             {video.duration && (
-              <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs rounded">
+              <div className="absolute right-2 bottom-2 rounded bg-black/80 px-1.5 py-0.5 text-xs text-white">
                 {formatDuration(video.duration)}
               </div>
             )}
             {/* Status overlay */}
             <div
               className={clsx(
-                'absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium flex items-center gap-1.5 shadow-lg',
+                'absolute top-2 left-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium shadow-lg',
                 status === 'downloaded' && 'bg-[var(--success)] text-white',
                 status === 'failed' && 'bg-[var(--error)] text-white',
                 status === 'downloading' && 'bg-[var(--accent)] text-white',
                 status === 'queued' && 'bg-[var(--warning)] text-black',
                 status === 'pending' && 'bg-[var(--warning)] text-black',
-                status === 'manual' && 'bg-black/80 text-white border border-[var(--border)]'
+                status === 'manual' && 'border border-[var(--border)] bg-black/80 text-white'
               )}
             >
               {status === 'downloaded' && (
@@ -265,7 +265,7 @@ export default function VideoDetailPage() {
             progress.status !== 'completed' &&
             progress.status !== 'error' &&
             !video.error_message && (
-              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
                 <DownloadProgress progress={progress} />
               </div>
             )}
@@ -276,7 +276,7 @@ export default function VideoDetailPage() {
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
               >
                 {downloading ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -287,13 +287,13 @@ export default function VideoDetailPage() {
               </button>
             )}
             {downloadQueued && !downloadRunning && !video.downloaded && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--warning)] text-black rounded-md">
+              <div className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-1.5 text-sm text-black">
                 <Clock size={14} />
                 Queued
               </div>
             )}
             {downloadRunning && !video.downloaded && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--accent)] text-white rounded-md">
+              <div className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white">
                 <Loader2 size={14} className="animate-spin" />
                 Downloading
               </div>
@@ -302,7 +302,7 @@ export default function VideoDetailPage() {
               <button
                 onClick={handleRetry}
                 disabled={retrying}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--warning)] hover:opacity-90 text-black rounded-md transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-1.5 text-sm text-black transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {retrying ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -316,7 +316,7 @@ export default function VideoDetailPage() {
               href={video.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] rounded-md transition-colors"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)]"
             >
               <ExternalLink size={14} />
               YouTube
@@ -325,8 +325,8 @@ export default function VideoDetailPage() {
 
           {/* Error Message */}
           {video.error_message && (
-            <div className="bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-[var(--error)] font-medium mb-2">
+            <div className="rounded-lg border border-[var(--error)]/30 bg-[var(--error)]/10 p-4">
+              <div className="mb-2 flex items-center gap-2 font-medium text-[var(--error)]">
                 <XCircle size={16} />
                 Download Failed
               </div>
@@ -336,12 +336,12 @@ export default function VideoDetailPage() {
 
           {/* Download Path */}
           {video.download_path && (
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="flex items-center gap-2 text-[var(--muted)] text-sm mb-2">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm text-[var(--muted)]">
                 <FolderOpen size={14} />
                 Download Path
               </div>
-              <p className="text-sm font-mono text-[var(--foreground)] break-all">
+              <p className="font-mono text-sm break-all text-[var(--foreground)]">
                 {video.download_path}
               </p>
             </div>
@@ -349,23 +349,23 @@ export default function VideoDetailPage() {
         </div>
 
         {/* Right Column - Video Info */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="space-y-4 lg:col-span-3">
           {/* Title & Meta */}
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-5">
-            <h1 className="text-xl font-semibold mb-4 leading-tight">{video.title}</h1>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <h1 className="mb-4 text-xl leading-tight font-semibold">{video.title}</h1>
 
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className="px-2 py-1 bg-[var(--accent)]/20 text-[var(--accent)] rounded text-xs font-medium uppercase">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="rounded bg-[var(--accent)]/20 px-2 py-1 text-xs font-medium text-[var(--accent)] uppercase">
                 {video.media_type}
               </span>
               {video.duration && (
-                <span className="flex items-center gap-1.5 px-2 py-1 bg-[var(--border)] rounded text-xs text-[var(--muted)]">
+                <span className="flex items-center gap-1.5 rounded bg-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]">
                   <Timer size={12} />
                   {formatDuration(video.duration)}
                 </span>
               )}
               {video.upload_date && (
-                <span className="flex items-center gap-1.5 px-2 py-1 bg-[var(--border)] rounded text-xs text-[var(--muted)]">
+                <span className="flex items-center gap-1.5 rounded bg-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]">
                   <Calendar size={12} />
                   {new Date(video.upload_date).toLocaleDateString(undefined, {
                     year: 'numeric',
@@ -374,15 +374,15 @@ export default function VideoDetailPage() {
                   })}
                 </span>
               )}
-              <span className="flex items-center gap-1.5 px-2 py-1 bg-[var(--border)] rounded text-xs text-[var(--muted)] font-mono">
+              <span className="flex items-center gap-1.5 rounded bg-[var(--border)] px-2 py-1 font-mono text-xs text-[var(--muted)]">
                 <Hash size={12} />
                 {video.video_id}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm pt-4 border-t border-[var(--border)]">
+            <div className="grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-4 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-[var(--muted)] text-xs mb-1">Added</dt>
+                <dt className="mb-1 text-xs text-[var(--muted)]">Added</dt>
                 <dd>
                   {new Date(video.created_at).toLocaleDateString(undefined, {
                     year: 'numeric',
@@ -392,7 +392,7 @@ export default function VideoDetailPage() {
                 </dd>
               </div>
               <div>
-                <dt className="text-[var(--muted)] text-xs mb-1">Updated</dt>
+                <dt className="mb-1 text-xs text-[var(--muted)]">Updated</dt>
                 <dd>
                   {new Date(video.updated_at).toLocaleDateString(undefined, {
                     year: 'numeric',
@@ -403,7 +403,7 @@ export default function VideoDetailPage() {
               </div>
               {video.retry_count > 0 && (
                 <div>
-                  <dt className="text-[var(--muted)] text-xs mb-1 flex items-center gap-1">
+                  <dt className="mb-1 flex items-center gap-1 text-xs text-[var(--muted)]">
                     <RefreshCw size={10} /> Retries
                   </dt>
                   <dd>{video.retry_count}</dd>
@@ -414,18 +414,18 @@ export default function VideoDetailPage() {
 
           {/* Media Info Labels */}
           {video.downloaded && video.labels && Object.keys(video.labels).length > 0 && (
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-5">
-              <h2 className="font-medium mb-4">Media Info</h2>
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+              <h2 className="mb-4 font-medium">Media Info</h2>
               <VideoLabels labels={video.labels} />
             </div>
           )}
 
           {/* Description */}
           {video.description && (
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-5">
-              <h2 className="font-medium mb-3">Description</h2>
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+              <h2 className="mb-3 font-medium">Description</h2>
               <div
-                className="text-sm text-[var(--muted)] whitespace-pre-wrap break-words leading-relaxed [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:hover:opacity-80"
+                className="text-sm leading-relaxed break-words whitespace-pre-wrap text-[var(--muted)] [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:hover:opacity-80"
                 dangerouslySetInnerHTML={{ __html: linkifyText(video.description) }}
               />
             </div>

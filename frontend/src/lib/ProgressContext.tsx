@@ -158,8 +158,6 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   }, [connect, disconnect])
 
   return (
-    <ProgressContext.Provider value={{ progress, subscribe }}>
-      {children}
-    </ProgressContext.Provider>
+    <ProgressContext.Provider value={{ progress, subscribe }}>{children}</ProgressContext.Provider>
   )
 }

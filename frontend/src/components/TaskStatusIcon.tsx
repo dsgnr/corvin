@@ -18,7 +18,7 @@ export function TaskStatusIcon({ status, size = 18 }: TaskStatusIconProps) {
     case 'failed':
       return <XCircle size={size} className="text-[var(--error)]" />
     case 'running':
-      return <Loader2 size={size} className="text-[var(--accent)] animate-spin" />
+      return <Loader2 size={size} className="animate-spin text-[var(--accent)]" />
     case 'paused':
       return <Pause size={size} className="text-[var(--muted)]" />
     case 'cancelled':

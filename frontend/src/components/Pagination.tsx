@@ -42,7 +42,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-md hover:bg-[var(--card-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="rounded-md p-2 transition-colors hover:bg-[var(--card-hover)] disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft size={16} />
       </button>
@@ -57,10 +57,10 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
             key={`page-${page}`}
             onClick={() => onPageChange(page)}
             className={clsx(
-              'min-w-[32px] h-8 px-2 rounded-md text-sm transition-colors',
+              'h-8 min-w-[32px] rounded-md px-2 text-sm transition-colors',
               currentPage === page
                 ? 'bg-[var(--accent)] text-white'
-                : 'hover:bg-[var(--card-hover)] text-[var(--muted)]'
+                : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'
             )}
           >
             {page}
@@ -71,7 +71,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="p-2 rounded-md hover:bg-[var(--card-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="rounded-md p-2 transition-colors hover:bg-[var(--card-hover)] disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronRight size={16} />
       </button>

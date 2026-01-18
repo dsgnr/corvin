@@ -117,14 +117,15 @@ export default function HistoryPage() {
     if (debouncedSearch) {
       params.search = debouncedSearch
     }
-    api.getHistoryPaginated(params)
-      .then(data => {
+    api
+      .getHistoryPaginated(params)
+      .then((data) => {
         setEntries(data.entries)
         setTotal(data.total)
         setTotalPages(data.total_pages)
         setLoading(false)
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Failed to fetch history:', err)
         setLoading(false)
       })
@@ -140,7 +141,7 @@ export default function HistoryPage() {
   }, [])
 
   const formatAction = (action: string) => {
-    return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    return action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   }
 
   const getDetails = (details: Record<string, unknown> | string): Record<string, unknown> => {
@@ -155,23 +156,23 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">History</h1>
       </div>
 
       {/* Filter */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex gap-2">
-          {['all', 'profile', 'list', 'video'].map(f => (
+          {['all', 'profile', 'list', 'video'].map((f) => (
             <button
               key={f}
               onClick={() => handleFilterChange(f)}
               className={clsx(
-                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                'rounded-md px-3 py-1.5 text-sm transition-colors',
                 filter === f
                   ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)] border border-[var(--border)]'
+                  : 'border border-[var(--border)] bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)]'
               )}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -180,74 +181,91 @@ export default function HistoryPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <Search
+              size={14}
+              className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+            />
             <input
               type="text"
               placeholder="Search history..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] w-64"
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
             />
           </div>
           <Select
             value={pageSize}
-            onChange={e => {
+            onChange={(e) => {
               setPageSize(Number(e.target.value))
               setCurrentPage(1)
             }}
             fullWidth={false}
           >
-            {PAGE_SIZE_OPTIONS.map(size => (
-              <option key={size} value={size}>{size} rows</option>
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size} rows
+              </option>
             ))}
           </Select>
         </div>
       </div>
 
       {/* Entries */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
           <h2 className="font-medium">
-            Entries ({loading ? <Loader2 size={14} className="inline-block animate-spin" /> : total})
+            Entries ({loading ? <Loader2 size={14} className="inline-block animate-spin" /> : total}
+            )
           </h2>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {loading ? (
-            <div className="p-4 flex items-center justify-center">
+            <div className="flex items-center justify-center p-4">
               <Loader2 className="animate-spin text-[var(--muted)]" size={24} />
             </div>
           ) : entries.length === 0 ? (
-            <p className="p-4 text-[var(--muted)] text-sm">No history entries</p>
+            <p className="p-4 text-sm text-[var(--muted)]">No history entries</p>
           ) : (
-            entries.map(entry => {
+            entries.map((entry) => {
               const ActionIcon = actionIcons[entry.action] || RefreshCw
               const EntityIcon = entityIcons[entry.entity_type] || Film
               const details = getDetails(entry.details)
               const isError = entry.action.includes('failed')
-              const isSuccess = entry.action.includes('completed') || entry.action.includes('created')
+              const isSuccess =
+                entry.action.includes('completed') || entry.action.includes('created')
 
               // Determine link targets based on entity type and details
-              const listId = entry.entity_type === 'list' ? entry.entity_id : (details.list_id as number | undefined)
-              const videoId = entry.entity_type === 'video' && entry.entity_id ? entry.entity_id : undefined
-              const profileId = entry.entity_type === 'profile' && entry.entity_id ? entry.entity_id : undefined
+              const listId =
+                entry.entity_type === 'list'
+                  ? entry.entity_id
+                  : (details.list_id as number | undefined)
+              const videoId =
+                entry.entity_type === 'video' && entry.entity_id ? entry.entity_id : undefined
+              const profileId =
+                entry.entity_type === 'profile' && entry.entity_id ? entry.entity_id : undefined
 
               return (
-                <div key={entry.id} className="p-4 flex items-start gap-3">
-                  <div className={clsx(
-                    'p-2 rounded-md',
-                    isError && 'bg-[var(--error)]/10',
-                    isSuccess && 'bg-[var(--success)]/10',
-                    !isError && !isSuccess && 'bg-[var(--border)]'
-                  )}>
-                    <ActionIcon size={16} className={clsx(
-                      isError && 'text-[var(--error)]',
-                      isSuccess && 'text-[var(--success)]',
-                      !isError && !isSuccess && 'text-[var(--muted)]'
-                    )} />
+                <div key={entry.id} className="flex items-start gap-3 p-4">
+                  <div
+                    className={clsx(
+                      'rounded-md p-2',
+                      isError && 'bg-[var(--error)]/10',
+                      isSuccess && 'bg-[var(--success)]/10',
+                      !isError && !isSuccess && 'bg-[var(--border)]'
+                    )}
+                  >
+                    <ActionIcon
+                      size={16}
+                      className={clsx(
+                        isError && 'text-[var(--error)]',
+                        isSuccess && 'text-[var(--success)]',
+                        !isError && !isSuccess && 'text-[var(--muted)]'
+                      )}
+                    />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{formatAction(entry.action)}</span>
+                      <span className="text-sm font-medium">{formatAction(entry.action)}</span>
                       <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
                         <EntityIcon size={12} />
                         {entry.entity_type}
@@ -255,41 +273,56 @@ export default function HistoryPage() {
                       </span>
                     </div>
                     {Object.keys(details).length > 0 && (
-                      <p className="text-xs text-[var(--muted)] mt-1">
+                      <p className="mt-1 text-xs text-[var(--muted)]">
                         {'name' in details && profileId && (
-                          <Link href={`/profiles?edit=${profileId}`} className="hover:text-[var(--accent)] transition-colors">
+                          <Link
+                            href={`/profiles?edit=${profileId}`}
+                            className="transition-colors hover:text-[var(--accent)]"
+                          >
                             {String(details.name)}
                           </Link>
                         )}
                         {'name' in details && listId && !profileId && (
-                          <Link href={`/lists/${listId}`} className="hover:text-[var(--accent)] transition-colors">
+                          <Link
+                            href={`/lists/${listId}`}
+                            className="transition-colors hover:text-[var(--accent)]"
+                          >
                             {String(details.name)}
                           </Link>
                         )}
                         {'name' in details && !listId && !profileId && (
                           <span>{String(details.name)}</span>
                         )}
-                        {'name' in details && 'title' in details && (
-                          <span className="mx-1">•</span>
-                        )}
+                        {'name' in details && 'title' in details && <span className="mx-1">•</span>}
                         {'title' in details && videoId && (
-                          <Link href={`/videos/${videoId}`} className="hover:text-[var(--accent)] transition-colors">
+                          <Link
+                            href={`/videos/${videoId}`}
+                            className="transition-colors hover:text-[var(--accent)]"
+                          >
                             {String(details.title)}
                           </Link>
                         )}
                         {'title' in details && !videoId && listId && (
-                          <Link href={`/lists/${listId}`} className="hover:text-[var(--accent)] transition-colors">
+                          <Link
+                            href={`/lists/${listId}`}
+                            className="transition-colors hover:text-[var(--accent)]"
+                          >
                             {String(details.title)}
                           </Link>
                         )}
                         {'title' in details && !videoId && !listId && (
                           <span>{String(details.title)}</span>
                         )}
-                        {'url' in details && <span className="truncate block">{String(details.url)}</span>}
+                        {'url' in details && (
+                          <span className="block truncate">{String(details.url)}</span>
+                        )}
                       </p>
                     )}
-                    <p className="text-xs text-[var(--muted)] mt-1">
-                      {new Date(entry.created_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      {new Date(entry.created_at).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </p>
                   </div>
                 </div>
@@ -297,7 +330,11 @@ export default function HistoryPage() {
             })
           )}
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
     </div>
   )

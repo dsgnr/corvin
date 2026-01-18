@@ -90,8 +90,10 @@ export const api = {
     return request<TasksPaginatedResponse>(`/tasks?${query}`)
   },
   getTaskStats: () => request<TaskStats>('/tasks/stats'),
-  triggerListSync: (listId: number) => request<Task>(`/tasks/sync/list/${listId}`, { method: 'POST' }),
-  triggerAllSyncs: () => request<{ queued: number; skipped: number }>('/tasks/sync/all', { method: 'POST' }),
+  triggerListSync: (listId: number) =>
+    request<Task>(`/tasks/sync/list/${listId}`, { method: 'POST' }),
+  triggerAllSyncs: () =>
+    request<{ queued: number; skipped: number }>('/tasks/sync/all', { method: 'POST' }),
   triggerVideoDownload: (videoId: number) =>
     request<Task>(`/tasks/download/video/${videoId}`, { method: 'POST' }),
   triggerPendingDownloads: () =>

@@ -16,8 +16,5 @@ export function linkifyText(text: string): string {
 
   // Convert URLs to clickable links
   const urlRegex = /(https?:\/\/[^\s<]+)/g
-  return escaped.replace(
-    urlRegex,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  )
+  return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
 }
