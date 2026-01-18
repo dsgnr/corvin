@@ -516,6 +516,9 @@ class YtDlpService:
         if filesize := info.get("filesize_approx"):
             labels["filesize_approx"] = filesize
 
+        if was_live := info.get("was_live"):
+            labels["was_live"] = was_live
+
         return labels
 
     @staticmethod

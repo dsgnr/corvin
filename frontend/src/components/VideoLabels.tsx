@@ -58,6 +58,11 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           {labels.dynamic_range}
         </span>
       )}
+      {labels.was_live && (
+        <span className={clsx(padding, textSize, 'rounded bg-red-500/10 font-medium text-red-400')}>
+          Was Live
+        </span>
+      )}
       {labels.acodec && (
         <span
           className={clsx(

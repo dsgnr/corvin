@@ -208,6 +208,7 @@ export interface VideoLabels {
   audio_channels?: number
   dynamic_range?: string
   filesize_approx?: number
+  was_live?: boolean
 }
 
 export interface Video {
