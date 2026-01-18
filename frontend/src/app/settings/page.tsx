@@ -73,6 +73,18 @@ export default function SettingsPage() {
 
         <div>
           <h2 className="mb-4 font-medium">Output Template Variables</h2>
+          <p className="mb-3 text-sm text-[var(--muted)]">
+            Common variables for output templates.{' '}
+            <a
+              href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent)] hover:underline"
+            >
+              See full documentation
+              <ExternalLink size={12} className="ml-1 inline" />
+            </a>
+          </p>
           <div className="space-y-1 rounded-md bg-[var(--background)] p-4 font-mono text-sm text-[var(--muted)]">
             <p>%(title)s - Video title</p>
             <p>%(uploader)s - Channel name</p>

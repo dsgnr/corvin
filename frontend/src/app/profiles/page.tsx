@@ -304,7 +304,15 @@ function ProfileForm({
         <label className="mb-1 block text-sm font-medium">Output Template</label>
         <p className="mb-2 text-xs text-[var(--muted)]">
           yt-dlp output path template. Default outputs in a format Plex likes, (eg. s2026e0101 -
-          title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s
+          title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s.{' '}
+          <a
+            href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--accent)] hover:underline"
+          >
+            See yt-dlp docs for all options
+          </a>
         </p>
         <input
           type="text"
