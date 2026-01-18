@@ -42,6 +42,14 @@ repos:
         files: ^frontend/.*\.(ts|tsx)$
         stages: [pre-commit]
 
+      - id: pyright
+        name: pyright
+        entry: bash -c 'cd backend && uv run pyright'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
       - id: pytest
         name: pytest
         entry: bash -c 'cd backend && uv run pytest'
