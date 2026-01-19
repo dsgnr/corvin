@@ -8,7 +8,7 @@ import threading
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
-from sqlalchemy import exists, func
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, load_only
 from sse_starlette.sse import EventSourceResponse
 
@@ -697,12 +697,13 @@ def _delete_list_background(list_id: int, list_name: str):
             )
 
             # Cancel all pending/paused DOWNLOAD tasks in bulk
+            # Use subquery since SQLAlchemy doesn't allow update() after join()
+            video_ids_subquery = select(Video.id).where(Video.list_id == list_id)
             cancelled_download = (
                 db.query(Task)
-                .join(Video, Task.entity_id == Video.id)
                 .filter(
                     Task.task_type == TaskType.DOWNLOAD.value,
-                    Video.list_id == list_id,
+                    Task.entity_id.in_(video_ids_subquery),
                     Task.status.in_(
                         [TaskStatus.PENDING.value, TaskStatus.PAUSED.value]
                     ),
