@@ -33,6 +33,26 @@ THUMBNAIL_ARTWORK_MAP = {
     "0": "banner.jpg",
 }
 
+# Base yt-dlp options shared across all operations
+_BASE_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+}
+
+# Options for metadata extraction (no download)
+_METADATA_OPTS = {
+    **_BASE_OPTS,
+    "skip_download": True,
+    "retries": 10,
+}
+
+# Options for flat/quick extraction (just URLs, no full metadata)
+_FLAT_EXTRACT_OPTS = {
+    **_BASE_OPTS,
+    "extract_flat": True,
+    "ignoreerrors": True,
+}
+
 
 class YtDlpService:
     """
@@ -58,14 +78,11 @@ class YtDlpService:
         logger.info("Extracting metadata from: %s", url)
 
         ydl_opts = {
+            **_METADATA_OPTS,
             "dump_single_json": True,
             "extract_flat": "in_playlist",
             "playlist_items": "0",
-            "retries": 10,
             "simulate": True,
-            "skip_download": True,
-            "quiet": True,
-            "no_warnings": True,
         }
 
         try:
@@ -159,12 +176,7 @@ class YtDlpService:
         Returns:
             List of dicts with 'video_id' and 'url' keys.
         """
-        ydl_opts = {
-            "extract_flat": True,
-            "quiet": True,
-            "no_warnings": True,
-            "ignoreerrors": True,
-        }
+        ydl_opts = {**_FLAT_EXTRACT_OPTS}
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -500,12 +512,7 @@ class YtDlpService:
     @classmethod
     def _fetch_single_video(cls, url: str, from_date_str: str | None) -> dict | None:
         """Fetch full metadata for a single video, filtering by date if specified."""
-        ydl_opts = {
-            "skip_download": True,
-            "quiet": True,
-            "no_warnings": True,
-            "retries": 10,
-        }
+        ydl_opts = {**_METADATA_OPTS}
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -655,9 +662,8 @@ class YtDlpService:
         opts = profile.to_yt_dlp_opts()
         opts.update(
             {
+                **_BASE_OPTS,
                 "outtmpl": output_template,
-                "quiet": True,
-                "no_warnings": True,
                 "ignoreerrors": True,
                 "fragment_retries": 10,
                 "concurrent_fragment_downloads": 5,
