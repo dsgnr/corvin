@@ -258,6 +258,68 @@ class YtDlpService:
         return results
 
     @classmethod
+    def ensure_list_artwork(
+        cls, list_name: str, list_url: str, metadata: dict | None = None
+    ) -> None:
+        """
+        Ensure list artwork exists, downloading if missing.
+
+        Checks for fanart.jpg, poster.jpg, banner.jpg and tvshow.nfo in the
+        list's output directory. Downloads any missing files.
+
+        Args:
+            list_name: Name of the list (used for directory).
+            list_url: URL of the list (used to fetch metadata if needed).
+            metadata: Optional pre-fetched metadata dict. If not provided and
+                     artwork is missing, metadata will be fetched from list_url.
+        """
+        if not list_name:
+            return
+
+        artwork_dir = cls.DEFAULT_OUTPUT_DIR / list_name
+        artwork_files = ["fanart.jpg", "poster.jpg", "banner.jpg"]
+        nfo_file = "tvshow.nfo"
+
+        # Check what's missing
+        missing_artwork = [f for f in artwork_files if not (artwork_dir / f).exists()]
+        missing_nfo = not (artwork_dir / nfo_file).exists()
+
+        if not missing_artwork and not missing_nfo:
+            return  # Everything exists
+
+        # Fetch metadata if not provided
+        if metadata is None:
+            logger.info(
+                "Missing artwork for %s: %s - fetching metadata",
+                list_name,
+                missing_artwork or [nfo_file],
+            )
+            try:
+                metadata = cls.extract_list_metadata(list_url)
+            except Exception as e:
+                logger.warning("Failed to fetch metadata for %s: %s", list_name, e)
+                return
+
+        thumbnails = metadata.get("thumbnails", [])
+
+        # Download missing artwork
+        if missing_artwork and thumbnails:
+            try:
+                results = cls.download_list_artwork(thumbnails, artwork_dir)
+                downloaded = [f for f, ok in results.items() if ok]
+                if downloaded:
+                    logger.info("Downloaded artwork for %s: %s", list_name, downloaded)
+            except Exception as e:
+                logger.warning("Failed to download artwork for %s: %s", list_name, e)
+
+        # Write NFO if missing
+        if missing_nfo:
+            try:
+                cls.write_channel_nfo(metadata, artwork_dir, metadata.get("channel_id"))
+            except Exception as e:
+                logger.warning("Failed to write NFO for %s: %s", list_name, e)
+
+    @classmethod
     def write_channel_nfo(
         cls, metadata: dict, output_dir: Path, channel_id: str | None = None
     ) -> bool:

@@ -15,6 +15,20 @@ from app.extensions import SessionLocal
 logger = get_logger("tasks")
 
 
+def _ensure_list_artwork(video_list) -> None:
+    """
+    Download list artwork if any files are missing.
+
+    Delegates to YtDlpService.ensure_list_artwork.
+
+    Args:
+        video_list: The VideoList instance to check artwork for.
+    """
+    from app.services import YtDlpService
+
+    YtDlpService.ensure_list_artwork(video_list.name, video_list.url)
+
+
 def sync_single_list(list_id: int) -> dict:
     """
     Sync videos for a single list.
@@ -171,6 +185,9 @@ def _execute_sync(list_id: int) -> dict:
         sse_notify(
             Channel.list_videos(list_id), Channel.list_history(list_id), Channel.LISTS
         )
+
+        # Download artwork if missing
+        _ensure_list_artwork(video_list)
 
     logger.info("List '%s' synced: %d new videos", list_name, counters["new"])
     return {"new_videos": counters["new"], "total_found": counters["total"]}

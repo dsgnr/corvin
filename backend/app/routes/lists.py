@@ -424,23 +424,7 @@ def _create_video_list(
     db.refresh(video_list)
 
     # Download artwork
-    thumbnails = list_metadata.get("thumbnails", [])
-    if thumbnails and list_metadata.get("name"):
-        artwork_dir = YtDlpService.DEFAULT_OUTPUT_DIR / list_metadata["name"]
-        try:
-            results = YtDlpService.download_list_artwork(thumbnails, artwork_dir)
-            downloaded = [f for f, ok in results.items() if ok]
-            if downloaded:
-                logger.info(
-                    "Downloaded artwork for %s: %s", video_list.name, downloaded
-                )
-            YtDlpService.write_channel_nfo(
-                list_metadata, artwork_dir, list_metadata.get("channel_id")
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to download artwork for %s: %s", video_list.name, exc
-            )
+    YtDlpService.ensure_list_artwork(video_list.name, video_list.url, list_metadata)
 
     history_details = {"name": video_list.name, "url": video_list.url}
     if bulk:
