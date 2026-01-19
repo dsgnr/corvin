@@ -24,6 +24,24 @@ class ListCreate(BaseModel):
     )
 
 
+class BulkListCreate(BaseModel):
+    """Bulk list creation request."""
+
+    urls: list[str] = Field(..., min_length=1, description="List of URLs to add")
+    profile_id: int = Field(..., description="Profile ID to use for all lists")
+    list_type: str = Field("channel", description="Type: channel or playlist")
+    sync_frequency: str = Field("daily", description="Sync frequency")
+    enabled: bool = Field(True, description="Enable automatic syncing")
+    auto_download: bool = Field(True, description="Auto-download new videos")
+
+
+class BulkListResponse(BaseModel):
+    """Bulk list creation response."""
+
+    created: list["ListResponse"] = []
+    errors: list[dict] = []
+
+
 class ListUpdate(BaseModel):
     """List update request. All fields optional."""
 

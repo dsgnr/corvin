@@ -6,14 +6,25 @@ import {
   VideoList,
   Profile,
   TasksPaginatedResponse,
+  BulkListCreate,
   getListsStreamUrl,
   getTasksStreamUrl,
 } from '@/lib/api'
 import { useEventSource } from '@/lib/useEventSource'
-import { Plus, RefreshCw, Trash2, Edit2, ExternalLink, Loader2, Search } from 'lucide-react'
+import {
+  Plus,
+  RefreshCw,
+  Trash2,
+  Edit2,
+  ExternalLink,
+  Loader2,
+  Search,
+  ListPlus,
+} from 'lucide-react'
 import { clsx } from 'clsx'
 import Link from 'next/link'
 import { ListForm } from '@/components/ListForm'
+import { BulkListForm } from '@/components/BulkListForm'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
 import { ExtractorIcon } from '@/components/ExtractorIcon'
@@ -23,7 +34,7 @@ export default function ListsPage() {
   const [lists, setLists] = useState<VideoList[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<number | 'new' | null>(null)
+  const [editingId, setEditingId] = useState<number | 'new' | 'bulk' | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set())
   const [queuedIds, setQueuedIds] = useState<Set<number>>(new Set())
   const [syncingAll, setSyncingAll] = useState(false)
@@ -134,6 +145,17 @@ export default function ListsPage() {
     }
   }
 
+  const handleBulkSave = async (data: BulkListCreate) => {
+    try {
+      const result = await api.createListsBulk(data)
+      // API now returns 202 with { message, count } - lists are created in background
+      return { created: result.count, errors: [] }
+    } catch (err) {
+      console.error('Failed to bulk save:', err)
+      return { created: 0, errors: [{ url: 'all', error: String(err) }] }
+    }
+  }
+
   const filteredLists = lists
     .filter((list) => {
       if (!search) return true
@@ -201,14 +223,23 @@ export default function ListsPage() {
                 Sync All
               </button>
             )}
-            {editingId !== 'new' && (
-              <button
-                onClick={() => setEditingId('new')}
-                className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
-              >
-                <Plus size={14} />
-                Add List
-              </button>
+            {editingId !== 'new' && editingId !== 'bulk' && (
+              <>
+                <button
+                  onClick={() => setEditingId('bulk')}
+                  className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
+                >
+                  <ListPlus size={14} />
+                  Bulk Add
+                </button>
+                <button
+                  onClick={() => setEditingId('new')}
+                  className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
+                >
+                  <Plus size={14} />
+                  Add List
+                </button>
+              </>
             )}
           </div>
         )}
@@ -225,6 +256,14 @@ export default function ListsPage() {
         </div>
       ) : (
         <div className="space-y-4">
+          {editingId === 'bulk' && (
+            <BulkListForm
+              profiles={profiles}
+              onSave={handleBulkSave}
+              onCancel={() => setEditingId(null)}
+            />
+          )}
+
           {editingId === 'new' && (
             <ListForm
               profiles={profiles}

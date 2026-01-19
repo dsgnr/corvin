@@ -5,15 +5,22 @@ interface ToggleOptionProps {
   description: string
   checked: boolean
   onChange: () => void
+  disabled?: boolean
 }
 
 /**
  * Reusable toggle switch component for boolean options.
  * Used in forms for settings like "enabled", "auto download", etc.
  */
-export function ToggleOption({ label, description, checked, onChange }: ToggleOptionProps) {
+export function ToggleOption({
+  label,
+  description,
+  checked,
+  onChange,
+  disabled,
+}: ToggleOptionProps) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className={`flex items-start justify-between gap-4 ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex-1">
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-[var(--muted)]">{description}</p>
@@ -23,7 +30,8 @@ export function ToggleOption({ label, description, checked, onChange }: ToggleOp
         role="switch"
         aria-checked={checked}
         onClick={onChange}
-        className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${
+        disabled={disabled}
+        className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${
           checked ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
         }`}
       >

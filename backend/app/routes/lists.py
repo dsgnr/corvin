@@ -7,7 +7,7 @@ import json
 import threading
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from sqlalchemy import exists, func
 from sqlalchemy.orm import Session, load_only
 from sse_starlette.sse import EventSourceResponse
@@ -22,6 +22,7 @@ from app.models.task import Task, TaskStatus, TaskType
 from app.models.video import Video
 from app.schemas.common import DeletionStartedResponse
 from app.schemas.lists import (
+    BulkListCreate,
     HistoryPaginatedResponse,
     ListCreate,
     ListResponse,
@@ -350,33 +351,57 @@ def _fetch_list_history(
         }
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=ListResponse)
-def create_list(payload: ListCreate, db: Session = Depends(get_db)):
-    """Create a new list."""
-    if not db.get(Profile, payload.profile_id):
-        raise NotFoundError("Profile", payload.profile_id)
+def _create_video_list(
+    db: Session,
+    url: str,
+    name: str | None,
+    list_type: str,
+    profile_id: int,
+    sync_frequency: str | None = None,
+    enabled: bool = True,
+    auto_download: bool = False,
+    from_date: str | None = None,
+    blacklist_regex: str | None = None,
+    bulk: bool = False,
+) -> VideoList:
+    """
+    Create a VideoList with metadata extraction, artwork download, and history logging.
 
-    if db.query(VideoList).filter_by(url=payload.url).first():
-        raise ConflictError("List with this URL already exists")
+    Args:
+        db: Database session
+        url: The list URL
+        name: Optional name (if None, derived from metadata or URL)
+        list_type: Type of list (channel, playlist, etc.)
+        profile_id: Associated profile ID
+        sync_frequency: How often to sync
+        enabled: Whether the list is enabled
+        auto_download: Whether to auto-download new videos
+        from_date: Optional date filter string
+        blacklist_regex: Optional regex for blacklisting videos
+        bulk: Whether this is part of a bulk creation (for history logging)
 
-    from_date = parse_from_date(payload.from_date)
-
+    Returns:
+        The created VideoList instance
+    """
     list_metadata: dict = {}
     try:
-        list_metadata = YtDlpService.extract_list_metadata(payload.url)
+        list_metadata = YtDlpService.extract_list_metadata(url)
     except Exception as exc:
-        logger.warning("Failed to fetch metadata for %s: %s", payload.url, exc)
+        logger.warning("Failed to fetch metadata for %s: %s", url, exc)
+
+    # Use provided name, metadata name, or derive from URL
+    resolved_name = name or list_metadata.get("name") or url.split("/")[-1][:50]
 
     video_list = VideoList(
-        name=payload.name,
-        url=payload.url,
-        list_type=payload.list_type,
-        profile_id=payload.profile_id,
-        from_date=from_date,
-        sync_frequency=payload.sync_frequency,
-        enabled=payload.enabled,
-        auto_download=payload.auto_download,
-        blacklist_regex=payload.blacklist_regex,
+        name=resolved_name,
+        url=url,
+        list_type=list_type,
+        profile_id=profile_id,
+        from_date=parse_from_date(from_date) if from_date else None,
+        sync_frequency=sync_frequency,
+        enabled=enabled,
+        auto_download=auto_download,
+        blacklist_regex=blacklist_regex,
         description=list_metadata.get("description"),
         thumbnail=list_metadata.get("thumbnail"),
         tags=",".join(list_metadata.get("tags", [])[:20])
@@ -408,21 +433,148 @@ def create_list(payload: ListCreate, db: Session = Depends(get_db)):
                 "Failed to download artwork for %s: %s", video_list.name, exc
             )
 
+    history_details = {"name": video_list.name, "url": video_list.url}
+    if bulk:
+        history_details["bulk"] = True
+
     HistoryService.log(
         db,
         HistoryAction.LIST_CREATED,
         "list",
         video_list.id,
-        {"name": video_list.name, "url": video_list.url},
+        history_details,
     )
 
-    if video_list.enabled:
-        enqueue_task(TaskType.SYNC.value, video_list.id)
-        logger.info("Auto-triggered sync for new list: %s", video_list.name)
+    enqueue_task(TaskType.SYNC.value, video_list.id)
+    logger.info("Auto-triggered sync for new list: %s", video_list.name)
 
-    logger.info("Created list: %s", video_list.name)
+    log_suffix = " (bulk)" if bulk else ""
+    logger.info("Created list%s: %s", log_suffix, video_list.name)
+
+    return video_list
+
+
+def _create_video_list_background(
+    url: str,
+    name: str | None,
+    list_type: str,
+    profile_id: int,
+    sync_frequency: str | None,
+    enabled: bool,
+    auto_download: bool,
+    from_date: str | None,
+    blacklist_regex: str | None,
+    bulk: bool = False,
+):
+    """Create a video list in a background thread."""
+    with SessionLocal() as db:
+        try:
+            _create_video_list(
+                db=db,
+                url=url,
+                name=name,
+                list_type=list_type,
+                profile_id=profile_id,
+                sync_frequency=sync_frequency,
+                enabled=enabled,
+                auto_download=auto_download,
+                from_date=from_date,
+                blacklist_regex=blacklist_regex,
+                bulk=bulk,
+            )
+            notify(Channel.LISTS)
+        except Exception as exc:
+            logger.error("Failed to create list for %s: %s", url, exc)
+            db.rollback()
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ListResponse)
+def create_list(
+    payload: ListCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a new list."""
+    if not db.get(Profile, payload.profile_id):
+        raise NotFoundError("Profile", payload.profile_id)
+
+    if db.query(VideoList).filter_by(url=payload.url).first():
+        raise ConflictError("List with this URL already exists")
+
+    video_list = _create_video_list(
+        db=db,
+        url=payload.url,
+        name=payload.name,
+        list_type=payload.list_type,
+        profile_id=payload.profile_id,
+        sync_frequency=payload.sync_frequency,
+        enabled=payload.enabled,
+        auto_download=payload.auto_download,
+        from_date=payload.from_date,
+        blacklist_regex=payload.blacklist_regex,
+    )
+
     notify(Channel.LISTS)
     return video_list.to_dict()
+
+
+def _create_lists_bulk_background(
+    urls: list[str],
+    profile_id: int,
+    list_type: str,
+    sync_frequency: str,
+    enabled: bool,
+    auto_download: bool,
+):
+    """Create multiple lists in a background thread."""
+    with SessionLocal() as db:
+        for url in urls:
+            url = url.strip()
+            if not url:
+                continue
+
+            if db.query(VideoList).filter_by(url=url).first():
+                logger.warning("Skipping duplicate URL: %s", url)
+                continue
+
+            try:
+                _create_video_list(
+                    db=db,
+                    url=url,
+                    name=None,
+                    list_type=list_type,
+                    profile_id=profile_id,
+                    sync_frequency=sync_frequency,
+                    enabled=enabled,
+                    auto_download=auto_download,
+                    bulk=True,
+                )
+                notify(Channel.LISTS)
+            except Exception as exc:
+                db.rollback()
+                logger.error("Failed to create list for %s: %s", url, exc)
+
+
+@router.post("/bulk", status_code=status.HTTP_202_ACCEPTED)
+def create_lists_bulk(
+    payload: BulkListCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Create multiple lists from a list of URLs."""
+    if not db.get(Profile, payload.profile_id):
+        raise NotFoundError("Profile", payload.profile_id)
+
+    background_tasks.add_task(
+        _create_lists_bulk_background,
+        payload.urls,
+        payload.profile_id,
+        payload.list_type,
+        payload.sync_frequency,
+        payload.enabled,
+        payload.auto_download,
+    )
+
+    return {"message": "Bulk list creation started", "count": len(payload.urls)}
 
 
 @router.get("", response_model=list[ListResponse])

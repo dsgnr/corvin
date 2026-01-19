@@ -5,7 +5,8 @@ function getApiBase(): string {
   if (typeof window !== 'undefined') {
     return `${window.location.protocol}//${window.location.hostname}:5000/api`
   }
-  return 'http://localhost:5000/api'
+  // Server-side: use Docker service name
+  return process.env.INTERNAL_API_BASE || 'http://backend:5000/api'
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -42,6 +43,8 @@ export const api = {
   getList: (id: number) => request<VideoList>(`/lists/${id}`),
   createList: (data: Partial<VideoList>) =>
     request<VideoList>('/lists', { method: 'POST', body: JSON.stringify(data) }),
+  createListsBulk: (data: BulkListCreate) =>
+    request<BulkListResponse>('/lists/bulk', { method: 'POST', body: JSON.stringify(data) }),
   updateList: (id: number, data: Partial<VideoList>) =>
     request<VideoList>(`/lists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteList: (id: number) => request<void>(`/lists/${id}`, { method: 'DELETE' }),
@@ -494,6 +497,20 @@ export interface ScheduleCreate {
   days_of_week: string[]
   start_time: string
   end_time: string
+}
+
+export interface BulkListCreate {
+  urls: string[]
+  profile_id: number
+  list_type: string
+  sync_frequency: string
+  enabled: boolean
+  auto_download: boolean
+}
+
+export interface BulkListResponse {
+  message: string
+  count: number
 }
 
 export interface ScheduleStatus {

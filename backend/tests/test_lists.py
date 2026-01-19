@@ -120,6 +120,190 @@ class TestCreateList:
         assert response.status_code == 400
 
 
+class TestCreateListsBulk:
+    """Tests for POST /api/lists/bulk."""
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_success(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create request (async)."""
+        mock_metadata.return_value = {"name": "Auto Name"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": [
+                    "https://youtube.com/c/channel1",
+                    "https://youtube.com/c/channel2",
+                ],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+
+        assert response.status_code == 202
+        data = response.json()
+        assert "message" in data
+        assert data["count"] == 2
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_with_metadata_name(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create request."""
+        mock_metadata.return_value = {"name": "Channel From Metadata"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/channel1"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_fallback_name_from_url(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create request."""
+        mock_metadata.return_value = {}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/mychannel"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_skips_duplicates(
+        self, mock_enqueue, mock_metadata, client, sample_profile, sample_list
+    ):
+        """Should accept bulk create request (duplicates handled in background)."""
+        mock_metadata.return_value = {"name": "New Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": [
+                    "https://youtube.com/c/testchannel",  # Duplicate from sample_list
+                    "https://youtube.com/c/newchannel",
+                ],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 2  # Count is URLs submitted, not created
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_skips_empty_urls(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create request."""
+        mock_metadata.return_value = {"name": "Valid Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": [
+                    "",
+                    "   ",
+                    "https://youtube.com/c/valid",
+                ],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 3  # Count is URLs submitted
+
+    def test_bulk_create_invalid_profile(self, client):
+        """Should reject bulk create with non-existent profile."""
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/channel1"],
+                "profile_id": 9999,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+        assert response.status_code == 404
+
+    def test_bulk_create_empty_urls(self, client, sample_profile):
+        """Should reject empty URLs list."""
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": [],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+            },
+        )
+        assert response.status_code == 400
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_playlist_type(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create for playlists."""
+        mock_metadata.return_value = {"name": "My Playlist"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/playlist?list=PLxxx"],
+                "profile_id": sample_profile,
+                "list_type": "playlist",
+                "sync_frequency": "weekly",
+                "enabled": True,
+                "auto_download": False,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+
 class TestListAll:
     """Tests for GET /api/lists."""
 
