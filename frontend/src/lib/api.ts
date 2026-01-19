@@ -46,6 +46,15 @@ export const api = {
     request<VideoList>(`/lists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteList: (id: number) => request<void>(`/lists/${id}`, { method: 'DELETE' }),
 
+  // Download Schedules
+  getSchedules: () => request<DownloadSchedule[]>('/schedules'),
+  getScheduleStatus: () => request<ScheduleStatus>('/schedules/status'),
+  createSchedule: (data: ScheduleCreate) =>
+    request<DownloadSchedule>('/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id: number, data: Partial<ScheduleCreate>) =>
+    request<DownloadSchedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSchedule: (id: number) => request<void>(`/schedules/${id}`, { method: 'DELETE' }),
+
   // Videos
   getVideoListStats: (listId: number) =>
     request<{ stats: VideoListStats; tasks: ActiveTasks }>(`/lists/${listId}/videos/stats`),
@@ -268,6 +277,7 @@ export interface TaskStats {
   pending_download: number
   running_sync: number
   running_download: number
+  schedule_paused?: boolean
   worker?: {
     running_sync: number
     running_download: number
@@ -465,6 +475,30 @@ export interface SponsorBlockOptions {
   behaviours: string[]
   categories: string[]
   category_labels: Record<string, string>
+}
+
+export interface DownloadSchedule {
+  id: number
+  name: string
+  enabled: boolean
+  days_of_week: string[]
+  start_time: string
+  end_time: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduleCreate {
+  name: string
+  enabled?: boolean
+  days_of_week: string[]
+  start_time: string
+  end_time: string
+}
+
+export interface ScheduleStatus {
+  downloads_allowed: boolean
+  active_schedules: number
 }
 
 export interface ProfileDefaults {

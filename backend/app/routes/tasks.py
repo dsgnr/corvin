@@ -220,6 +220,10 @@ async def task_stats(request: Request):
             worker = get_worker()
             if worker:
                 stats["worker"] = worker.get_stats()
+            # Check if downloads are paused due to schedule
+            from app.models.download_schedule import DownloadSchedule
+
+            stats["schedule_paused"] = not DownloadSchedule.is_download_allowed(db)
             return stats
 
     async def stream():
@@ -233,6 +237,10 @@ async def task_stats(request: Request):
                 worker = get_worker()
                 if worker:
                     stats["worker"] = worker.get_stats()
+                # Check if downloads are paused due to schedule
+                from app.models.download_schedule import DownloadSchedule
+
+                stats["schedule_paused"] = not DownloadSchedule.is_download_allowed(db)
                 return stats
 
         # Send initial data immediately

@@ -52,6 +52,7 @@ class TaskStatsResponse(BaseModel):
     running_sync: int
     running_download: int
     worker: WorkerStats | None = None
+    schedule_paused: bool = False
 
 
 class TaskStatusList(BaseModel):

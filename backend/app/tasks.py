@@ -535,6 +535,7 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
     Note: Videos from lists with auto_download=False are excluded from automatic
     scheduling. They must be manually selected for download.
     Blacklisted videos are also excluded from automatic scheduling.
+    Downloads are only scheduled if allowed by download schedules.
 
     Args:
         video_ids: Specific video IDs to download, or None for all pending.
@@ -543,9 +544,15 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
         Dictionary with queued/skipped counts.
     """
     from app.models import Video, VideoList
+    from app.models.download_schedule import DownloadSchedule
     from app.models.task import TaskType
 
     with SessionLocal() as db:
+        # Check if downloads are allowed by schedule (only for automatic scheduling)
+        if video_ids is None and not DownloadSchedule.is_download_allowed(db):
+            logger.info("Downloads not allowed by schedule, skipping")
+            return {"queued": 0, "skipped": 0, "tasks": [], "reason": "schedule"}
+
         if video_ids:
             # Validate video IDs exist and are not downloaded
             videos = (

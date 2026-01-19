@@ -117,7 +117,16 @@ def _add_middleware(app: FastAPI) -> None:
 
 def _register_routes(app: FastAPI) -> None:
     """Register all API route routers and the health check endpoint."""
-    from app.routes import errors, history, lists, profiles, progress, tasks, videos
+    from app.routes import (
+        errors,
+        history,
+        lists,
+        profiles,
+        progress,
+        schedules,
+        tasks,
+        videos,
+    )
 
     app.include_router(profiles.router)
     app.include_router(lists.router)
@@ -125,6 +134,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(history.router)
     app.include_router(tasks.router)
     app.include_router(progress.router)
+    app.include_router(schedules.router)
     errors.register_exception_handlers(app)
 
     @app.get("/health", tags=["Health"])

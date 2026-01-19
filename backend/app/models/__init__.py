@@ -5,6 +5,7 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 # Models must be imported after Base is defined so they can inherit from it
+from app.models.download_schedule import DownloadSchedule  # noqa: E402
 from app.models.history import History, HistoryAction  # noqa: E402
 from app.models.profile import (  # noqa: E402
     SPONSORBLOCK_CATEGORIES,
@@ -18,6 +19,7 @@ from app.models.video_list import VideoList  # noqa: E402
 
 __all__ = [
     "Base",
+    "DownloadSchedule",
     "Profile",
     "SponsorBlockBehaviour",
     "SPONSORBLOCK_CATEGORIES",

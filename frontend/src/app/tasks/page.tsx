@@ -214,6 +214,7 @@ export default function TasksPage() {
   const hasPendingTasks = (stats?.pending_sync ?? 0) + (stats?.pending_download ?? 0) > 0
   const syncPaused = stats?.worker?.sync_paused ?? false
   const downloadPaused = stats?.worker?.download_paused ?? false
+  const schedulePaused = stats?.schedule_paused ?? false
 
   // Handle filter change with page reset
   const handleFilterChange = useCallback((newFilter: string) => {
@@ -285,6 +286,7 @@ export default function TasksPage() {
           running={stats?.running_download ?? 0}
           icon={Download}
           paused={downloadPaused}
+          schedulePaused={schedulePaused}
           onPause={handlePauseDownload}
           onResume={handleResumeDownload}
         />
@@ -377,6 +379,7 @@ function StatCard({
   running,
   icon: Icon,
   paused,
+  schedulePaused,
   onPause,
   onResume,
 }: {
@@ -385,20 +388,31 @@ function StatCard({
   running: number
   icon: React.ComponentType<{ size?: number; className?: string }>
   paused: boolean
+  schedulePaused?: boolean
   onPause: () => void
   onResume: () => void
 }) {
+  const effectivelyPaused = paused || schedulePaused
+
   return (
     <div
       className={clsx(
         'rounded-lg border bg-[var(--card)] p-4',
-        paused ? 'border-[var(--warning)]' : 'border-[var(--border)]'
+        effectivelyPaused ? 'border-[var(--warning)]' : 'border-[var(--border)]'
       )}
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon size={18} className={paused ? 'text-[var(--muted)]' : 'text-[var(--accent)]'} />
+          <Icon
+            size={18}
+            className={effectivelyPaused ? 'text-[var(--muted)]' : 'text-[var(--accent)]'}
+          />
           <p className="text-sm font-medium">{label}</p>
+          {schedulePaused && !paused && (
+            <span className="rounded bg-[var(--warning)]/20 px-1.5 py-0.5 text-xs text-[var(--warning)]">
+              Paused with schedules
+            </span>
+          )}
           {paused && (
             <span className="rounded bg-[var(--warning)]/20 px-1.5 py-0.5 text-xs text-[var(--warning)]">
               Paused
@@ -413,7 +427,7 @@ function StatCard({
             <Play size={12} />
             Resume
           </button>
-        ) : (
+        ) : schedulePaused ? null : (
           <button
             onClick={onPause}
             className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
