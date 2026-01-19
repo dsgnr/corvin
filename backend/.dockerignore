@@ -16,3 +16,4 @@ venv
 tests
 Dockerfile*
 *.md
+.venv
