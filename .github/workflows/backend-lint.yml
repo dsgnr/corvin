@@ -43,7 +43,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install dependencies
-        run: uv sync --frozen --dev
+        run: uv sync --frozen --extra dev
 
       - name: Pyright
         run: uv run pyright

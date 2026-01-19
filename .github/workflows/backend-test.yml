@@ -20,4 +20,5 @@ jobs:
           python-version: '3.13'
 
       - name: Run tests
-        run: uv run --frozen pytest
+        working-directory: backend
+        run: uv run --frozen --extra dev pytest
