@@ -318,10 +318,19 @@ def _fetch_list_history(
     list_id: int, page: int, page_size: int, search: str | None
 ) -> dict:
     """Fetch paginated history for a list."""
+    from sqlalchemy import or_
+
     with ReadSessionLocal() as db:
+        # Include both list events and video events for this list
+        # Video events store list_id in the details JSON
         query = db.query(History).filter(
-            History.entity_type == "list",
-            History.entity_id == list_id,
+            or_(
+                # List-level events
+                (History.entity_type == "list") & (History.entity_id == list_id),
+                # Video events that belong to this list (stored in details.list_id)
+                (History.entity_type == "video")
+                & (History.details.like(f'%"list_id": {list_id}%')),
+            )
         )
 
         if search:
@@ -905,6 +914,7 @@ def _fetch_videos_paginated(
                     Video.downloaded,
                     Video.blacklisted,
                     Video.error_message,
+                    Video.labels,
                 )
             )
             .order_by(Video.upload_date.desc().nulls_last(), Video.id.desc())
@@ -926,6 +936,7 @@ def _fetch_videos_paginated(
                 "downloaded": v.downloaded,
                 "blacklisted": v.blacklisted,
                 "error_message": v.error_message,
+                "labels": v.labels or {},
             }
             for v in rows
         ]

@@ -48,7 +48,8 @@ export default function VideoDetailPage() {
 
   // SSE stream for download task status
   const handleTasksMessage = useCallback(
-    (tasks: Task[]) => {
+    (data: { tasks: Task[] }) => {
+      const tasks = data.tasks || []
       const isQueued = tasks.some((t) => t.status === 'pending' && t.entity_id === videoId)
       const isRunning = tasks.some((t) => t.status === 'running' && t.entity_id === videoId)
       setDownloadQueued(isQueued)
@@ -326,24 +327,26 @@ export default function VideoDetailPage() {
                 Retry
               </button>
             )}
-            <button
-              onClick={handleToggleBlacklist}
-              disabled={togglingBlacklist}
-              className={clsx(
-                'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
-                video.blacklisted
-                  ? 'border-[var(--muted)] bg-[var(--muted)]/10 text-[var(--muted)] hover:bg-[var(--muted)]/20'
-                  : 'border-[var(--border)] bg-[var(--card)] hover:bg-[var(--card-hover)]'
-              )}
-              title={video.blacklisted ? 'Remove from blacklist' : 'Add to blacklist'}
-            >
-              {togglingBlacklist ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <CircleSlash size={14} />
-              )}
-              {video.blacklisted ? 'Unblacklist' : 'Blacklist'}
-            </button>
+            {!video.downloaded && (
+              <button
+                onClick={handleToggleBlacklist}
+                disabled={togglingBlacklist}
+                className={clsx(
+                  'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
+                  video.blacklisted
+                    ? 'border-[var(--muted)] bg-[var(--muted)]/10 text-[var(--muted)] hover:bg-[var(--muted)]/20'
+                    : 'border-[var(--border)] bg-[var(--card)] hover:bg-[var(--card-hover)]'
+                )}
+                title={video.blacklisted ? 'Remove from blacklist' : 'Add to blacklist'}
+              >
+                {togglingBlacklist ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <CircleSlash size={14} />
+                )}
+                {video.blacklisted ? 'Unblacklist' : 'Blacklist'}
+              </button>
+            )}
             <a
               href={video.url}
               target="_blank"

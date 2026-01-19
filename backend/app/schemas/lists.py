@@ -119,6 +119,7 @@ class VideoSummary(BaseModel):
     downloaded: bool = False
     blacklisted: bool = False
     error_message: str | None = None
+    labels: dict = {}
 
 
 class VideosPaginatedResponse(BaseModel):

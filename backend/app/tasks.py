@@ -250,7 +250,11 @@ def _execute_download(video_id: int) -> dict:
             HistoryAction.VIDEO_DOWNLOAD_STARTED,
             "video",
             video.id,
-            {"name": video.video_list.name, "title": video.title},
+            {
+                "name": video.video_list.name,
+                "title": video.title,
+                "list_id": video.list_id,
+            },
         )
 
         success, result, labels = YtDlpService.download_video(video, profile)
@@ -298,7 +302,7 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
         HistoryAction.VIDEO_DOWNLOAD_COMPLETED,
         "video",
         video.id,
-        {"title": video.title, "path": path},
+        {"title": video.title, "path": path, "list_id": list_id},
     )
 
     logger.info("Video '%s' downloaded to: %s", video.title, path)
@@ -333,7 +337,7 @@ def _mark_download_failure(db, video, error: str) -> dict:
         HistoryAction.VIDEO_DOWNLOAD_FAILED,
         "video",
         video.id,
-        {"title": video.title, "error": error},
+        {"title": video.title, "error": error, "list_id": list_id},
     )
 
     logger.error("Video %d download failed: %s", video.id, error)
