@@ -36,6 +36,9 @@ SPONSORBLOCK_CATEGORIES = [
 # Supported output formats for remuxing
 OUTPUT_FORMATS = ["3gp", "aac", "flv", "m4a", "mp3", "mp4", "ogg", "wav", "webm"]
 
+# Default output template for profiles
+DEFAULT_OUTPUT_TEMPLATE = "%(uploader)s/Season %(upload_date>%Y)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
+
 
 class Profile(Base):
     """
@@ -67,7 +70,7 @@ class Profile(Base):
     # Output path template
     output_template = Column(
         String(500),
-        default="%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
+        default=DEFAULT_OUTPUT_TEMPLATE,
     )
 
     # SponsorBlock options

@@ -2,13 +2,15 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.profile import DEFAULT_OUTPUT_TEMPLATE
+
 
 class ProfileCreate(BaseModel):
     """Profile creation request."""
 
     name: str = Field(..., min_length=1, description="Profile name")
     output_template: str = Field(
-        "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
+        DEFAULT_OUTPUT_TEMPLATE,
         description="Output filename template",
     )
     embed_metadata: bool = Field(True, description="Embed metadata in file")
@@ -83,9 +85,7 @@ class ProfileResponse(BaseModel):
     auto_generated_subtitles: bool = False
     subtitle_languages: str = "en"
     audio_track_language: str = "en"
-    output_template: str = (
-        "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
-    )
+    output_template: str = DEFAULT_OUTPUT_TEMPLATE
     sponsorblock_behaviour: str = "disabled"
     sponsorblock_categories: list[str] = []
     output_format: str = "mp4"

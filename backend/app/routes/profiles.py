@@ -14,6 +14,7 @@ from app.core.validators import (
 from app.extensions import get_db, get_read_db
 from app.models import HistoryAction, Profile
 from app.models.profile import (
+    DEFAULT_OUTPUT_TEMPLATE,
     OUTPUT_FORMATS,
     SPONSORBLOCK_CATEGORIES,
     SponsorBlockBehaviour,
@@ -35,7 +36,7 @@ def get_profile_options():
     """Return profile defaults and supported configuration options."""
     return {
         "defaults": {
-            "output_template": "%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s",
+            "output_template": DEFAULT_OUTPUT_TEMPLATE,
             "embed_metadata": True,
             "embed_thumbnail": True,
             "include_shorts": True,
