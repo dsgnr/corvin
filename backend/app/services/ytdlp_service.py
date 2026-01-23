@@ -553,7 +553,7 @@ class YtDlpService:
 
         return {
             "video_id": video_id,
-            "title": entry.get("title", "Unknown"),
+            "title": entry.get("title") or "Unknown",
             "url": video_url,
             "duration": entry.get("duration"),
             "upload_date": upload_date,

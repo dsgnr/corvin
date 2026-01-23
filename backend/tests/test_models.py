@@ -215,6 +215,96 @@ class TestVideoListGetVideoStats:
         assert stats["downloaded"] == 0
         assert stats["pending"] == 1
 
+    def test_handles_no_videos(self, db_session, sample_profile):
+        """Should return zeros when no videos."""
+        video_list = VideoList(
+            name="Empty",
+            url="https://youtube.com/c/empty",
+            profile_id=sample_profile,
+        )
+        db_session.add(video_list)
+        db_session.commit()
+
+        stats = video_list.get_video_stats(db_session)
+
+        assert stats["total"] == 0
+        assert stats["downloaded"] == 0
+        assert stats["failed"] == 0
+        assert stats["pending"] == 0
+
+    def test_counts_failed_correctly(self, db_session, sample_list):
+        """Should count failed videos correctly."""
+        # Add a failed video
+        video = Video(
+            video_id="failed123",
+            title="Failed Video",
+            url="https://youtube.com/watch?v=failed123",
+            list_id=sample_list,
+            downloaded=False,
+            error_message="Download failed",
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        video_list = db_session.query(VideoList).get(sample_list)
+        stats = video_list.get_video_stats(db_session)
+
+        # sample_list already has sample_video, so total is 2
+        assert stats["failed"] >= 1
+
+    def test_pending_calculation(self, db_session, sample_profile):
+        """Test pending = total - downloaded - failed calculation."""
+        # Create a fresh list without sample_video
+        video_list = VideoList(
+            name="Stats Test",
+            url="https://youtube.com/c/statstest",
+            profile_id=sample_profile,
+        )
+        db_session.add(video_list)
+        db_session.commit()
+
+        # Add various videos
+        videos = [
+            Video(
+                video_id="pending1",
+                title="Pending 1",
+                url="https://youtube.com/watch?v=pending1",
+                list_id=video_list.id,
+                downloaded=False,
+            ),
+            Video(
+                video_id="pending2",
+                title="Pending 2",
+                url="https://youtube.com/watch?v=pending2",
+                list_id=video_list.id,
+                downloaded=False,
+            ),
+            Video(
+                video_id="downloaded1",
+                title="Downloaded 1",
+                url="https://youtube.com/watch?v=downloaded1",
+                list_id=video_list.id,
+                downloaded=True,
+            ),
+            Video(
+                video_id="failed1",
+                title="Failed 1",
+                url="https://youtube.com/watch?v=failed1",
+                list_id=video_list.id,
+                downloaded=False,
+                error_message="Error",
+            ),
+        ]
+        db_session.add_all(videos)
+        db_session.commit()
+
+        stats = video_list.get_video_stats(db_session)
+
+        assert stats["total"] == 4
+        assert stats["downloaded"] == 1
+        assert stats["failed"] == 1
+        assert stats["pending"] == 2  # 4 - 1 - 1 = 2
+
 
 class TestTaskBatchGetEntityNames:
     """Tests for Task.batch_get_entity_names static method."""

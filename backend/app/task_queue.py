@@ -44,7 +44,15 @@ class TaskWorker:
             max_sync_workers: Maximum concurrent sync tasks.
             max_download_workers: Maximum concurrent download tasks.
             poll_interval: Seconds between automatic task polling.
+
+        Raises:
+            ValueError: If worker counts are less than 1.
         """
+        if max_sync_workers < 1:
+            raise ValueError("max_sync_workers must be >= 1")
+        if max_download_workers < 1:
+            raise ValueError("max_download_workers must be >= 1")
+
         self.max_sync_workers = max_sync_workers
         self.max_download_workers = max_download_workers
         self.poll_interval = poll_interval

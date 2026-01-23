@@ -433,7 +433,6 @@ class TestBlacklistExcludesFromAutoDownload:
         self, app, db_session, sample_list
     ):
         """Exclude blacklisted videos from automatic download scheduling."""
-        import app.tasks as tasks_module
         from app.tasks import schedule_downloads
 
         # Update list to enable auto_download
@@ -463,27 +462,20 @@ class TestBlacklistExcludesFromAutoDownload:
         db_session.add_all(videos)
         db_session.commit()
 
-        # Patch SessionLocal to use test session
-        original_session_local = tasks_module.SessionLocal
-        tasks_module.SessionLocal = app.state.test_session_factory
+        # Mock the task queue to avoid actual task creation
+        with patch("app.tasks.enqueue_tasks_bulk") as mock_enqueue:
+            mock_enqueue.return_value = {"queued": 1, "skipped": 0, "tasks": []}
+            schedule_downloads()
 
-        try:
-            # Mock the task queue to avoid actual task creation
-            with patch("app.tasks.enqueue_tasks_bulk") as mock_enqueue:
-                mock_enqueue.return_value = {"queued": 1, "skipped": 0, "tasks": []}
-                schedule_downloads()
-
-                # Should only queue the non-blacklisted video
-                if mock_enqueue.called:
-                    call_args = mock_enqueue.call_args
-                    entity_ids = call_args[0][1]  # Second positional arg is entity_ids
-                    # The blacklisted video should not be in the list
-                    blacklisted_video = (
-                        db_session.query(Video).filter_by(video_id="dl2").first()
-                    )
-                    assert blacklisted_video.id not in entity_ids
-        finally:
-            tasks_module.SessionLocal = original_session_local
+            # Should only queue the non-blacklisted video
+            if mock_enqueue.called:
+                call_args = mock_enqueue.call_args
+                entity_ids = call_args[0][1]  # Second positional arg is entity_ids
+                # The blacklisted video should not be in the list
+                blacklisted_video = (
+                    db_session.query(Video).filter_by(video_id="dl2").first()
+                )
+                assert blacklisted_video.id not in entity_ids
 
 
 class TestVideoBlacklistedField:

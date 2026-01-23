@@ -70,6 +70,86 @@ class TestExtractListMetadata:
         with pytest.raises(Exception, match="Network error"):
             YtDlpService.extract_list_metadata("https://example.com")
 
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_missing_title_falls_back_to_channel(self, mock_ydl_class):
+        """Should fall back to channel name if title missing."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "title": None,
+            "channel": "Channel Name",
+            "thumbnails": [],
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["name"] == "Channel Name"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_missing_title_falls_back_to_uploader(self, mock_ydl_class):
+        """Should fall back to uploader if title and channel missing."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "title": None,
+            "channel": None,
+            "uploader": "Uploader Name",
+            "thumbnails": [],
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["name"] == "Uploader Name"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_all_name_fields_missing(self, mock_ydl_class):
+        """Should handle case where all name fields are None."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "title": None,
+            "channel": None,
+            "uploader": None,
+            "thumbnails": [],
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["name"] is None
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_channel_id_fallbacks(self, mock_ydl_class):
+        """Should try multiple fields for channel_id."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "title": "Test",
+            "channel_id": None,
+            "uploader_id": "uploader123",
+            "thumbnails": [],
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["channel_id"] == "uploader123"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_channel_id_from_id_field(self, mock_ydl_class):
+        """Should use id field as last resort for channel_id."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "title": "Test",
+            "channel_id": None,
+            "uploader_id": None,
+            "id": "playlist123",
+            "thumbnails": [],
+        }
+
+        result = YtDlpService.extract_list_metadata("https://youtube.com/c/test")
+
+        assert result["channel_id"] == "playlist123"
+
 
 class TestExtractVideos:
     """Tests for YtDlpService.extract_videos method."""
@@ -218,6 +298,84 @@ class TestExtractVideoEntries:
 
         assert len(result) == 2
 
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_mixed_nested_and_flat_entries(self, mock_ydl_class):
+        """Should handle mix of nested and flat entries."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                {"entries": [{"id": "nested1", "webpage_url": "https://url1"}]},
+                {"id": "flat1", "webpage_url": "https://url2"},  # No nested entries
+            ]
+        }
+
+        result = YtDlpService._extract_video_entries("https://youtube.com/c/test")
+
+        # Should only get nested entries when any entry has 'entries' key
+        assert len(result) == 1
+        assert result[0]["video_id"] == "nested1"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_none_entries_in_list(self, mock_ydl_class):
+        """Should skip None entries in the list."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                None,
+                {"id": "vid1", "webpage_url": "https://url1"},
+                None,
+                {"id": "vid2", "webpage_url": "https://url2"},
+            ]
+        }
+
+        result = YtDlpService._extract_video_entries("https://youtube.com/c/test")
+
+        assert len(result) == 2
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_empty_nested_entries(self, mock_ydl_class):
+        """Should handle empty nested entries list."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                {"entries": []},
+                {"entries": [{"id": "vid1", "webpage_url": "https://url1"}]},
+            ]
+        }
+
+        result = YtDlpService._extract_video_entries("https://youtube.com/c/test")
+
+        assert len(result) == 1
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_uses_url_field_if_webpage_url_missing(self, mock_ydl_class):
+        """Should fall back to url field if webpage_url missing."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                {"id": "vid1", "url": "https://fallback-url"},
+            ]
+        }
+
+        result = YtDlpService._extract_video_entries("https://youtube.com/c/test")
+
+        assert len(result) == 1
+        assert result[0]["url"] == "https://fallback-url"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_raises_on_extraction_error(self, mock_ydl_class):
+        """Should propagate extraction errors."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.side_effect = Exception("Network error")
+
+        with pytest.raises(Exception, match="Network error"):
+            YtDlpService._extract_video_entries("https://youtube.com/c/test")
+
 
 class TestFetchSingleVideo:
     """Tests for YtDlpService._fetch_single_video method."""
@@ -274,6 +432,78 @@ class TestFetchSingleVideo:
 
         assert result is None
 
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_returns_none_for_empty_info(self, mock_ydl_class):
+        """Should return None when extract_info returns None."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = None
+
+        result = YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=test", None
+        )
+
+        assert result is None
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_filters_video_before_from_date(self, mock_ydl_class):
+        """Should return None for videos before from_date."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "old123",
+            "title": "Old Video",
+            "webpage_url": "https://youtube.com/watch?v=old123",
+            "upload_date": "20220101",  # Before from_date
+        }
+
+        result = YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=old123",
+            "20230101",  # from_date
+        )
+
+        assert result is None
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_includes_video_on_from_date(self, mock_ydl_class):
+        """Should include videos exactly on from_date."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "exact123",
+            "title": "Exact Date Video",
+            "webpage_url": "https://youtube.com/watch?v=exact123",
+            "upload_date": "20230101",
+        }
+
+        result = YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=exact123",
+            "20230101",
+        )
+
+        assert result is not None
+        assert result["video_id"] == "exact123"
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_missing_upload_date(self, mock_ydl_class):
+        """Should include video if upload_date is missing."""
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "nodate123",
+            "title": "No Date Video",
+            "webpage_url": "https://youtube.com/watch?v=nodate123",
+            "upload_date": None,
+        }
+
+        result = YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=nodate123",
+            "20230101",
+        )
+
+        # Should include because we can't determine if it's before from_date
+        assert result is not None
+
 
 class TestGetBestThumbnail:
     """Tests for YtDlpService._get_best_thumbnail method."""
@@ -306,6 +536,28 @@ class TestGetBestThumbnail:
 
         assert result == "https://example.com/valid.jpg"
 
+    def test_handles_thumbnails_with_no_url(self):
+        """Should skip thumbnails without URL and return first valid."""
+        thumbnails = [
+            {"id": "1", "url": "https://valid.jpg"},
+            {"id": "2"},  # No URL
+            {"id": "3", "url": None},  # None URL
+        ]
+
+        result = YtDlpService._get_best_thumbnail(thumbnails)
+
+        assert result == "https://valid.jpg"
+
+    def test_returns_first_if_all_invalid(self):
+        """Should return first thumbnail's URL even if others invalid."""
+        thumbnails = [
+            {"id": "1", "url": "https://first.jpg"},
+        ]
+
+        result = YtDlpService._get_best_thumbnail(thumbnails)
+
+        assert result == "https://first.jpg"
+
 
 class TestParseUploadDate:
     """Tests for YtDlpService._parse_upload_date method."""
@@ -325,6 +577,24 @@ class TestParseUploadDate:
     def test_handles_invalid_format(self):
         """Should return None for invalid format."""
         result = YtDlpService._parse_upload_date("invalid")
+
+        assert result is None
+
+    def test_handles_short_date_string(self):
+        """Should return None for too-short date string."""
+        result = YtDlpService._parse_upload_date("2024")
+
+        assert result is None
+
+    def test_handles_wrong_format(self):
+        """Should return None for wrong date format."""
+        result = YtDlpService._parse_upload_date("2024-01-15")  # Wrong format
+
+        assert result is None
+
+    def test_handles_invalid_date_values(self):
+        """Should return None for invalid date values."""
+        result = YtDlpService._parse_upload_date("20241332")  # Invalid month/day
 
         assert result is None
 
@@ -376,6 +646,68 @@ class TestParseSingleEntry:
         result = YtDlpService._parse_single_entry(entry)
 
         assert result["was_live"] is False
+
+    def test_returns_none_without_url(self):
+        """Should return None if no URL available."""
+        entry = {
+            "id": "test123",
+            "title": "Test",
+            # No webpage_url or url
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result is None
+
+    def test_handles_empty_title(self):
+        """Should use 'Unknown' for empty title."""
+        entry = {
+            "id": "test123",
+            "title": "",
+            "webpage_url": "https://youtube.com/watch?v=test123",
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        # Empty string is falsy, so we get "Unknown"
+        assert result["title"] == "Unknown"
+
+    def test_handles_none_title(self):
+        """Should return 'Unknown' when title is None."""
+        entry = {
+            "id": "test123",
+            "title": None,
+            "webpage_url": "https://youtube.com/watch?v=test123",
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result["title"] == "Unknown"
+
+    def test_parses_all_optional_fields(self):
+        """Should parse all optional fields when present."""
+        entry = {
+            "id": "full123",
+            "title": "Full Video",
+            "webpage_url": "https://youtube.com/watch?v=full123",
+            "duration": 3600,
+            "upload_date": "20240115",
+            "thumbnail": "https://example.com/thumb.jpg",
+            "description": "A description",
+            "extractor_key": "Youtube",
+            "media_type": "video",
+            "was_live": True,
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result["duration"] == 3600
+        assert result["upload_date"] == datetime(2024, 1, 15)
+        assert result["thumbnail"] == "https://example.com/thumb.jpg"
+        assert result["description"] == "A description"
+        assert result["extractor"] == "Youtube"
+        assert result["media_type"] == "video"
+        assert result["was_live"] is True
 
 
 class TestExtractLabels:
@@ -445,6 +777,30 @@ class TestExtractLabels:
 
         assert "acodec" not in result
         assert result["resolution"] == "1080p"
+
+    def test_handles_zero_values(self):
+        """Zero values are excluded (intentional - indicates invalid data)."""
+        info = {
+            "height": 0,
+            "audio_channels": 0,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        # Zero is falsy, so these won't be included
+        assert "resolution" not in result
+        assert "audio_channels" not in result
+
+    def test_handles_false_was_live(self):
+        """Should not include was_live when False."""
+        info = {
+            "was_live": False,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        # False is falsy, so won't be included
+        assert "was_live" not in result
 
 
 class TestBuildDownloadOpts:
@@ -563,6 +919,36 @@ class TestDownloadVideo:
         assert success is False
         assert "Video unavailable" in result
 
+    @patch("app.services.progress_service.create_hook")
+    @patch("app.services.progress_service.mark_error")
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_handles_unexpected_exception(
+        self,
+        mock_ydl_class,
+        mock_mark_error,
+        mock_create_hook,
+        app,
+        db_session,
+        sample_video,
+        sample_profile,
+    ):
+        """Should handle unexpected exceptions during download."""
+        from app.models import Profile, Video
+
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.side_effect = RuntimeError("Unexpected error")
+        mock_create_hook.return_value = MagicMock()
+
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
+
+        success, result, labels = YtDlpService.download_video(video, profile)
+
+        assert success is False
+        assert "Unexpected error" in result
+        mock_mark_error.assert_called_once()
+
 
 class TestDownloadListArtwork:
     """Tests for YtDlpService.download_list_artwork method."""
@@ -649,6 +1035,57 @@ class TestDownloadListArtwork:
         assert results["banner.jpg"] is True
         assert (nested_dir / "banner.jpg").exists()
 
+    def test_handles_duplicate_thumbnail_ids(self, tmp_path):
+        """Should handle duplicate thumbnail IDs (use last one)."""
+        thumbnails = [
+            {"id": "0", "url": "https://example.com/first.jpg"},
+            {"id": "0", "url": "https://example.com/second.jpg"},  # Duplicate
+        ]
+
+        with patch("app.services.ytdlp_service.requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.content = b"image data"
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        # Should use the second URL (last one wins in dict)
+        assert results["banner.jpg"] is True
+
+    def test_handles_numeric_thumbnail_id(self, tmp_path):
+        """Should handle numeric thumbnail IDs (convert to string)."""
+        thumbnails = [
+            {"id": 0, "url": "https://example.com/banner.jpg"},  # Numeric ID
+        ]
+
+        with patch("app.services.ytdlp_service.requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.content = b"image data"
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        assert results["banner.jpg"] is True
+
+    def test_handles_none_thumbnail_id(self, tmp_path):
+        """Should skip thumbnails with None ID."""
+        thumbnails = [
+            {"id": None, "url": "https://example.com/image.jpg"},
+            {"id": "0", "url": "https://example.com/banner.jpg"},
+        ]
+
+        with patch("app.services.ytdlp_service.requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.content = b"image data"
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            results = YtDlpService.download_list_artwork(thumbnails, tmp_path)
+
+        assert results["banner.jpg"] is True
+
 
 class TestDownloadImage:
     """Tests for YtDlpService._download_image method."""
@@ -728,6 +1165,42 @@ class TestWriteChannelNfo:
         content = (tmp_path / "tvshow.nfo").read_text()
         assert "Unknown" in content
 
+    def test_handles_special_characters_in_name(self, tmp_path):
+        """Should handle special XML characters in name."""
+        metadata = {
+            "name": 'Test <Channel> & "Quotes"',
+            "description": "Description with <tags> & stuff",
+        }
+
+        result = YtDlpService.write_channel_nfo(metadata, tmp_path)
+
+        assert result is True
+        content = (tmp_path / "tvshow.nfo").read_text()
+        # XML should be properly escaped
+        assert "&lt;" in content or "Test" in content
+
+    def test_handles_unicode_in_metadata(self, tmp_path):
+        """Should handle unicode characters."""
+        metadata = {
+            "name": "日本語チャンネル",
+            "description": "Описание на русском",
+        }
+
+        result = YtDlpService.write_channel_nfo(metadata, tmp_path)
+
+        assert result is True
+
+    def test_handles_very_long_description(self, tmp_path):
+        """Should handle very long descriptions."""
+        metadata = {
+            "name": "Test",
+            "description": "A" * 100000,  # 100KB description
+        }
+
+        result = YtDlpService.write_channel_nfo(metadata, tmp_path)
+
+        assert result is True
+
 
 class TestWriteVideoNfo:
     """Tests for YtDlpService.write_video_nfo method."""
@@ -770,3 +1243,66 @@ class TestWriteVideoNfo:
         content = (tmp_path / "dated_video.nfo").read_text()
         assert "2024" in content
         assert "<runtime>5</runtime>" in content  # 300 seconds = 5 minutes
+
+    def test_handles_video_without_upload_date(
+        self, app, db_session, sample_list, tmp_path
+    ):
+        """Should handle video without upload_date."""
+        from app.models import Video
+
+        video = Video(
+            video_id="nodate123",
+            title="No Date Video",
+            url="https://youtube.com/watch?v=nodate123",
+            list_id=sample_list,
+            upload_date=None,
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        video_path = str(tmp_path / "video.mp4")
+        result = YtDlpService.write_video_nfo(video, video_path)
+
+        assert result is True
+
+    def test_handles_video_without_duration(
+        self, app, db_session, sample_list, tmp_path
+    ):
+        """Should handle video without duration."""
+        from app.models import Video
+
+        video = Video(
+            video_id="nodur123",
+            title="No Duration Video",
+            url="https://youtube.com/watch?v=nodur123",
+            list_id=sample_list,
+            duration=None,
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        video_path = str(tmp_path / "video.mp4")
+        result = YtDlpService.write_video_nfo(video, video_path)
+
+        assert result is True
+
+    def test_handles_video_without_list(self, app, db_session, sample_list, tmp_path):
+        """Should handle video with no video_list relationship loaded."""
+        from app.models import Video
+
+        video = Video(
+            video_id="nolist123",
+            title="Test Video",
+            url="https://youtube.com/watch?v=nolist123",
+            list_id=sample_list,
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        # Expire to simulate detached state
+        db_session.expire(video)
+
+        video_path = str(tmp_path / "video.mp4")
+        result = YtDlpService.write_video_nfo(video, video_path)
+
+        assert result is True

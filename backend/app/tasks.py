@@ -100,7 +100,7 @@ def _execute_sync(list_id: int) -> dict:
 
         # Compile blacklist regex if set
         blacklist_pattern = None
-        if video_list.blacklist_regex:
+        if video_list.blacklist_regex and video_list.blacklist_regex.strip():
             try:
                 blacklist_pattern = re.compile(
                     video_list.blacklist_regex, re.IGNORECASE

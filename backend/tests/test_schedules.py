@@ -399,7 +399,6 @@ class TestScheduleDownloadsIntegration:
 
     def test_schedule_downloads_respects_schedule(self, app, db_session, sample_list):
         """schedule_downloads should respect download schedules."""
-        import app.tasks as tasks_module
         from app.models import Video, VideoList
         from app.tasks import schedule_downloads
 
@@ -433,22 +432,14 @@ class TestScheduleDownloadsIntegration:
         if now.hour == 3 and now.minute == 0:
             pytest.skip("Test running during the narrow window")
 
-        # Patch SessionLocal
-        original_session_local = tasks_module.SessionLocal
-        tasks_module.SessionLocal = app.state.test_session_factory
+        result = schedule_downloads()
 
-        try:
-            result = schedule_downloads()
-
-            # Should be blocked by schedule
-            assert result["queued"] == 0
-            assert result.get("reason") == "schedule"
-        finally:
-            tasks_module.SessionLocal = original_session_local
+        # Should be blocked by schedule
+        assert result["queued"] == 0
+        assert result.get("reason") == "schedule"
 
     def test_manual_downloads_bypass_schedule(self, app, db_session, sample_list):
         """Manual downloads (with video_ids) should bypass schedule."""
-        import app.tasks as tasks_module
         from app.models import Video
         from app.tasks import schedule_downloads
 
@@ -474,21 +465,14 @@ class TestScheduleDownloadsIntegration:
         db_session.commit()
         video_id = video.id
 
-        # Patch SessionLocal
-        original_session_local = tasks_module.SessionLocal
-        tasks_module.SessionLocal = app.state.test_session_factory
+        with patch("app.tasks.enqueue_tasks_bulk") as mock_enqueue:
+            mock_enqueue.return_value = {"queued": 1, "skipped": 0, "tasks": []}
 
-        try:
-            with patch("app.tasks.enqueue_tasks_bulk") as mock_enqueue:
-                mock_enqueue.return_value = {"queued": 1, "skipped": 0, "tasks": []}
+            # Pass specific video_ids - should bypass schedule
+            schedule_downloads(video_ids=[video_id])
 
-                # Pass specific video_ids - should bypass schedule
-                schedule_downloads(video_ids=[video_id])
-
-                # Should have called enqueue (schedule bypassed)
-                mock_enqueue.assert_called_once()
-        finally:
-            tasks_module.SessionLocal = original_session_local
+            # Should have called enqueue (schedule bypassed)
+            mock_enqueue.assert_called_once()
 
 
 class TestTaskStatsIncludesSchedule:

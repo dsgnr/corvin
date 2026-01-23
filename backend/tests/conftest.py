@@ -1,5 +1,7 @@
 """Pytest fixtures."""
 
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -11,10 +13,44 @@ from app.extensions import get_db
 from app.models import Base, History, HistoryAction, Profile, Video, VideoList
 from app.models.task import Task, TaskStatus, TaskType
 
+# Modules that import SessionLocal/ReadSessionLocal directly and need patching
+_SESSION_MODULES = [
+    "app.extensions",
+    "app.tasks",
+    "app.task_queue",
+    "app.metrics",
+    "app.routes.lists",
+    "app.routes.videos",
+    "app.routes.history",
+    "app.routes.tasks",
+]
+
+
+def _patch_session_factories(test_factory):
+    """
+    Patch SessionLocal and ReadSessionLocal in all modules that import them directly.
+
+    This is necessary because Python caches imports - patching app.extensions.SessionLocal
+    after modules have imported it doesn't affect their local reference.
+    """
+    for module_name in _SESSION_MODULES:
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+            if hasattr(module, "SessionLocal"):
+                module.SessionLocal = test_factory
+            if hasattr(module, "ReadSessionLocal"):
+                module.ReadSessionLocal = test_factory
+
 
 @pytest.fixture
 def app():
-    """Create application."""
+    """Create application with test database."""
+    # Store original factories for restoration
+    import app.extensions as ext
+
+    original_session = ext.SessionLocal
+    original_read_session = ext.ReadSessionLocal
+
     test_config = {
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
@@ -32,6 +68,7 @@ def app():
     # Create tables
     Base.metadata.create_all(bind=engine)
 
+    # Override FastAPI dependency
     def override_get_db():
         db = TestingSessionLocal()
         try:
@@ -41,29 +78,18 @@ def app():
 
     application.dependency_overrides[get_db] = override_get_db
 
-    # Also patch SessionLocal and ReadSessionLocal for helpers that use them directly
-    import app.extensions
-    import app.routes.history
-    import app.routes.lists
-    import app.routes.tasks
-    import app.routes.videos
-    import app.sse_stream
-
-    app.extensions.SessionLocal = TestingSessionLocal
-    app.extensions.ReadSessionLocal = TestingSessionLocal
-    app.routes.lists.SessionLocal = TestingSessionLocal
-    app.routes.lists.ReadSessionLocal = TestingSessionLocal
-    app.routes.tasks.SessionLocal = TestingSessionLocal
-    app.routes.tasks.ReadSessionLocal = TestingSessionLocal
-    app.routes.videos.SessionLocal = TestingSessionLocal
-    app.routes.videos.ReadSessionLocal = TestingSessionLocal
-    app.routes.history.SessionLocal = TestingSessionLocal
-    app.routes.history.ReadSessionLocal = TestingSessionLocal
+    # Patch SessionLocal in all modules that use it directly
+    _patch_session_factories(TestingSessionLocal)
 
     # Store session factory for fixtures
     application.state.test_session_factory = TestingSessionLocal
 
     yield application
+
+    # Restore original factories
+    ext.SessionLocal = original_session
+    ext.ReadSessionLocal = original_read_session
+    _patch_session_factories(original_session)
 
     Base.metadata.drop_all(bind=engine)
 
