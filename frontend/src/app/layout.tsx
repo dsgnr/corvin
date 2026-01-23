@@ -23,13 +23,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <script dangerouslySetInnerHTML={{ __html: sidebarScript }} />
       </head>
       <body className="antialiased">
         <ProgressProvider>
           <div className="flex min-h-screen">
             <Sidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
+            <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
           </div>
         </ProgressProvider>
       </body>

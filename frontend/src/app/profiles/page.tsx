@@ -68,18 +68,14 @@ function ProfilesContent() {
   }
 
   const handleSave = async (data: Partial<Profile>, id?: number) => {
-    try {
-      if (id) {
-        const updated = await api.updateProfile(id, data)
-        setProfiles(profiles.map((p) => (p.id === updated.id ? updated : p)))
-      } else {
-        const created = await api.createProfile(data)
-        setProfiles([...profiles, created])
-      }
-      setEditingId(null)
-    } catch (err) {
-      console.error('Failed to save:', err)
+    if (id) {
+      const updated = await api.updateProfile(id, data)
+      setProfiles(profiles.map((p) => (p.id === updated.id ? updated : p)))
+    } else {
+      const created = await api.createProfile(data)
+      setProfiles([...profiles, created])
     }
+    setEditingId(null)
   }
 
   const handleDuplicate = (profile: Profile) => {
@@ -99,12 +95,12 @@ function ProfilesContent() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Profiles</h1>
         {editingId !== 'new' && (
           <button
             onClick={() => setEditingId('new')}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
           >
             <Plus size={14} />
             Add Profile
@@ -230,7 +226,7 @@ function ProfileForm({
   defaults: ProfileOptions['defaults']
   sponsorBlockOpts: ProfileOptions['sponsorblock']
   outputFormats: string[]
-  onSave: (data: Partial<Profile>) => void
+  onSave: (data: Partial<Profile>) => Promise<void>
   onCancel: () => void
 }) {
   const [form, setForm] = useState<{
@@ -266,12 +262,20 @@ function ProfileForm({
     extra_args: profile?.extra_args || defaults.extra_args,
   })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    onSave(form)
-    setSaving(false)
+    setError(null)
+    try {
+      await onSave(form)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save profile'
+      setError(message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleCategory = (cat: string) => {
@@ -456,6 +460,7 @@ function ProfileForm({
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">
+        {error && <p className="mr-auto text-sm text-[var(--error)]">{error}</p>}
         <button
           type="button"
           onClick={onCancel}

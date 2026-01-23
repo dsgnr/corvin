@@ -81,13 +81,13 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleSyncAll}
             disabled={syncing}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sync All
@@ -95,7 +95,7 @@ export default function Dashboard() {
           <button
             onClick={handleDownloadPending}
             disabled={downloading}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 sm:py-1.5"
           >
             <Download size={14} className={downloading ? 'animate-bounce' : ''} />
             Download Pending
@@ -104,7 +104,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           title="Lists"
           value={lists.length}

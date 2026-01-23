@@ -19,6 +19,19 @@ html.sidebar-collapsed {
   --sidebar-width: 3.8rem;
 }
 
+/* Mobile: hide sidebar by default, show when open */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 0rem;
+  }
+  html.sidebar-collapsed {
+    --sidebar-width: 0rem;
+  }
+  html.sidebar-mobile-open {
+    --sidebar-width: 14rem;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -164,16 +164,16 @@ export default function VideoDetailPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Channel Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Link
           href={`/lists/${video.list_id}`}
           className="rounded-md p-2 transition-colors hover:bg-[var(--card)]"
         >
           <ArrowLeft size={20} />
         </Link>
-        <div className="flex flex-1 items-center gap-4">
+        <div className="flex flex-1 items-center gap-3 sm:gap-4">
           {list?.thumbnail && (
-            <Link href={`/lists/${video.list_id}`}>
+            <Link href={`/lists/${video.list_id}`} className="hidden sm:block">
               <img
                 src={list.thumbnail}
                 alt={list.name}
@@ -182,12 +182,12 @@ export default function VideoDetailPage() {
               />
             </Link>
           )}
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <ExtractorIcon extractor={list?.extractor} size="md" />
               <Link
                 href={`/lists/${video.list_id}`}
-                className="font-medium transition-colors hover:text-[var(--accent)]"
+                className="truncate font-medium transition-colors hover:text-[var(--accent)]"
               >
                 {list?.name || 'Loading...'}
               </Link>
@@ -197,7 +197,7 @@ export default function VideoDetailPage() {
                 href={list.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                className="hidden items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] sm:flex"
               >
                 {list.url.length > 50 ? list.url.slice(0, 50) + '...' : list.url}
                 <ExternalLink size={10} />
@@ -286,12 +286,12 @@ export default function VideoDetailPage() {
             )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!video.downloaded && !downloadRunning && !downloadQueued && (
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 sm:py-1.5"
               >
                 {downloading ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -302,13 +302,13 @@ export default function VideoDetailPage() {
               </button>
             )}
             {downloadQueued && !downloadRunning && !video.downloaded && (
-              <div className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-1.5 text-sm text-black">
+              <div className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-2 text-sm text-black sm:py-1.5">
                 <Clock size={14} />
                 Queued
               </div>
             )}
             {downloadRunning && !video.downloaded && (
-              <div className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white">
+              <div className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white sm:py-1.5">
                 <Loader2 size={14} className="animate-spin" />
                 Downloading
               </div>
@@ -317,7 +317,7 @@ export default function VideoDetailPage() {
               <button
                 onClick={handleRetry}
                 disabled={retrying}
-                className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-1.5 text-sm text-black transition-colors hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--warning)] px-3 py-2 text-sm text-black transition-colors hover:opacity-90 disabled:opacity-50 sm:py-1.5"
               >
                 {retrying ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -332,7 +332,7 @@ export default function VideoDetailPage() {
                 onClick={handleToggleBlacklist}
                 disabled={togglingBlacklist}
                 className={clsx(
-                  'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
+                  'flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors disabled:opacity-50 sm:py-1.5',
                   video.blacklisted
                     ? 'border-[var(--muted)] bg-[var(--muted)]/10 text-[var(--muted)] hover:bg-[var(--muted)]/20'
                     : 'border-[var(--border)] bg-[var(--card)] hover:bg-[var(--card-hover)]'
@@ -351,7 +351,7 @@ export default function VideoDetailPage() {
               href={video.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)]"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
             >
               <ExternalLink size={14} />
               YouTube

@@ -162,14 +162,14 @@ export default function HistoryPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
           {['all', 'profile', 'list', 'video'].map((f) => (
             <button
               key={f}
               onClick={() => handleFilterChange(f)}
               className={clsx(
-                'rounded-md px-3 py-1.5 text-sm transition-colors',
+                'rounded-md px-3 py-2 text-sm transition-colors sm:py-1.5',
                 filter === f
                   ? 'bg-[var(--accent)] text-white'
                   : 'border border-[var(--border)] bg-[var(--card)] text-[var(--prose-color)] hover:text-[var(--foreground)]'
@@ -179,8 +179,8 @@ export default function HistoryPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative w-full sm:w-auto">
             <Search
               size={14}
               className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -190,7 +190,7 @@ export default function HistoryPage() {
               placeholder="Search history..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
             />
           </div>
           <Select

@@ -168,7 +168,7 @@ export default function SettingsPage() {
         <hr className="border-[var(--border)]" />
 
         <div>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-medium">Download Schedules</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
@@ -178,7 +178,7 @@ export default function SettingsPage() {
             </div>
             {scheduleStatus && (
               <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
+                className={`flex shrink-0 items-center gap-2 self-start rounded-full px-3 py-1 text-sm sm:self-auto ${
                   scheduleStatus.downloads_allowed
                     ? 'bg-green-500/10 text-green-500'
                     : 'bg-red-500/10 text-red-500'
@@ -263,7 +263,7 @@ export default function SettingsPage() {
                       key={day.value}
                       type="button"
                       onClick={() => toggleDay(day.value)}
-                      className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-md px-3 py-2 text-sm transition-colors sm:py-1.5 ${
                         scheduleForm.days_of_week.includes(day.value)
                           ? 'bg-[var(--accent)] text-white'
                           : 'bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--border)]'

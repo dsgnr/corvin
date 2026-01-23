@@ -233,38 +233,38 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Tasks</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {hasPendingTasks && (
             <button
               onClick={handlePauseAll}
-              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
             >
               <Pause size={14} />
-              Pause Queued
+              <span className="hidden sm:inline">Pause Queued</span>
             </button>
           )}
           <button
             onClick={handleResumeAll}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
           >
             <Play size={14} />
-            Resume Paused
+            <span className="hidden sm:inline">Resume Paused</span>
           </button>
           <button
             onClick={handleCancelAll}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--error)] px-3 py-1.5 text-sm text-white transition-colors hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-md bg-[var(--error)] px-3 py-2 text-sm text-white transition-colors hover:opacity-90 sm:py-1.5"
           >
             <Ban size={14} />
-            Cancel Queued
+            <span className="hidden sm:inline">Cancel Queued</span>
           </button>
           <button
             onClick={handleRetryFailed}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
           >
             <RotateCcw size={14} />
-            Retry Failed
+            <span className="hidden sm:inline">Retry Failed</span>
           </button>
         </div>
       </div>
@@ -293,7 +293,7 @@ export default function TasksPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           {[
             'all',
@@ -310,7 +310,7 @@ export default function TasksPage() {
               key={f}
               onClick={() => handleFilterChange(f)}
               className={clsx(
-                'rounded-md px-3 py-1.5 text-sm transition-colors',
+                'rounded-md px-3 py-2 text-sm transition-colors sm:py-1.5',
                 filter === f
                   ? 'bg-[var(--accent)] text-white'
                   : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]'
@@ -320,8 +320,8 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative w-full sm:w-auto">
             <Search
               size={14}
               className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -331,7 +331,7 @@ export default function TasksPage() {
               placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
             />
           </div>
           <Select

@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ListTodo,
   FolderCog,
+  Menu,
+  X,
 } from 'lucide-react'
 import packageJson from '../../package.json'
 
@@ -36,6 +38,7 @@ const getServerSnapshot = () => false
 /**
  * Main navigation sidebar component.
  * Supports collapsing to save space, with state persisted to localStorage.
+ * On mobile, shows a hamburger menu that opens a full-width sidebar overlay.
  */
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -44,6 +47,7 @@ export function Sidebar() {
     }
     return false
   })
+  const [mobileOpen, setMobileOpen] = useState(false)
   // Use useSyncExternalStore to safely detect client-side rendering
   const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const pathname = usePathname()
@@ -52,6 +56,32 @@ export function Sidebar() {
   useEffect(() => {
     document.documentElement.classList.toggle('sidebar-collapsed', collapsed)
   }, [collapsed])
+
+  // Sync mobile open state to DOM and prevent body scroll
+  useEffect(() => {
+    document.documentElement.classList.toggle('sidebar-mobile-open', mobileOpen)
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
+
+  // Close mobile sidebar on route change
+  // Using flushSync would work but is overkill - instead we close on link click
+  const closeMobileSidebar = () => setMobileOpen(false)
+
+  // Close mobile sidebar on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [])
 
   const toggleCollapsed = () => {
     const newValue = !collapsed
@@ -62,45 +92,87 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="fixed top-0 left-0 z-10 flex h-screen w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--card)] transition-[width] duration-300">
+      {/* Mobile header bar - fixed at top */}
+      <header className="fixed top-0 right-0 left-0 z-50 flex h-14 items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 md:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="rounded-md p-2 text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+        <span className="text-lg font-semibold tracking-tight">Corvin</span>
+        <div className="w-9" /> {/* Spacer for centering */}
+      </header>
+
+      {/* Mobile overlay */}
+      <div
+        className={clsx(
+          'fixed inset-0 z-50 bg-black/50 transition-opacity md:hidden',
+          mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        onClick={() => setMobileOpen(false)}
+      />
+
+      {/* Sidebar */}
+      <aside
+        className={clsx(
+          'fixed top-0 left-0 z-50 flex h-screen flex-col border-r border-[var(--border)] bg-[var(--card)] transition-transform duration-300 md:z-10 md:transition-[width]',
+          // Desktop: use CSS variable width, always visible
+          'md:w-[var(--sidebar-width)] md:translate-x-0',
+          // Mobile: fixed width, slide in/out
+          'w-64',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
         <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
           <span
             className={clsx(
-              'overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap',
-              collapsed && mounted ? 'w-0' : 'w-auto'
+              'overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap transition-all',
+              collapsed && mounted ? 'md:w-0 md:opacity-0' : 'w-auto opacity-100'
             )}
           >
             Corvin
           </span>
+          {/* Mobile close button */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] md:hidden"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+          {/* Desktop collapse button */}
           <button
             onClick={toggleCollapsed}
-            className="rounded-md p-1.5 text-[var(--prose-color)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
+            className="hidden rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] md:block"
             aria-label={collapsed && mounted ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed && mounted ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 p-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
             return (
               <Link
                 key={href}
                 href={href}
+                onClick={closeMobileSidebar}
                 className={clsx(
                   'flex items-center gap-3 overflow-hidden rounded-md px-3 py-2 transition-colors',
                   isActive
                     ? 'bg-[var(--accent)] text-white'
-                    : 'text-[var(--prose-color)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
                 )}
                 title={collapsed && mounted ? label : undefined}
               >
                 <Icon size={20} className="shrink-0" />
                 <span
                   className={clsx(
-                    'text-sm whitespace-nowrap',
-                    collapsed && mounted ? 'w-0 opacity-0' : 'w-auto opacity-100'
+                    'text-sm whitespace-nowrap transition-all',
+                    collapsed && mounted ? 'md:w-0 md:opacity-0' : 'w-auto opacity-100'
                   )}
                 >
                   {label}
@@ -113,16 +185,17 @@ export function Sidebar() {
         <div className="overflow-hidden border-t border-[var(--border)] p-4">
           <p
             className={clsx(
-              'text-xs whitespace-nowrap text-[var(--prose-color)]',
-              collapsed && mounted ? 'opacity-0' : 'opacity-100'
+              'text-xs whitespace-nowrap text-[var(--muted)] transition-opacity',
+              collapsed && mounted ? 'md:opacity-0' : 'opacity-100'
             )}
           >
             v{packageJson.version}
           </p>
         </div>
       </aside>
-      {/* Spacer to push main content */}
-      <div className="w-[var(--sidebar-width)] shrink-0 transition-[width] duration-300" />
+
+      {/* Desktop spacer to push main content */}
+      <div className="hidden w-[var(--sidebar-width)] shrink-0 transition-[width] duration-300 md:block" />
     </>
   )
 }

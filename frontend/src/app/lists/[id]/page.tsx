@@ -410,89 +410,102 @@ export default function ListDetailPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-4">
-        <Link href="/lists" className="rounded-md p-2 transition-colors hover:bg-[var(--card)]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Link
+          href="/lists"
+          className="self-start rounded-md p-2 transition-colors hover:bg-[var(--card)]"
+        >
           <ArrowLeft size={20} />
         </Link>
-        <div className="flex flex-1 items-center gap-4">
+        <div className="flex flex-1 items-center gap-3 sm:gap-4">
           {list.thumbnail && (
             <img
               src={list.thumbnail}
               alt={list.name}
-              className="h-16 w-16 rounded-lg object-cover"
+              className="h-12 w-12 rounded-lg object-cover sm:h-16 sm:w-16"
               referrerPolicy="no-referrer"
             />
           )}
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <ExtractorIcon extractor={list.extractor} size="lg" />
-              <h1 className="text-2xl font-semibold">{list.name}</h1>
+              <h1 className="truncate text-xl font-semibold sm:text-2xl">{list.name}</h1>
             </div>
             <a
               href={list.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+              className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] sm:text-sm"
             >
-              {list.url}
-              <ExternalLink size={12} />
+              <span className="truncate">{list.url}</span>
+              <ExternalLink size={12} className="shrink-0" />
             </a>
           </div>
         </div>
-        <button
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)]"
-        >
-          <Edit2 size={14} />
-          Edit
-        </button>
-        <button
-          onClick={handleSync}
-          disabled={syncStatus !== 'idle'}
-          className={clsx(
-            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50',
-            syncStatus === 'queued'
-              ? 'bg-[var(--warning)] text-black'
-              : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
-          )}
-        >
-          {syncStatus === 'running' ? (
-            <RefreshCw size={14} className="animate-spin" />
-          ) : syncStatus === 'queued' ? (
-            <Clock size={14} />
-          ) : (
-            <RefreshCw size={14} />
-          )}
-          {syncStatus === 'running' ? 'Syncing' : syncStatus === 'queued' ? 'Sync Queued' : 'Sync'}
-        </button>
-        {stats.pending > 0 && (
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleDownloadPending}
-            disabled={downloadingPending}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
           >
-            {downloadingPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
-            Download {list?.auto_download ? 'Pending' : 'All'}
+            <Edit2 size={14} />
+            <span className="hidden sm:inline">Edit</span>
           </button>
-        )}
-        {stats.failed > 0 && (
           <button
-            onClick={handleRetryFailed}
-            disabled={retryingFailed}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+            onClick={handleSync}
+            disabled={syncStatus !== 'idle'}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors disabled:opacity-50 sm:py-1.5',
+              syncStatus === 'queued'
+                ? 'bg-[var(--warning)] text-black'
+                : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
+            )}
           >
-            {retryingFailed ? (
-              <Loader2 size={14} className="animate-spin" />
+            {syncStatus === 'running' ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : syncStatus === 'queued' ? (
+              <Clock size={14} />
             ) : (
               <RefreshCw size={14} />
             )}
-            Retry Failed
+            <span className="hidden sm:inline">
+              {syncStatus === 'running'
+                ? 'Syncing'
+                : syncStatus === 'queued'
+                  ? 'Sync Queued'
+                  : 'Sync'}
+            </span>
           </button>
-        )}
+          {stats.pending > 0 && (
+            <button
+              onClick={handleDownloadPending}
+              disabled={downloadingPending}
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+            >
+              {downloadingPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span className="hidden sm:inline">
+                Download {list?.auto_download ? 'Pending' : 'All'}
+              </span>
+            </button>
+          )}
+          {stats.failed > 0 && (
+            <button
+              onClick={handleRetryFailed}
+              disabled={retryingFailed}
+              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+            >
+              {retryingFailed ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              <span className="hidden sm:inline">Retry Failed</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Edit Form */}
@@ -559,7 +572,7 @@ export default function ListDetailPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         <button
           onClick={() => setFilter('all')}
           className={clsx(
@@ -663,7 +676,7 @@ export default function ListDetailPage() {
 
       {/* Videos */}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
           <h2 className="font-medium">
             Videos (
             {debouncedSearch ? (
@@ -692,8 +705,8 @@ export default function ListDetailPage() {
             )}
             )
           </h2>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative w-full sm:w-auto">
               <Search
                 size={14}
                 className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -703,7 +716,7 @@ export default function ListDetailPage() {
                 placeholder="Search videos..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
               />
             </div>
             <Select
@@ -748,10 +761,10 @@ export default function ListDetailPage() {
 
       {/* Tasks */}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
           <h2 className="font-medium">Tasks ({tasksTotal})</h2>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative w-full sm:w-auto">
               <Search
                 size={14}
                 className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -761,7 +774,7 @@ export default function ListDetailPage() {
                 placeholder="Search tasks..."
                 value={tasksSearch}
                 onChange={(e) => setTasksSearch(e.target.value)}
-                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
               />
             </div>
             <Select
@@ -796,10 +809,10 @@ export default function ListDetailPage() {
 
       {/* History */}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] p-4">
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
           <h2 className="font-medium">History ({historyTotal})</h2>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative w-full sm:w-auto">
               <Search
                 size={14}
                 className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -809,7 +822,7 @@ export default function ListDetailPage() {
                 placeholder="Search history..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
               />
             </div>
             <Select
@@ -864,111 +877,142 @@ function VideoRow({
   const progress = useProgress(video.id)
 
   const renderStatusIcon = () => {
+    const wrapperClass = 'rounded-md bg-[var(--card-hover)] p-2'
+
     if (video.downloaded) {
-      return <CheckCircle size={18} className="text-[var(--success)]" />
+      return (
+        <span className={wrapperClass}>
+          <CheckCircle size={18} className="text-[var(--success)]" />
+        </span>
+      )
     }
     if (video.error_message) {
-      return <XCircle size={18} className="text-[var(--error)]" />
+      return (
+        <span className={wrapperClass}>
+          <XCircle size={18} className="text-[var(--error)]" />
+        </span>
+      )
     }
     if (video.blacklisted) {
       return (
-        <span title="Blacklisted - excluded from auto-download">
+        <span title="Blacklisted - excluded from auto-download" className={wrapperClass}>
           <CircleSlash size={18} className="text-[var(--muted)]" />
         </span>
       )
     }
     if (downloadRunning) {
       return (
-        <span title="Downloading...">
+        <span title="Downloading..." className={wrapperClass}>
           <Loader2 size={18} className="animate-spin text-[var(--accent)]" />
         </span>
       )
     }
     if (downloadQueued) {
       return (
-        <span title="Download queued">
+        <span title="Download queued" className={wrapperClass}>
           <Clock size={18} className="text-[var(--warning)]" />
         </span>
       )
     }
     if (autoDownload) {
-      return <Clock size={18} className="text-[var(--warning)]" />
+      return (
+        <span className={wrapperClass}>
+          <Clock size={18} className="text-[var(--warning)]" />
+        </span>
+      )
     }
     return (
-      <span title="Not pending - auto download is disabled for this list">
+      <span title="Not pending - auto download is disabled for this list" className={wrapperClass}>
         <CircleSlash size={18} className="text-[var(--muted)] opacity-50" />
       </span>
     )
   }
 
+  const renderDownloadButton = () => {
+    if (video.downloaded || downloadRunning || downloadQueued) return null
+
+    return (
+      <button
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onDownload()
+        }}
+        disabled={downloading}
+        className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+        title="Download"
+      >
+        {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+      </button>
+    )
+  }
+
+  const renderActions = () => (
+    <div className="flex shrink-0 items-center gap-2">
+      {renderStatusIcon()}
+      {renderDownloadButton()}
+    </div>
+  )
+
   return (
-    <div className="flex items-center gap-4 p-4">
-      <Link href={`/videos/${video.id}`} className="shrink-0">
-        {video.thumbnail ? (
-          <img
-            src={video.thumbnail}
-            alt=""
-            className="h-14 w-24 rounded bg-[var(--border)] object-cover transition-opacity hover:opacity-80"
-          />
-        ) : (
-          <div className="h-14 w-24 rounded bg-[var(--border)]" />
-        )}
-      </Link>
-      <div className="min-w-0 flex-1">
-        <Link
-          href={`/videos/${video.id}`}
-          className="line-clamp-1 text-sm font-medium transition-colors hover:text-[var(--accent)]"
-        >
-          {video.title}
+    <div className="p-3 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <Link href={`/videos/${video.id}`} className="shrink-0">
+          {video.thumbnail ? (
+            <img
+              src={video.thumbnail}
+              alt=""
+              className="aspect-video w-full rounded bg-[var(--border)] object-cover transition-opacity hover:opacity-80 sm:h-14 sm:w-24"
+            />
+          ) : (
+            <div className="aspect-video w-full rounded bg-[var(--border)] sm:h-14 sm:w-24" />
+          )}
         </Link>
-        <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted)]">
-          <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-            {video.media_type}
-          </span>
-          {video.blacklisted && (
-            <span className="rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)]">
-              blacklisted
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <Link
+              href={`/videos/${video.id}`}
+              className="line-clamp-2 flex-1 text-sm font-medium transition-colors hover:text-[var(--accent)]"
+            >
+              {video.title}
+            </Link>
+            {/* Mobile: status and download inline with title */}
+            <div className="sm:hidden">{renderActions()}</div>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+            <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+              {video.media_type}
             </span>
+            {video.blacklisted && (
+              <span className="rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)]">
+                blacklisted
+              </span>
+            )}
+            <span>{formatDuration(video.duration)}</span>
+            {video.upload_date && (
+              <span className="hidden sm:inline">
+                {new Date(video.upload_date).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </span>
+            )}
+            {hasLabels && <VideoLabels labels={video.labels} compact />}
+          </div>
+          {progress &&
+            progress.status !== 'completed' &&
+            progress.status !== 'error' &&
+            !video.error_message && (
+              <div className="mt-2 max-w-sm">
+                <DownloadProgress progress={progress} />
+              </div>
+            )}
+          {video.error_message && (
+            <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{video.error_message}</p>
           )}
-          <span>{formatDuration(video.duration)}</span>
-          {video.upload_date && (
-            <span>
-              {new Date(video.upload_date).toLocaleString(undefined, {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              })}
-            </span>
-          )}
-          {hasLabels && <VideoLabels labels={video.labels} compact />}
         </div>
-        {progress &&
-          progress.status !== 'completed' &&
-          progress.status !== 'error' &&
-          !video.error_message && (
-            <div className="mt-2 max-w-sm">
-              <DownloadProgress progress={progress} />
-            </div>
-          )}
-        {video.error_message && (
-          <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{video.error_message}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {renderStatusIcon()}
-        {!video.downloaded && !downloadRunning && !downloadQueued && (
-          <button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onDownload()
-            }}
-            disabled={downloading}
-            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] disabled:opacity-50"
-            title="Download"
-          >
-            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          </button>
-        )}
+        {/* Desktop: status and download on right */}
+        <div className="hidden sm:block">{renderActions()}</div>
       </div>
     </div>
   )

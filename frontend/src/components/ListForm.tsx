@@ -9,7 +9,7 @@ import { ToggleOption } from '@/components/ToggleOption'
 interface ListFormProps {
   list?: VideoList
   profiles: Profile[]
-  onSave: (data: Partial<VideoList>) => void
+  onSave: (data: Partial<VideoList>) => Promise<void>
   onCancel: () => void
 }
 
@@ -26,6 +26,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     blacklist_regex: list?.blacklist_regex || '',
   })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [regexError, setRegexError] = useState<string | null>(null)
 
   const validateRegex = (pattern: string): boolean => {
@@ -47,11 +48,24 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     e.preventDefault()
     if (!validateRegex(form.blacklist_regex)) return
     setSaving(true)
-    await onSave({
-      ...form,
-      blacklist_regex: form.blacklist_regex || null,
-    })
-    setSaving(false)
+    setError(null)
+    try {
+      await onSave({
+        ...form,
+        blacklist_regex: form.blacklist_regex || null,
+      })
+    } catch (err) {
+      // Extract error message from API response
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'detail' in err
+            ? String((err as { detail: string }).detail)
+            : 'Failed to save list'
+      setError(message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isEditing = !!list
@@ -206,6 +220,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">
+        {error && <p className="mr-auto text-sm text-[var(--error)]">{error}</p>}
         <button
           type="button"
           onClick={onCancel}

@@ -131,18 +131,14 @@ export default function ListsPage() {
   }
 
   const handleSave = async (data: Partial<VideoList>, id?: number) => {
-    try {
-      if (id) {
-        const updated = await api.updateList(id, data)
-        setLists(lists.map((l) => (l.id === updated.id ? updated : l)))
-      } else {
-        const created = await api.createList(data)
-        setLists([...lists, created])
-      }
-      setEditingId(null)
-    } catch (err) {
-      console.error('Failed to save:', err)
+    if (id) {
+      const updated = await api.updateList(id, data)
+      setLists(lists.map((l) => (l.id === updated.id ? updated : l)))
+    } else {
+      const created = await api.createList(data)
+      setLists([...lists, created])
     }
+    setEditingId(null)
   }
 
   const handleBulkSave = async (data: BulkListCreate) => {
@@ -182,11 +178,11 @@ export default function ListsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Lists</h1>
         {profiles.length > 0 && (
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative w-full sm:w-auto">
               <Search
                 size={14}
                 className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
@@ -196,7 +192,7 @@ export default function ListsPage() {
                 placeholder="Search lists..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-64 rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] py-1.5 pr-3 pl-8 text-sm focus:border-[var(--accent)] focus:outline-none sm:w-64"
               />
             </div>
             <Select
@@ -217,27 +213,27 @@ export default function ListsPage() {
               <button
                 onClick={handleSyncAll}
                 disabled={syncingAll}
-                className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
               >
                 <RefreshCw size={14} className={syncingAll ? 'animate-spin' : ''} />
-                Sync All
+                <span className="hidden sm:inline">Sync All</span>
               </button>
             )}
             {editingId !== 'new' && editingId !== 'bulk' && (
               <>
                 <button
                   onClick={() => setEditingId('bulk')}
-                  className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
+                  className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
                 >
                   <ListPlus size={14} />
-                  Bulk Add
+                  <span className="hidden sm:inline">Bulk Add</span>
                 </button>
                 <button
                   onClick={() => setEditingId('new')}
-                  className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-white transition-colors hover:bg-[var(--accent-hover)]"
+                  className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
                 >
                   <Plus size={14} />
-                  Add List
+                  <span className="hidden sm:inline">Add List</span>
                 </button>
               </>
             )}
@@ -347,13 +343,13 @@ function ListCard({
   return (
     <div
       className={clsx(
-        'rounded-lg border bg-[var(--card)] p-4',
+        'rounded-lg border bg-[var(--card)] p-3 sm:p-4',
         isDeleting && 'border-[var(--error)]/50 opacity-60',
         isSyncing && !isDeleting && 'border-[var(--accent)]/50',
         !isDeleting && !isSyncing && 'border-[var(--border)]'
       )}
     >
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         {list.thumbnail && (
           <Link
             href={`/lists/${list.id}`}
@@ -362,16 +358,16 @@ function ListCard({
             <img
               src={list.thumbnail}
               alt={list.name}
-              className="h-20 w-20 rounded-lg object-cover"
+              className="aspect-video w-full rounded-lg object-cover sm:aspect-square sm:h-20 sm:w-20"
               loading="lazy"
               referrerPolicy="no-referrer"
             />
           </Link>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ExtractorIcon extractor={list.extractor} size="md" />
                 <Link
                   href={`/lists/${list.id}`}
@@ -413,7 +409,7 @@ function ListCard({
                         Manual DL
                       </span>
                     )}
-                    <span className="rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">
+                    <span className="hidden rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] sm:inline">
                       {list.list_type}
                     </span>
                   </>
@@ -424,31 +420,33 @@ function ListCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 className={clsx(
-                  'mt-1 inline-flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--foreground)]',
+                  'mt-1 inline-flex items-center gap-1 text-sm break-all text-[var(--muted)] hover:text-[var(--foreground)]',
                   isDeleting && 'pointer-events-none'
                 )}
               >
-                {list.url.length > 60 ? list.url.slice(0, 60) + '...' : list.url}
-                <ExternalLink size={12} />
+                {list.url}
+                <ExternalLink size={12} className="shrink-0" />
               </a>
-              <div className="mt-2 flex items-center text-xs text-[var(--muted)]">
-                <span className="mr-2 after:ml-2 after:content-['•']">
-                  Profile: {profile?.name || 'Unknown'}
-                </span>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+                <span>Profile: {profile?.name || 'Unknown'}</span>
+                <span className="hidden sm:inline">•</span>
                 <span className="capitalize">Sync: {list.sync_frequency}</span>
                 {list.last_synced && (
-                  <span className="capitalize before:mr-2 before:ml-2 before:content-['•']">
-                    Last synced:{' '}
-                    {new Date(list.last_synced).toLocaleString(undefined, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </span>
+                  <>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="w-full capitalize sm:w-auto">
+                      Last synced:{' '}
+                      {new Date(list.last_synced).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
+                  </>
                 )}
               </div>
             </div>
             {!isDeleting && (
-              <div className="ml-4 flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:ml-4">
                 <button
                   onClick={onSync}
                   disabled={syncing || queued}

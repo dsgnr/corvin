@@ -20,8 +20,8 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || `HTTP ${res.status}`)
+    const error = await res.json().catch(() => ({ error: 'Request failed' }))
+    throw new Error(error.error || error.detail || error.message || `HTTP ${res.status}`)
   }
 
   if (res.status === 204) return null as T
