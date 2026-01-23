@@ -18,8 +18,7 @@ class TestSseCorsHeaders:
 
         headers = sse_cors_headers(mock_request)
 
-        assert headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
-        assert headers["Access-Control-Allow-Credentials"] == "true"
+        assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Cache-Control"] == "no-cache"
         assert headers["Connection"] == "keep-alive"
 

@@ -31,10 +31,8 @@ def sse_cors_headers(request: Request) -> dict:
     Returns:
         Dictionary of CORS headers.
     """
-    origin = request.headers.get("origin", "*")
     return {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Origin": "*",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
     }
