@@ -561,6 +561,7 @@ class YtDlpService:
             "description": entry.get("description"),
             "extractor": entry.get("extractor_key") or entry.get("extractor"),
             "media_type": entry.get("media_type"),
+            "was_live": entry.get("was_live", False),
         }
 
     @classmethod

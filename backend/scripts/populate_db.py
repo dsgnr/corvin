@@ -14,6 +14,7 @@ PROFILE = {
     "embed_metadata": True,
     "embed_thumbnail": True,
     "include_shorts": False,
+    "include_live": True,
     "download_subtitles": True,
     "embed_subtitles": True,
     "auto_generated_subtitles": True,

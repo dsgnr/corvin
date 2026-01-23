@@ -93,6 +93,7 @@ def _execute_sync(list_id: int) -> dict:
         }
 
         include_shorts = video_list.profile.include_shorts
+        include_live = video_list.profile.include_live
         counters = {"new": 0, "total": 0, "blacklisted": 0, "last_notified": 0}
         lock = threading.Lock()
         list_name = video_list.name
@@ -116,6 +117,9 @@ def _execute_sync(list_id: int) -> dict:
             counters["total"] += 1
 
             if not include_shorts and "shorts" in video_data.get("url", ""):
+                return
+
+            if not include_live and video_data.get("was_live"):
                 return
 
             try:

@@ -352,6 +352,31 @@ class TestParseSingleEntry:
 
         assert result["url"] == "https://example.com/video"
 
+    def test_includes_was_live_true(self):
+        """Should include was_live when video was a livestream."""
+        entry = {
+            "id": "live123",
+            "title": "Live Stream Recording",
+            "webpage_url": "https://youtube.com/watch?v=live123",
+            "was_live": True,
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result["was_live"] is True
+
+    def test_includes_was_live_false_by_default(self):
+        """Should default was_live to False when not present."""
+        entry = {
+            "id": "normal123",
+            "title": "Normal Video",
+            "webpage_url": "https://youtube.com/watch?v=normal123",
+        }
+
+        result = YtDlpService._parse_single_entry(entry)
+
+        assert result["was_live"] is False
+
 
 class TestExtractLabels:
     """Tests for YtDlpService._extract_labels method."""
@@ -375,6 +400,17 @@ class TestExtractLabels:
         assert result["audio_channels"] == 6
         assert result["dynamic_range"] == "SDR"
         assert result["filesize_approx"] == 500000000
+
+    def test_extracts_was_live_label(self):
+        """Should extract was_live label when present."""
+        info = {
+            "ext": "mp4",
+            "was_live": True,
+        }
+
+        result = YtDlpService._extract_labels(info)
+
+        assert result["was_live"] is True
 
     def test_handles_missing_fields(self):
         """Should only include available fields."""

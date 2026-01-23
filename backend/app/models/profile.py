@@ -52,6 +52,7 @@ class Profile(Base):
     embed_metadata = Column(Boolean, default=True)
     embed_thumbnail = Column(Boolean, default=True)
     include_shorts = Column(Boolean, default=True)
+    include_live = Column(Boolean, default=True)
     extra_args = Column(Text, default="{}")
 
     # Subtitle options
@@ -89,6 +90,7 @@ class Profile(Base):
             "embed_metadata": self.embed_metadata,
             "embed_thumbnail": self.embed_thumbnail,
             "include_shorts": self.include_shorts,
+            "include_live": self.include_live,
             "extra_args": self.extra_args,
             "download_subtitles": self.download_subtitles,
             "embed_subtitles": self.embed_subtitles,

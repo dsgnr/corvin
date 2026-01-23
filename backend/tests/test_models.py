@@ -69,6 +69,25 @@ class TestVideoList:
 class TestProfile:
     """Tests for Profile model."""
 
+    def test_to_dict_includes_include_live(self, db_session):
+        """Should include include_live in to_dict output."""
+        profile = Profile(name="Test", include_live=False)
+        db_session.add(profile)
+        db_session.commit()
+
+        result = profile.to_dict()
+
+        assert "include_live" in result
+        assert result["include_live"] is False
+
+    def test_include_live_defaults_to_true(self, db_session):
+        """Should default include_live to True."""
+        profile = Profile(name="Default Test")
+        db_session.add(profile)
+        db_session.commit()
+
+        assert profile.include_live is True
+
     def test_to_yt_dlp_opts_basic(self, db_session):
         """Should generate basic yt-dlp options."""
         profile = Profile(name="Test")

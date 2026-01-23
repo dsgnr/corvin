@@ -14,6 +14,14 @@ class TestProfileOptions:
         assert "sponsorblock" in data
         assert "output_formats" in data
 
+    def test_get_options_contains_include_live_default(self, client):
+        """Should include include_live in defaults."""
+        response = client.get("/api/profiles/options")
+
+        data = response.json()
+        assert "include_live" in data["defaults"]
+        assert data["defaults"]["include_live"] is True
+
     def test_get_options_contains_sponsorblock_behaviours(self, client):
         """Should include all sponsorblock behaviour options."""
         response = client.get("/api/profiles/options")
@@ -70,6 +78,31 @@ class TestCreateProfile:
         data = response.json()
         assert data["sponsorblock_behaviour"] == "delete"
         assert data["sponsorblock_categories"] == ["sponsor", "intro"]
+
+    def test_create_profile_with_include_live_false(self, client):
+        """Should create profile with include_live disabled."""
+        response = client.post(
+            "/api/profiles",
+            json={
+                "name": "No Live Profile",
+                "include_live": False,
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["include_live"] is False
+
+    def test_create_profile_include_live_defaults_true(self, client):
+        """Should default include_live to True."""
+        response = client.post(
+            "/api/profiles",
+            json={"name": "Default Live Profile"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["include_live"] is True
 
     def test_create_profile_invalid_sponsorblock_behaviour(self, client):
         """Should reject invalid sponsorblock behaviour."""
@@ -146,6 +179,16 @@ class TestUpdateProfile:
 
         assert response.status_code == 200
         assert response.json()["name"] == "Updated Name"
+
+    def test_update_profile_include_live(self, client, sample_profile):
+        """Should update include_live setting."""
+        response = client.put(
+            f"/api/profiles/{sample_profile}",
+            json={"include_live": False},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["include_live"] is False
 
     def test_update_profile_not_found(self, client):
         """Should return 404 for non-existent profile."""

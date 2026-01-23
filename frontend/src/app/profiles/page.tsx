@@ -167,6 +167,7 @@ function ProfileCard({
   if (profile.embed_thumbnail) features.push('Thumbnail')
   if (profile.download_subtitles) features.push('Subtitles')
   if (!profile.include_shorts) features.push('No Shorts')
+  if (!profile.include_live) features.push('No Live')
   if (profile.sponsorblock_behaviour !== 'disabled') features.push('SponsorBlock')
 
   return (
@@ -236,6 +237,7 @@ function ProfileForm({
     embed_metadata: boolean
     embed_thumbnail: boolean
     include_shorts: boolean
+    include_live: boolean
     download_subtitles: boolean
     embed_subtitles: boolean
     auto_generated_subtitles: boolean
@@ -251,6 +253,7 @@ function ProfileForm({
     embed_metadata: profile?.embed_metadata ?? defaults.embed_metadata,
     embed_thumbnail: profile?.embed_thumbnail ?? defaults.embed_thumbnail,
     include_shorts: profile?.include_shorts ?? defaults.include_shorts,
+    include_live: profile?.include_live ?? defaults.include_live,
     download_subtitles: profile?.download_subtitles ?? defaults.download_subtitles,
     embed_subtitles: profile?.embed_subtitles ?? defaults.embed_subtitles,
     auto_generated_subtitles:
@@ -364,6 +367,13 @@ function ProfileForm({
           description="Include YouTube Shorts when syncing channels"
           checked={form.include_shorts}
           onChange={() => setForm({ ...form, include_shorts: !form.include_shorts })}
+        />
+
+        <ToggleOption
+          label="Include live recordings"
+          description="Include livestream recordings when syncing channels"
+          checked={form.include_live}
+          onChange={() => setForm({ ...form, include_live: !form.include_live })}
         />
       </div>
 
