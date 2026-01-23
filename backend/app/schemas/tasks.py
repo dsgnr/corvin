@@ -37,11 +37,13 @@ class TaskLogResponse(BaseModel):
 class WorkerStats(BaseModel):
     """Worker statistics."""
 
-    running: bool
-    paused_sync: bool
-    paused_download: bool
-    current_task_id: int | None = None
-    current_task_type: str | None = None
+    running_sync: int
+    running_download: int
+    max_sync_workers: int
+    max_download_workers: int
+    paused: bool
+    sync_paused: bool
+    download_paused: bool
 
 
 class TaskStatsResponse(BaseModel):

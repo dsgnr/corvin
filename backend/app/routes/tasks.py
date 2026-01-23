@@ -150,36 +150,48 @@ def _fetch_tasks_paginated(
 
 def _fetch_task_counts(db: Session) -> dict:
     """Aggregate pending/running counts by type."""
-    counts = (
-        db.query(
-            func.count()
-            .filter(
-                (Task.task_type == TaskType.SYNC.value)
-                & (Task.status == TaskStatus.PENDING.value)
+    counts = db.query(
+        func.sum(
+            case(
+                (
+                    (Task.task_type == TaskType.SYNC.value)
+                    & (Task.status == TaskStatus.PENDING.value),
+                    1,
+                ),
+                else_=0,
             )
-            .label("pending_sync"),
-            func.count()
-            .filter(
-                (Task.task_type == TaskType.DOWNLOAD.value)
-                & (Task.status == TaskStatus.PENDING.value)
+        ).label("pending_sync"),
+        func.sum(
+            case(
+                (
+                    (Task.task_type == TaskType.DOWNLOAD.value)
+                    & (Task.status == TaskStatus.PENDING.value),
+                    1,
+                ),
+                else_=0,
             )
-            .label("pending_download"),
-            func.count()
-            .filter(
-                (Task.task_type == TaskType.SYNC.value)
-                & (Task.status == TaskStatus.RUNNING.value)
+        ).label("pending_download"),
+        func.sum(
+            case(
+                (
+                    (Task.task_type == TaskType.SYNC.value)
+                    & (Task.status == TaskStatus.RUNNING.value),
+                    1,
+                ),
+                else_=0,
             )
-            .label("running_sync"),
-            func.count()
-            .filter(
-                (Task.task_type == TaskType.DOWNLOAD.value)
-                & (Task.status == TaskStatus.RUNNING.value)
+        ).label("running_sync"),
+        func.sum(
+            case(
+                (
+                    (Task.task_type == TaskType.DOWNLOAD.value)
+                    & (Task.status == TaskStatus.RUNNING.value),
+                    1,
+                ),
+                else_=0,
             )
-            .label("running_download"),
-        )
-        .filter(Task.status.in_(ACTIVE_TASK_STATUSES))
-        .one()
-    )
+        ).label("running_download"),
+    ).one()
 
     return {
         "pending_sync": counts.pending_sync or 0,
