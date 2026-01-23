@@ -26,7 +26,7 @@ def _ensure_list_artwork(video_list) -> None:
     """
     from app.services import YtDlpService
 
-    YtDlpService.ensure_list_artwork(video_list.name, video_list.url)
+    YtDlpService.ensure_list_artwork(video_list.source_name, video_list.url)
 
 
 def sync_single_list(list_id: int) -> dict:

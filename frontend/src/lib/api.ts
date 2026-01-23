@@ -198,6 +198,7 @@ export interface Profile {
 export interface VideoList {
   id: number
   name: string
+  source_name: string | null
   url: string
   list_type: string
   extractor: string | null

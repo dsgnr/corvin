@@ -398,11 +398,9 @@ def _create_video_list(
     except Exception as exc:
         logger.warning("Failed to fetch metadata for %s: %s", url, exc)
 
-    # Use provided name, metadata name, or derive from URL
-    resolved_name = name or list_metadata.get("name") or url.split("/")[-1][:50]
-
     video_list = VideoList(
-        name=resolved_name,
+        name=name,
+        source_name=list_metadata.get("name"),
         url=url,
         list_type=list_type,
         profile_id=profile_id,
@@ -424,7 +422,9 @@ def _create_video_list(
     db.refresh(video_list)
 
     # Download artwork
-    YtDlpService.ensure_list_artwork(video_list.name, video_list.url, list_metadata)
+    YtDlpService.ensure_list_artwork(
+        video_list.source_name, video_list.url, list_metadata
+    )
 
     history_details = {"name": video_list.name, "url": video_list.url}
     if bulk:

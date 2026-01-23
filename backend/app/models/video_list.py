@@ -29,6 +29,7 @@ class VideoList(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False)
+    source_name = Column(String(200), nullable=True)
     url = Column(String(500), nullable=False, unique=True)
     list_type = Column(String(20), default="channel")
     extractor = Column(String(50), nullable=True)
@@ -87,6 +88,7 @@ class VideoList(Base):
         return {
             "id": self.id,
             "name": self.name,
+            "source_name": self.source_name,
             "url": self.url,
             "list_type": self.list_type,
             "extractor": self.extractor,

@@ -355,8 +355,10 @@ class YtDlpService:
             description = metadata.get("description") or ""
             extractor = (metadata.get("extractor") or "YouTube").lower()
 
-            ET.SubElement(root, "plot").text = description
-            ET.SubElement(root, "outline").text = description
+            plot_elem = ET.SubElement(root, "plot")
+            plot_elem.text = description
+            outline_elem = ET.SubElement(root, "outline")
+            outline_elem.text = description
             ET.SubElement(root, "lockdata").text = "false"
             ET.SubElement(root, "dateadded").text = datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
@@ -410,12 +412,16 @@ class YtDlpService:
 
             root = ET.Element("episodedetails")
 
-            ET.SubElement(root, "plot").text = video.description or ""
+            description = video.description
+            plot_elem = ET.SubElement(root, "plot")
+            plot_elem.text = description
+            outline_elem = ET.SubElement(root, "outline")
+            outline_elem.text = description
             ET.SubElement(root, "lockdata").text = "false"
             ET.SubElement(root, "dateadded").text = datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
-            ET.SubElement(root, "title").text = video.title or "Unknown"
+            ET.SubElement(root, "title").text = video.title
 
             if video.upload_date:
                 ET.SubElement(root, "year").text = str(video.upload_date.year)
@@ -638,7 +644,7 @@ class YtDlpService:
                 filename = ydl.prepare_filename(info)
                 labels = cls._extract_labels(info)
 
-                cls.write_video_nfo(video, filename)
+                cls.write_video_nfo(video, filename, info)
                 progress_service.mark_done(video.id)
 
                 logger.info("Downloaded: %s", filename)

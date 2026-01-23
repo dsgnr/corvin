@@ -67,6 +67,7 @@ class ListResponse(BaseModel):
 
     id: int
     name: str
+    source_name: str | None = None
     url: str
     list_type: str = "channel"
     extractor: str | None = None
