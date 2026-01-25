@@ -67,6 +67,7 @@ export function useEventSource<T>(
 
     const closeConnection = () => {
       if (eventSourceRef.current) {
+        isClosingRef.current = true
         eventSourceRef.current.close()
         eventSourceRef.current = null
       }

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Clock, ExternalLink, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Clock, ExternalLink, Plus, Trash2, AlertCircle } from 'lucide-react'
 import { api, DownloadSchedule, ScheduleStatus } from '@/lib/api'
+import { FormField, ValidatedInput } from '@/components/FormField'
+import { validators } from '@/lib/validation'
 
 const DAYS_OF_WEEK = [
   { value: 'mon', label: 'Mon' },
@@ -22,12 +24,40 @@ interface ScheduleFormData {
   end_time: string
 }
 
+interface ScheduleFormErrors {
+  name: string | null
+  days_of_week: string | null
+  start_time: string | null
+  end_time: string | null
+}
+
+interface ScheduleTouchedFields {
+  name: boolean
+  days_of_week: boolean
+  start_time: boolean
+  end_time: boolean
+}
+
 const defaultScheduleForm: ScheduleFormData = {
   name: '',
   enabled: true,
   days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
   start_time: '00:00',
   end_time: '23:59',
+}
+
+const defaultErrors: ScheduleFormErrors = {
+  name: null,
+  days_of_week: null,
+  start_time: null,
+  end_time: null,
+}
+
+const defaultTouched: ScheduleTouchedFields = {
+  name: false,
+  days_of_week: false,
+  start_time: false,
+  end_time: false,
 }
 
 export default function SettingsPage() {
@@ -44,6 +74,8 @@ export default function SettingsPage() {
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormData>(defaultScheduleForm)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [scheduleSaving, setScheduleSaving] = useState(false)
+  const [errors, setErrors] = useState<ScheduleFormErrors>(defaultErrors)
+  const [touched, setTouched] = useState<ScheduleTouchedFields>(defaultTouched)
 
   useEffect(() => {
     loadSchedules()
@@ -72,8 +104,73 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // Validation functions
+  const validateName = useCallback((value: string): string | null => {
+    const required = validators.required(value, 'Schedule name')
+    if (required) return required
+    const minLen = validators.minLength(value, 2, 'Schedule name')
+    if (minLen) return minLen
+    return null
+  }, [])
+
+  const validateDays = useCallback((days: string[]): string | null => {
+    return validators.nonEmptyArray(days, 'day')
+  }, [])
+
+  const validateTime = useCallback((value: string, fieldName: string): string | null => {
+    const required = validators.required(value, fieldName)
+    if (required) return required
+    return validators.time(value, fieldName)
+  }, [])
+
+  const handleFieldChange = (field: keyof ScheduleFormErrors, value: string | string[]) => {
+    setScheduleForm((prev) => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      let error: string | null = null
+      if (field === 'name') error = validateName(value as string)
+      else if (field === 'days_of_week') error = validateDays(value as string[])
+      else if (field === 'start_time') error = validateTime(value as string, 'Start time')
+      else if (field === 'end_time') error = validateTime(value as string, 'End time')
+      setErrors((prev) => ({ ...prev, [field]: error }))
+    }
+  }
+
+  const handleBlur = (field: keyof ScheduleTouchedFields) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    let error: string | null = null
+    if (field === 'name') error = validateName(scheduleForm.name)
+    else if (field === 'days_of_week') error = validateDays(scheduleForm.days_of_week)
+    else if (field === 'start_time') error = validateTime(scheduleForm.start_time, 'Start time')
+    else if (field === 'end_time') error = validateTime(scheduleForm.end_time, 'End time')
+    setErrors((prev) => ({ ...prev, [field]: error }))
+  }
+
+  const validateAll = (): boolean => {
+    const nameError = validateName(scheduleForm.name)
+    const daysError = validateDays(scheduleForm.days_of_week)
+    const startError = validateTime(scheduleForm.start_time, 'Start time')
+    const endError = validateTime(scheduleForm.end_time, 'End time')
+
+    setErrors({
+      name: nameError,
+      days_of_week: daysError,
+      start_time: startError,
+      end_time: endError,
+    })
+    setTouched({
+      name: true,
+      days_of_week: true,
+      start_time: true,
+      end_time: true,
+    })
+
+    return !nameError && !daysError && !startError && !endError
+  }
+
   const handleScheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateAll()) return
+
     setScheduleError(null)
     setScheduleSaving(true)
 
@@ -87,6 +184,8 @@ export default function SettingsPage() {
       setShowScheduleForm(false)
       setEditingSchedule(null)
       setScheduleForm(defaultScheduleForm)
+      setErrors(defaultErrors)
+      setTouched(defaultTouched)
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : 'Failed to save schedule')
     } finally {
@@ -105,6 +204,8 @@ export default function SettingsPage() {
     })
     setShowScheduleForm(true)
     setScheduleError(null)
+    setErrors(defaultErrors)
+    setTouched(defaultTouched)
   }
 
   const handleDeleteSchedule = async (id: number) => {
@@ -127,13 +228,30 @@ export default function SettingsPage() {
   }
 
   const toggleDay = (day: string) => {
-    setScheduleForm((prev) => ({
-      ...prev,
-      days_of_week: prev.days_of_week.includes(day)
-        ? prev.days_of_week.filter((d) => d !== day)
-        : [...prev.days_of_week, day],
-    }))
+    const newDays = scheduleForm.days_of_week.includes(day)
+      ? scheduleForm.days_of_week.filter((d) => d !== day)
+      : [...scheduleForm.days_of_week, day]
+    handleFieldChange('days_of_week', newDays)
   }
+
+  const cancelScheduleForm = () => {
+    setShowScheduleForm(false)
+    setEditingSchedule(null)
+    setScheduleForm(defaultScheduleForm)
+    setScheduleError(null)
+    setErrors(defaultErrors)
+    setTouched(defaultTouched)
+  }
+
+  const isScheduleFormValid =
+    scheduleForm.name.length >= 2 &&
+    scheduleForm.days_of_week.length > 0 &&
+    scheduleForm.start_time &&
+    scheduleForm.end_time &&
+    !errors.name &&
+    !errors.days_of_week &&
+    !errors.start_time &&
+    !errors.end_time
 
   return (
     <div className="space-y-6 p-6">
@@ -243,26 +361,36 @@ export default function SettingsPage() {
               onSubmit={handleScheduleSubmit}
               className="space-y-4 rounded-md border border-[var(--border)] bg-[var(--background)] p-4"
             >
-              <div>
-                <label className="mb-1 block text-sm text-[var(--muted)]">Schedule Name</label>
-                <input
+              <FormField
+                label="Schedule Name"
+                required
+                error={touched.name ? errors.name : null}
+                showSuccess={touched.name && !errors.name && scheduleForm.name.length > 0}
+              >
+                <ValidatedInput
                   type="text"
                   value={scheduleForm.name}
-                  onChange={(e) => setScheduleForm((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  onBlur={() => handleBlur('name')}
+                  error={errors.name}
+                  touched={touched.name}
                   placeholder="e.g., Night Downloads"
-                  required
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                  autoFocus
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="mb-2 block text-sm text-[var(--muted)]">Days of Week</label>
+              <FormField
+                label="Days of Week"
+                required
+                error={touched.days_of_week ? errors.days_of_week : null}
+              >
                 <div className="flex flex-wrap gap-2">
                   {DAYS_OF_WEEK.map((day) => (
                     <button
                       key={day.value}
                       type="button"
                       onClick={() => toggleDay(day.value)}
+                      onBlur={() => handleBlur('days_of_week')}
                       className={`rounded-md px-3 py-2 text-sm transition-colors sm:py-1.5 ${
                         scheduleForm.days_of_week.includes(day.value)
                           ? 'bg-[var(--accent)] text-white'
@@ -273,53 +401,57 @@ export default function SettingsPage() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </FormField>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-sm text-[var(--muted)]">Start Time</label>
-                  <input
+                <FormField
+                  label="Start Time"
+                  required
+                  error={touched.start_time ? errors.start_time : null}
+                >
+                  <ValidatedInput
                     type="time"
                     value={scheduleForm.start_time}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, start_time: e.target.value }))
-                    }
-                    required
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                    onChange={(e) => handleFieldChange('start_time', e.target.value)}
+                    onBlur={() => handleBlur('start_time')}
+                    error={errors.start_time}
+                    touched={touched.start_time}
                   />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-[var(--muted)]">End Time</label>
-                  <input
+                </FormField>
+                <FormField
+                  label="End Time"
+                  required
+                  error={touched.end_time ? errors.end_time : null}
+                >
+                  <ValidatedInput
                     type="time"
                     value={scheduleForm.end_time}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, end_time: e.target.value }))
-                    }
-                    required
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                    onChange={(e) => handleFieldChange('end_time', e.target.value)}
+                    onBlur={() => handleBlur('end_time')}
+                    error={errors.end_time}
+                    touched={touched.end_time}
                   />
-                </div>
+                </FormField>
               </div>
 
-              {scheduleError && <p className="text-sm text-red-500">{scheduleError}</p>}
+              {scheduleError && (
+                <p className="flex items-center gap-1 text-sm text-red-500">
+                  <AlertCircle size={14} />
+                  {scheduleError}
+                </p>
+              )}
 
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  disabled={scheduleSaving || scheduleForm.days_of_week.length === 0}
-                  className="rounded-md bg-[var(--accent)] px-4 py-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                  disabled={scheduleSaving || !isScheduleFormValid}
+                  className="rounded-md bg-[var(--accent)] px-4 py-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {scheduleSaving ? 'Saving...' : editingSchedule ? 'Update' : 'Create'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowScheduleForm(false)
-                    setEditingSchedule(null)
-                    setScheduleForm(defaultScheduleForm)
-                    setScheduleError(null)
-                  }}
+                  onClick={cancelScheduleForm}
                   className="rounded-md border border-[var(--border)] px-4 py-2 transition-colors hover:bg-[var(--border)]"
                 >
                   Cancel

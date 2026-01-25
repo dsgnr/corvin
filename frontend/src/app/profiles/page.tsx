@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { api, Profile, ProfileOptions } from '@/lib/api'
-import { Plus, Trash2, Edit2, Loader2, Copy, X, Check } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, Copy, X, Check, AlertCircle } from 'lucide-react'
 import { Select } from '@/components/Select'
 import { ToggleOption } from '@/components/ToggleOption'
+import { FormField, ValidatedInput } from '@/components/FormField'
+import { validators } from '@/lib/validation'
 
 export default function ProfilesPage() {
   return (
@@ -38,7 +40,6 @@ function ProfilesContent() {
         setProfiles(profilesData)
         setProfileOptions(options)
 
-        // Check for edit query param
         const editParam = searchParams.get('edit')
         if (editParam) {
           const editId = parseInt(editParam, 10)
@@ -215,6 +216,20 @@ function ProfileCard({
   )
 }
 
+interface FormErrors {
+  name: string | null
+  output_template: string | null
+  subtitle_languages: string | null
+  audio_track_language: string | null
+}
+
+interface TouchedFields {
+  name: boolean
+  output_template: boolean
+  subtitle_languages: boolean
+  audio_track_language: boolean
+}
+
 function ProfileForm({
   profile,
   defaults,
@@ -266,9 +281,90 @@ function ProfileForm({
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({
+    name: null,
+    output_template: null,
+    subtitle_languages: null,
+    audio_track_language: null,
+  })
+  const [touched, setTouched] = useState<TouchedFields>({
+    name: false,
+    output_template: false,
+    subtitle_languages: false,
+    audio_track_language: false,
+  })
+
+  const validateName = useCallback((value: string): string | null => {
+    const required = validators.required(value, 'Name')
+    if (required) return required
+    const minLen = validators.minLength(value, 2, 'Name')
+    if (minLen) return minLen
+    const maxLen = validators.maxLength(value, 50, 'Name')
+    if (maxLen) return maxLen
+    return null
+  }, [])
+
+  const validateOutputTemplate = useCallback((value: string): string | null => {
+    const required = validators.required(value, 'Output template')
+    if (required) return required
+    return validators.outputTemplate(value)
+  }, [])
+
+  const validateLanguageCodes = useCallback((value: string): string | null => {
+    if (!value) return null
+    return validators.languageCodes(value)
+  }, [])
+
+  const handleFieldChange = (field: keyof FormErrors, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      let error: string | null = null
+      if (field === 'name') error = validateName(value)
+      else if (field === 'output_template') error = validateOutputTemplate(value)
+      else if (field === 'subtitle_languages' || field === 'audio_track_language') {
+        error = validateLanguageCodes(value)
+      }
+      setErrors((prev) => ({ ...prev, [field]: error }))
+    }
+  }
+
+  const handleBlur = (field: keyof TouchedFields) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    let error: string | null = null
+    if (field === 'name') error = validateName(form.name)
+    else if (field === 'output_template') error = validateOutputTemplate(form.output_template)
+    else if (field === 'subtitle_languages') error = validateLanguageCodes(form.subtitle_languages)
+    else if (field === 'audio_track_language')
+      error = validateLanguageCodes(form.audio_track_language)
+    setErrors((prev) => ({ ...prev, [field]: error }))
+  }
+
+  const validateAll = (): boolean => {
+    const nameError = validateName(form.name)
+    const templateError = validateOutputTemplate(form.output_template)
+    const subtitleError = validateLanguageCodes(form.subtitle_languages)
+    const audioError = validateLanguageCodes(form.audio_track_language)
+
+    setErrors({
+      name: nameError,
+      output_template: templateError,
+      subtitle_languages: subtitleError,
+      audio_track_language: audioError,
+    })
+    setTouched({
+      name: true,
+      output_template: true,
+      subtitle_languages: true,
+      audio_track_language: true,
+    })
+
+    return !nameError && !templateError && !subtitleError && !audioError
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateAll()) return
+
     setSaving(true)
     setError(null)
     try {
@@ -291,49 +387,73 @@ function ProfileForm({
 
   const selectedCategories = form.sponsorblock_categories
 
+  const isFormValid =
+    form.name.length >= 2 &&
+    form.output_template.length > 0 &&
+    !errors.name &&
+    !errors.output_template &&
+    !errors.subtitle_languages &&
+    !errors.audio_track_language
+
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
     >
-      <div>
-        <label className="mb-1 block text-sm font-medium">Name</label>
-        <input
+      <FormField
+        label="Name"
+        required
+        error={touched.name ? errors.name : null}
+        showSuccess={touched.name && !errors.name && form.name.length > 0}
+      >
+        <ValidatedInput
           type="text"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
-          required
+          onChange={(e) => handleFieldChange('name', e.target.value)}
+          onBlur={() => handleBlur('name')}
+          error={errors.name}
+          touched={touched.name}
+          placeholder="My Profile"
+          autoFocus
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium">Output Template</label>
-        <p className="mb-2 text-xs text-[var(--muted)]">
-          yt-dlp output path template. Default outputs in a format Plex likes, (eg. s2026e0101 -
-          title.ext). Use variables like %(uploader)s, %(title)s, %(ext)s.{' '}
-          <a
-            href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--accent)] hover:underline"
-          >
-            See yt-dlp docs for all options
-          </a>
-        </p>
-        <input
+      <FormField
+        label="Output Template"
+        description={
+          <>
+            yt-dlp output path template. Use variables like %(uploader)s, %(title)s, %(ext)s.{' '}
+            <a
+              href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent)] hover:underline"
+            >
+              See yt-dlp docs
+            </a>
+          </>
+        }
+        required
+        error={touched.output_template ? errors.output_template : null}
+        showSuccess={
+          touched.output_template && !errors.output_template && form.output_template.length > 0
+        }
+      >
+        <ValidatedInput
           type="text"
           value={form.output_template}
-          onChange={(e) => setForm({ ...form, output_template: e.target.value })}
-          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm focus:border-[var(--accent)] focus:outline-none"
+          onChange={(e) => handleFieldChange('output_template', e.target.value)}
+          onBlur={() => handleBlur('output_template')}
+          error={errors.output_template}
+          touched={touched.output_template}
+          className="font-mono text-sm"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium">Output Format</label>
-        <p className="mb-2 text-xs text-[var(--muted)]">
-          Remux video to a specific container format (leave empty to keep original)
-        </p>
+      <FormField
+        label="Output Format"
+        description="Remux video to a specific container format (leave empty to keep original)"
+      >
         <Select
           value={form.output_format}
           onChange={(e) => setForm({ ...form, output_format: e.target.value })}
@@ -345,7 +465,7 @@ function ProfileForm({
             </option>
           ))}
         </Select>
-      </div>
+      </FormField>
 
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <ToggleOption
@@ -403,43 +523,48 @@ function ProfileForm({
           }
         />
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Subtitle languages</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Comma-separated language codes (e.g. en, es, fr)
-          </p>
-          <input
+        <FormField
+          label="Subtitle languages"
+          description="Comma-separated language codes (e.g., en, es, fr)"
+          error={touched.subtitle_languages ? errors.subtitle_languages : null}
+        >
+          <ValidatedInput
             type="text"
             value={form.subtitle_languages}
-            onChange={(e) => setForm({ ...form, subtitle_languages: e.target.value })}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
+            onChange={(e) => handleFieldChange('subtitle_languages', e.target.value)}
+            onBlur={() => handleBlur('subtitle_languages')}
+            error={errors.subtitle_languages}
+            touched={touched.subtitle_languages}
+            className="text-sm"
             placeholder="en"
           />
-        </div>
+        </FormField>
       </div>
 
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Audio language</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Preferred audio track language code (leave empty for default)
-          </p>
-          <input
+        <FormField
+          label="Audio language"
+          description="Preferred audio track language code (leave empty for default)"
+          error={touched.audio_track_language ? errors.audio_track_language : null}
+        >
+          <ValidatedInput
             type="text"
             value={form.audio_track_language}
-            onChange={(e) => setForm({ ...form, audio_track_language: e.target.value })}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
+            onChange={(e) => handleFieldChange('audio_track_language', e.target.value)}
+            onBlur={() => handleBlur('audio_track_language')}
+            error={errors.audio_track_language}
+            touched={touched.audio_track_language}
+            className="text-sm"
             placeholder="en"
           />
-        </div>
+        </FormField>
       </div>
 
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">SponsorBlock</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Automatically handle sponsored segments using SponsorBlock data
-          </p>
+        <FormField
+          label="SponsorBlock"
+          description="Automatically handle sponsored segments using SponsorBlock data"
+        >
           <Select
             value={form.sponsorblock_behaviour}
             onChange={(e) => setForm({ ...form, sponsorblock_behaviour: e.target.value })}
@@ -466,11 +591,16 @@ function ProfileForm({
               ))}
             </div>
           )}
-        </div>
+        </FormField>
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">
-        {error && <p className="mr-auto text-sm text-[var(--error)]">{error}</p>}
+        {error && (
+          <p className="mr-auto flex items-center gap-1 text-sm text-[var(--error)]">
+            <AlertCircle size={14} />
+            {error}
+          </p>
+        )}
         <button
           type="button"
           onClick={onCancel}
@@ -480,8 +610,8 @@ function ProfileForm({
         </button>
         <button
           type="submit"
-          disabled={saving || !form.name}
-          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+          disabled={saving || !isFormValid}
+          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Check size={18} />
         </button>

@@ -1,16 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { VideoList, Profile } from '@/lib/api'
 import { X, Check } from 'lucide-react'
 import { Select } from '@/components/Select'
 import { ToggleOption } from '@/components/ToggleOption'
+import { FormField, ValidatedInput } from '@/components/FormField'
+import { validators } from '@/lib/validation'
 
 interface ListFormProps {
   list?: VideoList
   profiles: Profile[]
   onSave: (data: Partial<VideoList>) => Promise<void>
   onCancel: () => void
+}
+
+interface FormErrors {
+  name: string | null
+  url: string | null
+  blacklist_regex: string | null
+}
+
+interface TouchedFields {
+  name: boolean
+  url: boolean
+  blacklist_regex: boolean
 }
 
 export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
@@ -27,26 +41,99 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [regexError, setRegexError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({
+    name: null,
+    url: null,
+    blacklist_regex: null,
+  })
+  const [touched, setTouched] = useState<TouchedFields>({
+    name: false,
+    url: false,
+    blacklist_regex: false,
+  })
 
-  const validateRegex = (pattern: string): boolean => {
-    if (!pattern) {
-      setRegexError(null)
-      return true
+  const isEditing = !!list
+
+  // Validation functions
+  const validateName = useCallback((value: string): string | null => {
+    const required = validators.required(value, 'Name')
+    if (required) return required
+    const minLen = validators.minLength(value, 2, 'Name')
+    if (minLen) return minLen
+    const maxLen = validators.maxLength(value, 100, 'Name')
+    if (maxLen) return maxLen
+    return null
+  }, [])
+
+  const validateUrl = useCallback((value: string): string | null => {
+    const required = validators.required(value, 'URL')
+    if (required) return required
+    return validators.url(value, 'URL')
+  }, [])
+
+  const validateRegex = useCallback((value: string): string | null => {
+    return validators.regex(value)
+  }, [])
+
+  // Handle field changes with validation
+  const handleNameChange = (value: string) => {
+    setForm((prev) => ({ ...prev, name: value }))
+    if (touched.name) {
+      setErrors((prev) => ({ ...prev, name: validateName(value) }))
     }
-    try {
-      new RegExp(pattern, 'i')
-      setRegexError(null)
-      return true
-    } catch {
-      setRegexError('Invalid regex pattern')
-      return false
+  }
+
+  const handleUrlChange = (value: string) => {
+    setForm((prev) => ({ ...prev, url: value }))
+    if (touched.url) {
+      setErrors((prev) => ({ ...prev, url: validateUrl(value) }))
     }
+  }
+
+  const handleRegexChange = (value: string) => {
+    setForm((prev) => ({ ...prev, blacklist_regex: value }))
+    if (touched.blacklist_regex) {
+      setErrors((prev) => ({ ...prev, blacklist_regex: validateRegex(value) }))
+    }
+  }
+
+  // Handle blur events
+  const handleBlur = (field: keyof TouchedFields) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    if (field === 'name') {
+      setErrors((prev) => ({ ...prev, name: validateName(form.name) }))
+    } else if (field === 'url') {
+      setErrors((prev) => ({ ...prev, url: validateUrl(form.url) }))
+    } else if (field === 'blacklist_regex') {
+      setErrors((prev) => ({ ...prev, blacklist_regex: validateRegex(form.blacklist_regex) }))
+    }
+  }
+
+  // Validate all fields
+  const validateAll = (): boolean => {
+    const nameError = validateName(form.name)
+    const urlError = !isEditing ? validateUrl(form.url) : null
+    const regexError = validateRegex(form.blacklist_regex)
+
+    setErrors({
+      name: nameError,
+      url: urlError,
+      blacklist_regex: regexError,
+    })
+    setTouched({
+      name: true,
+      url: true,
+      blacklist_regex: true,
+    })
+
+    return !nameError && !urlError && !regexError
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateRegex(form.blacklist_regex)) return
+
+    if (!validateAll()) return
+
     setSaving(true)
     setError(null)
     try {
@@ -55,7 +142,6 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
         blacklist_regex: form.blacklist_regex || null,
       })
     } catch (err) {
-      // Extract error message from API response
       const message =
         err instanceof Error
           ? err.message
@@ -68,45 +154,59 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     }
   }
 
-  const isEditing = !!list
+  const isFormValid =
+    form.name.length >= 2 &&
+    (isEditing || form.url.length > 0) &&
+    form.profile_id > 0 &&
+    !errors.name &&
+    !errors.url &&
+    !errors.blacklist_regex
 
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
     >
-      <div>
-        <label className="mb-1 block text-sm font-medium">Name</label>
-        <input
+      <FormField
+        label="Name"
+        required
+        error={touched.name ? errors.name : null}
+        showSuccess={touched.name && !errors.name && form.name.length > 0}
+      >
+        <ValidatedInput
           type="text"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
-          required
+          onChange={(e) => handleNameChange(e.target.value)}
+          onBlur={() => handleBlur('name')}
+          error={errors.name}
+          touched={touched.name}
+          placeholder="My Channel"
+          autoFocus
         />
-      </div>
+      </FormField>
 
       {!isEditing && (
-        <div>
-          <label className="mb-1 block text-sm font-medium">URL</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            YouTube channel or playlist URL to monitor
-          </p>
-          <input
+        <FormField
+          label="URL"
+          description="YouTube channel or playlist URL to monitor"
+          required
+          error={touched.url ? errors.url : null}
+          showSuccess={touched.url && !errors.url && form.url.length > 0}
+        >
+          <ValidatedInput
             type="text"
             value={form.url}
-            onChange={(e) => setForm({ ...form, url: e.target.value })}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
-            placeholder="https://youtube.com/..."
-            required
+            onChange={(e) => handleUrlChange(e.target.value)}
+            onBlur={() => handleBlur('url')}
+            error={errors.url}
+            touched={touched.url}
+            placeholder="https://youtube.com/@channel or https://youtube.com/playlist?list=..."
           />
-        </div>
+        </FormField>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Type</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">Whether this is a channel or playlist</p>
+        <FormField label="Type" description="Whether this is a channel or playlist">
           <Select
             value={form.list_type}
             onChange={(e) => setForm({ ...form, list_type: e.target.value })}
@@ -114,10 +214,9 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
             <option value="channel">Channel</option>
             <option value="playlist">Playlist</option>
           </Select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Profile</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">Download settings to use for this list</p>
+        </FormField>
+
+        <FormField label="Profile" description="Download settings to use for this list" required>
           <Select
             value={form.profile_id}
             onChange={(e) => setForm({ ...form, profile_id: Number(e.target.value) })}
@@ -128,10 +227,9 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
               </option>
             ))}
           </Select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Sync Frequency</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">How often to check for new videos</p>
+        </FormField>
+
+        <FormField label="Sync Frequency" description="How often to check for new videos">
           <Select
             value={form.sync_frequency}
             onChange={(e) => setForm({ ...form, sync_frequency: e.target.value })}
@@ -143,12 +241,9 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
           </Select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">From Date</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Only sync videos uploaded after this date
-          </p>
+        </FormField>
+
+        <FormField label="From Date" description="Only sync videos uploaded after this date">
           <input
             type="date"
             value={
@@ -159,39 +254,32 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
             onChange={(e) => setForm({ ...form, from_date: e.target.value.replace(/-/g, '') })}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
           />
-        </div>
+        </FormField>
       </div>
 
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Blacklist Pattern</label>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Videos with titles matching this pattern will be synced but not auto-downloaded. Uses
-            Python regex syntax with case-insensitive matching. Leave empty to disable.
-          </p>
-          <input
+        <FormField
+          label="Blacklist Pattern"
+          description="Videos with titles matching this pattern will be synced but not auto-downloaded. Uses regex with case-insensitive matching."
+          error={touched.blacklist_regex ? errors.blacklist_regex : null}
+          showSuccess={
+            touched.blacklist_regex && !errors.blacklist_regex && form.blacklist_regex.length > 0
+          }
+        >
+          <ValidatedInput
             type="text"
             value={form.blacklist_regex}
-            onChange={(e) => {
-              setForm({ ...form, blacklist_regex: e.target.value })
-              validateRegex(e.target.value)
-            }}
-            className={`w-full rounded-md border bg-[var(--background)] px-3 py-2 font-mono text-sm focus:outline-none ${
-              regexError
-                ? 'border-[var(--error)] focus:border-[var(--error)]'
-                : 'border-[var(--border)] focus:border-[var(--accent)]'
-            }`}
+            onChange={(e) => handleRegexChange(e.target.value)}
+            onBlur={() => handleBlur('blacklist_regex')}
+            error={errors.blacklist_regex}
+            touched={touched.blacklist_regex}
+            className="font-mono text-sm"
             placeholder="e.g. live|sponsor|#shorts"
           />
-          {regexError && <p className="mt-1 text-xs text-[var(--error)]">{regexError}</p>}
           <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
             <p>
               <code className="rounded bg-[var(--border)] px-1">word</code> matches titles
               containing &quot;word&quot; anywhere
-            </p>
-            <p>
-              <code className="rounded bg-[var(--border)] px-1">after files</code> matches phrase
-              &quot;After Files&quot; (spaces work)
             </p>
             <p>
               <code className="rounded bg-[var(--border)] px-1">live|stream</code> matches
@@ -202,7 +290,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
               with &quot;live&quot;
             </p>
           </div>
-        </div>
+        </FormField>
 
         <ToggleOption
           label="Enabled"
@@ -230,8 +318,8 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
         </button>
         <button
           type="submit"
-          disabled={saving || !form.name || (!isEditing && !form.url) || !form.profile_id}
-          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+          disabled={saving || !isFormValid}
+          className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Check size={18} />
         </button>
