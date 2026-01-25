@@ -398,8 +398,11 @@ def _create_video_list(
     except Exception as exc:
         logger.warning("Failed to fetch metadata for %s: %s", url, exc)
 
+    # Use provided name, fall back to metadata name, then URL as last resort
+    resolved_name = name or list_metadata.get("name") or url
+
     video_list = VideoList(
-        name=name,
+        name=resolved_name,
         source_name=list_metadata.get("name"),
         url=url,
         list_type=list_type,

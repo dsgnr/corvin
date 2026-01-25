@@ -120,6 +120,73 @@ class TestCreateList:
         assert response.status_code == 400
 
 
+class TestCreateListNameFallback:
+    """Tests for list name fallback logic when name is None."""
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_create_list_name_from_metadata_when_none(
+        self, mock_enqueue, mock_metadata, client, sample_profile, db_session
+    ):
+        """Should use metadata name when name is not provided."""
+        from app.routes.lists import _create_video_list
+
+        mock_metadata.return_value = {"name": "Channel From Metadata"}
+
+        video_list = _create_video_list(
+            db=db_session,
+            url="https://youtube.com/@metadatachannel",
+            name=None,
+            list_type="channel",
+            profile_id=sample_profile,
+        )
+
+        assert video_list.name == "Channel From Metadata"
+        assert video_list.source_name == "Channel From Metadata"
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_create_list_name_fallback_to_url(
+        self, mock_enqueue, mock_metadata, client, sample_profile, db_session
+    ):
+        """Should use URL as name when both name and metadata name are None."""
+        from app.routes.lists import _create_video_list
+
+        mock_metadata.return_value = {}
+
+        video_list = _create_video_list(
+            db=db_session,
+            url="https://youtube.com/@fallbackchannel",
+            name=None,
+            list_type="channel",
+            profile_id=sample_profile,
+        )
+
+        assert video_list.name == "https://youtube.com/@fallbackchannel"
+        assert video_list.source_name is None
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_create_list_explicit_name_takes_precedence(
+        self, mock_enqueue, mock_metadata, client, sample_profile, db_session
+    ):
+        """Should use explicit name over metadata name."""
+        from app.routes.lists import _create_video_list
+
+        mock_metadata.return_value = {"name": "Metadata Name"}
+
+        video_list = _create_video_list(
+            db=db_session,
+            url="https://youtube.com/@explicitchannel",
+            name="Explicit Name",
+            list_type="channel",
+            profile_id=sample_profile,
+        )
+
+        assert video_list.name == "Explicit Name"
+        assert video_list.source_name == "Metadata Name"
+
+
 class TestCreateListsBulk:
     """Tests for POST /api/lists/bulk."""
 
