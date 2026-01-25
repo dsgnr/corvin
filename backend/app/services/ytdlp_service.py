@@ -677,6 +677,7 @@ class YtDlpService:
                 "fragment_retries": 10,
                 "concurrent_fragment_downloads": 5,
                 "writeinfojson": True,
+                "format": "bv*+ba",
             }
         )
         return opts
