@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.profile import DEFAULT_OUTPUT_TEMPLATE
+from app.core.constants import DEFAULT_OUTPUT_TEMPLATE
 
 
 class ProfileCreate(BaseModel):

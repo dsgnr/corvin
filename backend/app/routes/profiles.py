@@ -5,7 +5,15 @@ Profiles routes.
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.constants import AUDIO_CODECS, RESOLUTION_MAP, VIDEO_CODECS
+from app.core.constants import (
+    AUDIO_CODECS,
+    DEFAULT_OUTPUT_TEMPLATE,
+    RESOLUTION_MAP,
+    SPONSORBLOCK_BEHAVIOURS,
+    SPONSORBLOCK_CATEGORIES,
+    SPONSORBLOCK_DISABLED,
+    VIDEO_CODECS,
+)
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.validators import (
@@ -14,11 +22,6 @@ from app.core.validators import (
 )
 from app.extensions import get_db, get_read_db
 from app.models import HistoryAction, Profile
-from app.models.profile import (
-    DEFAULT_OUTPUT_TEMPLATE,
-    SPONSORBLOCK_CATEGORIES,
-    SponsorBlockBehaviour,
-)
 from app.schemas.profiles import (
     ProfileCreate,
     ProfileOptionsResponse,
@@ -41,36 +44,13 @@ def get_profile_options():
         else:
             resolutions.append({"label": f"{label} ({height}p)", "value": height})
 
-    video_codec_labels = {
-        "av01": "AV1",
-        "vp9.2": "VP9.2 (HDR)",
-        "vp9": "VP9",
-        "h265": "H.265/HEVC",
-        "h264": "H.264/AVC",
-    }
     video_codecs = sorted(
-        [
-            {"label": video_codec_labels.get(c, c.upper()), "value": c}
-            for c in VIDEO_CODECS
-        ],
+        [{"label": label, "value": value} for value, label in VIDEO_CODECS.items()],
         key=lambda x: x["label"],
     )
 
-    audio_codec_labels = {
-        "flac": "FLAC",
-        "alac": "ALAC",
-        "wav": "WAV",
-        "opus": "Opus",
-        "vorbis": "Vorbis",
-        "aac": "AAC",
-        "mp4a": "MP4A",
-        "mp3": "MP3",
-    }
     audio_codecs = sorted(
-        [
-            {"label": audio_codec_labels.get(c, c.upper()), "value": c}
-            for c in AUDIO_CODECS
-        ],
+        [{"label": label, "value": value} for value, label in AUDIO_CODECS.items()],
         key=lambda x: x["label"],
     )
 
@@ -86,7 +66,7 @@ def get_profile_options():
             "auto_generated_subtitles": False,
             "subtitle_languages": "en",
             "audio_track_language": None,
-            "sponsorblock_behaviour": SponsorBlockBehaviour.DISABLED,
+            "sponsorblock_behaviour": SPONSORBLOCK_DISABLED,
             "sponsorblock_categories": [],
             "output_format": None,
             "preferred_resolution": None,
@@ -95,18 +75,9 @@ def get_profile_options():
             "extra_args": "{}",
         },
         "sponsorblock": {
-            "behaviours": SponsorBlockBehaviour.ALL,
-            "categories": SPONSORBLOCK_CATEGORIES,
-            "category_labels": {
-                "sponsor": "Sponsor",
-                "intro": "Intro/Intermission",
-                "outro": "Outro/Credits",
-                "selfpromo": "Unpaid/Self Promotion",
-                "preview": "Preview/Recap",
-                "interaction": "Interaction Reminder (Subscribe)",
-                "music_offtopic": "Music: Non-Music Section",
-                "filler": "Tangents/Jokes",
-            },
+            "behaviours": SPONSORBLOCK_BEHAVIOURS,
+            "categories": list(SPONSORBLOCK_CATEGORIES.keys()),
+            "category_labels": SPONSORBLOCK_CATEGORIES,
         },
         "resolutions": resolutions,
         "video_codecs": video_codecs,

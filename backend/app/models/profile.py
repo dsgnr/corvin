@@ -8,34 +8,14 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
-from app.core.constants import RESOLUTION_MAP
+from app.core.constants import (
+    DEFAULT_OUTPUT_TEMPLATE,
+    RESOLUTION_MAP,
+    SPONSORBLOCK_DELETE,
+    SPONSORBLOCK_DISABLED,
+    SPONSORBLOCK_MARK_CHAPTER,
+)
 from app.models import Base
-
-
-class SponsorBlockBehaviour:
-    """SponsorBlock behaviour options."""
-
-    DISABLED = "disabled"
-    DELETE = "delete"
-    MARK_CHAPTER = "mark_chapter"
-
-    ALL = [DISABLED, DELETE, MARK_CHAPTER]
-
-
-# Valid SponsorBlock categories
-SPONSORBLOCK_CATEGORIES = [
-    "sponsor",
-    "intro",
-    "outro",
-    "selfpromo",
-    "preview",
-    "interaction",
-    "music_offtopic",
-    "filler",
-]
-
-# Default output template for profiles
-DEFAULT_OUTPUT_TEMPLATE = "%(uploader)s/Season %(upload_date>%Y)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
 
 
 class Profile(Base):
@@ -72,7 +52,7 @@ class Profile(Base):
     )
 
     # SponsorBlock options
-    sponsorblock_behaviour = Column(String(20), default=SponsorBlockBehaviour.DISABLED)
+    sponsorblock_behaviour = Column(String(20), default=SPONSORBLOCK_DISABLED)
     sponsorblock_categories = Column(JSON, default=list)
 
     # Output format for remuxing
@@ -251,7 +231,7 @@ class Profile(Base):
 
     def _add_sponsorblock_postprocessors(self, postprocessors: list) -> None:
         """Add SponsorBlock postprocessors if enabled."""
-        if self.sponsorblock_behaviour == SponsorBlockBehaviour.DISABLED:
+        if self.sponsorblock_behaviour == SPONSORBLOCK_DISABLED:
             return
         if not self.sponsorblock_categories:
             return
@@ -270,7 +250,7 @@ class Profile(Base):
 
         remove_segments = (
             categories_set
-            if self.sponsorblock_behaviour == SponsorBlockBehaviour.DELETE
+            if self.sponsorblock_behaviour == SPONSORBLOCK_DELETE
             else set()
         )
         postprocessors.append(
@@ -284,7 +264,7 @@ class Profile(Base):
             }
         )
 
-        if self.sponsorblock_behaviour == SponsorBlockBehaviour.MARK_CHAPTER:
+        if self.sponsorblock_behaviour == SPONSORBLOCK_MARK_CHAPTER:
             postprocessors.append(
                 {
                     "key": "FFmpegMetadata",
