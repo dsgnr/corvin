@@ -1,8 +1,8 @@
 services:
   backend:
     image: ghcr.io/dsgnr/corvin-backend:latest
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     volumes:
       - ./corvin_data:/data
       - ./downloads:/downloads

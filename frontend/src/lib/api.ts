@@ -1,11 +1,21 @@
 function getApiBase(): string {
+  // Custom API URL from settings (for advanced users)
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem('corvin_api_url')
+    if (customUrl) return customUrl
+  }
+
+  // Environment override
   if (process.env.NEXT_PUBLIC_API_BASE) {
     return process.env.NEXT_PUBLIC_API_BASE
   }
+
+  // Default: use same origin (proxied through Next.js)
   if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:5000/api`
+    return '/api'
   }
-  // Server-side: use Docker service name
+
+  // Server-side: use Docker service name directly
   return process.env.INTERNAL_API_BASE || 'http://backend:5000/api'
 }
 

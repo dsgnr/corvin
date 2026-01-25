@@ -33,8 +33,8 @@ docker compose up -d
 
 Once running:
 - Web UI: http://localhost
-- API: http://localhost:5000
-- API Docs: http://localhost:5000/api/docs
+
+The API is proxied through the frontend, so you only need to expose port 80.
 
 ## Configuration
 
@@ -61,7 +61,7 @@ Both directories are mounted as volumes and persist between container restarts.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://backend:5000` | Backend API URL (Docker internal network) |
+| `BACKEND_URL` | `http://backend:5000` | Backend API URL (Docker internal network) |
 
 ## API
 
@@ -80,6 +80,8 @@ The REST API is the primary interface. All endpoints are under `/api/`:
 | `/health` | Health check endpoint |
 
 Standard REST conventions apply. `GET`, `POST`, `PUT`, `DELETE` where appropriate.
+
+The API is accessible via the frontend proxy at `http://localhost/api/` or directly at `http://localhost:5000/api/` if you expose the backend port.
 
 ## Download Profiles
 

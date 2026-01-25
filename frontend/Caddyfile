@@ -1,5 +1,14 @@
 :80 {
-    reverse_proxy localhost:3000
+    # Proxy API requests to backend
+    handle /api/* {
+        reverse_proxy {$BACKEND_URL:backend:5000}
+    }
+
+    # Serve Next.js app
+    handle {
+        reverse_proxy localhost:3000
+    }
+
     log {
         output stdout
         format console
