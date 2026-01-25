@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
+from app.core.constants import RESOLUTION_MAP
 from app.models import Base
 
 
@@ -32,9 +33,6 @@ SPONSORBLOCK_CATEGORIES = [
     "music_offtopic",
     "filler",
 ]
-
-# Supported output formats for remuxing
-OUTPUT_FORMATS = ["3gp", "aac", "flv", "m4a", "mp3", "mp4", "ogg", "wav", "webm"]
 
 # Default output template for profiles
 DEFAULT_OUTPUT_TEMPLATE = "%(uploader)s/Season %(upload_date>%Y)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s"
@@ -65,7 +63,7 @@ class Profile(Base):
     subtitle_languages = Column(String(200), default="en")
 
     # Audio track language
-    audio_track_language = Column(String(100), default="en")
+    audio_track_language = Column(String(100))
 
     # Output path template
     output_template = Column(
@@ -78,7 +76,14 @@ class Profile(Base):
     sponsorblock_categories = Column(JSON, default=list)
 
     # Output format for remuxing
-    output_format = Column(String(20), default="mp4")
+    output_format = Column(String(4))
+
+    # Preferred resolution (height in pixels, e.g., 2160, 1080)
+    preferred_resolution = Column(Integer)
+
+    # Codec preferences
+    preferred_video_codec = Column(String(10))
+    preferred_audio_codec = Column(String(10))
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -104,6 +109,9 @@ class Profile(Base):
             "sponsorblock_behaviour": self.sponsorblock_behaviour,
             "sponsorblock_categories": self.sponsorblock_categories or [],
             "output_format": self.output_format,
+            "preferred_resolution": self.preferred_resolution,
+            "preferred_video_codec": self.preferred_video_codec,
+            "preferred_audio_codec": self.preferred_audio_codec,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -115,33 +123,61 @@ class Profile(Base):
         Returns:
             Dictionary of yt-dlp options ready for use with YoutubeDL.
         """
-        output_fmt = (
-            self.output_format if self.output_format in OUTPUT_FORMATS else "mp4"
-        )
+        is_audio_only = self.preferred_resolution == 0
 
+        # Base options shared by both modes
         opts = {
             "paths": {"temp": "/tmp"},
             "fragment_retries": 10,
             "retries": 10,
-            "final_ext": output_fmt,
-            "merge_output_format": output_fmt,
-            "format_sort": [
-                "vcodec:h264",
-                "lang",
-                "quality",
-                "res",
-                "fps",
-                "hdr:12",
-                "acodec:aac",
-            ],
         }
 
         postprocessors = []
+
+        if is_audio_only:
+            opts["format"] = "bestaudio/best"
+            opts["final_ext"] = "m4a"
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "nopostoverwrites": False,
+                    "preferredcodec": "m4a",
+                    "preferredquality": "5",
+                }
+            )
+        else:
+            # Build format_sort with codec preferences
+            format_sort = []
+            if self.preferred_video_codec:
+                format_sort.append(f"vcodec:{self.preferred_video_codec}")
+            if self.preferred_audio_codec:
+                format_sort.append(f"acodec:{self.preferred_audio_codec}")
+            format_sort.extend(["res", "fps", "hdr", "codec", "br", "size"])
+
+            opts["audio_multistreams"] = True
+            opts["merge_output_format"] = self.output_format or "mkv"
+            opts["format_sort"] = format_sort
+
+            # Set format based on preferred resolution
+            if (
+                self.preferred_resolution
+                and self.preferred_resolution in RESOLUTION_MAP
+            ):
+                opts["format"] = (
+                    f"bv*[height<={self.preferred_resolution}]+ba"
+                    f"/best[height<={self.preferred_resolution}]"
+                )
+            else:
+                opts["format"] = "bv*+ba/best"
+
+            # Video-only postprocessors
+            self._add_subtitle_postprocessors(opts, postprocessors)
+            self._add_audio_options(opts)
+            self._add_output_postprocessors(postprocessors)
+
+        # Shared postprocessors for both modes
         self._add_metadata_postprocessors(opts, postprocessors)
-        self._add_subtitle_postprocessors(opts, postprocessors)
-        self._add_audio_options(opts)
         self._add_sponsorblock_postprocessors(postprocessors)
-        self._add_output_postprocessors(postprocessors, output_fmt)
 
         opts["postprocessors"] = postprocessors
         return opts
@@ -207,8 +243,8 @@ class Profile(Base):
 
     def _add_audio_options(self, opts: dict) -> None:
         """Add audio track language preferences."""
+        opts["audio_multistreams"] = True
         if self.audio_track_language:
-            opts["audio_multistreams"] = True
             opts["format_sort"] = [f"lang:{self.audio_track_language}"] + opts[
                 "format_sort"
             ]
@@ -258,14 +294,8 @@ class Profile(Base):
                 }
             )
 
-    def _add_output_postprocessors(self, postprocessors: list, output_fmt: str) -> None:
+    def _add_output_postprocessors(self, postprocessors: list) -> None:
         """Add output format remuxing postprocessors."""
-        postprocessors.append(
-            {
-                "key": "FFmpegVideoRemuxer",
-                "preferedformat": output_fmt,
-            }
-        )
         postprocessors.append(
             {
                 "key": "FFmpegConcat",

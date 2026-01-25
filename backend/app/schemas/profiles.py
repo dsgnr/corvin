@@ -25,8 +25,8 @@ class ProfileCreate(BaseModel):
     subtitle_languages: str = Field(
         "en", description="Subtitle languages (comma-separated)"
     )
-    audio_track_language: str = Field(
-        "en", description="Preferred audio track language"
+    audio_track_language: str | None = Field(
+        None, description="Preferred audio track language"
     )
     sponsorblock_behaviour: str = Field(
         "disabled", description="SponsorBlock behaviour"
@@ -34,7 +34,21 @@ class ProfileCreate(BaseModel):
     sponsorblock_categories: list[str] = Field(
         default_factory=list, description="SponsorBlock categories"
     )
-    output_format: str = Field("mp4", description="Output format")
+    output_format: str | None = Field(
+        None,
+        description="Output file format. For best results, leave this blank and the recommended container will be used (mkv)",
+    )
+    preferred_resolution: int | None = Field(
+        None, description="Preferred video resolution height (e.g., 2160, 1080)"
+    )
+    preferred_video_codec: str | None = Field(
+        None,
+        description="Preferred video codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
+    )
+    preferred_audio_codec: str | None = Field(
+        None,
+        description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
+    )
     extra_args: str = Field("{}", description="Extra yt-dlp arguments as JSON")
 
 
@@ -64,7 +78,21 @@ class ProfileUpdate(BaseModel):
     sponsorblock_categories: list[str] | None = Field(
         None, description="SponsorBlock categories"
     )
-    output_format: str | None = Field(None, description="Output format")
+    output_format: str | None = Field(
+        None,
+        description="Output file format. For best results, leave this blank and the recommended container will be used (mkv)",
+    )
+    preferred_resolution: int | None = Field(
+        None, description="Preferred video resolution height (e.g., 2160, 1080)"
+    )
+    preferred_video_codec: str | None = Field(
+        None,
+        description="Preferred video codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
+    )
+    preferred_audio_codec: str | None = Field(
+        None,
+        description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
+    )
     extra_args: str | None = Field(None, description="Extra yt-dlp arguments as JSON")
 
 
@@ -84,11 +112,14 @@ class ProfileResponse(BaseModel):
     embed_subtitles: bool = False
     auto_generated_subtitles: bool = False
     subtitle_languages: str = "en"
-    audio_track_language: str = "en"
+    audio_track_language: str | None = None
     output_template: str = DEFAULT_OUTPUT_TEMPLATE
     sponsorblock_behaviour: str = "disabled"
     sponsorblock_categories: list[str] = []
-    output_format: str = "mp4"
+    output_format: str | None
+    preferred_resolution: int | None
+    preferred_video_codec: str | None
+    preferred_audio_codec: str | None
     created_at: str
     updated_at: str
 
@@ -105,10 +136,13 @@ class ProfileDefaults(BaseModel):
     embed_subtitles: bool
     auto_generated_subtitles: bool
     subtitle_languages: str
-    audio_track_language: str
+    audio_track_language: str | None
     sponsorblock_behaviour: str
     sponsorblock_categories: list[str]
-    output_format: str
+    output_format: str | None
+    preferred_resolution: int | None
+    preferred_video_codec: str | None
+    preferred_audio_codec: str | None
     extra_args: str
 
 
@@ -120,9 +154,25 @@ class SponsorBlockOptions(BaseModel):
     category_labels: dict[str, str]
 
 
+class ResolutionOption(BaseModel):
+    """Resolution option with label and value."""
+
+    label: str
+    value: int
+
+
+class CodecOption(BaseModel):
+    """Codec option with label and value."""
+
+    label: str
+    value: str
+
+
 class ProfileOptionsResponse(BaseModel):
     """Profile options and defaults."""
 
     defaults: ProfileDefaults
     sponsorblock: SponsorBlockOptions
-    output_formats: list[str]
+    resolutions: list[ResolutionOption]
+    video_codecs: list[CodecOption]
+    audio_codecs: list[CodecOption]

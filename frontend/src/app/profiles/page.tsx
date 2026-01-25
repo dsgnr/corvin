@@ -114,7 +114,9 @@ function ProfilesContent() {
           <ProfileForm
             defaults={profileOptions.defaults}
             sponsorBlockOpts={profileOptions.sponsorblock}
-            outputFormats={profileOptions.output_formats}
+            resolutions={profileOptions.resolutions}
+            videoCodecs={profileOptions.video_codecs}
+            audioCodecs={profileOptions.audio_codecs}
             onSave={(data) => handleSave(data)}
             onCancel={() => setEditingId(null)}
           />
@@ -132,7 +134,9 @@ function ProfilesContent() {
                 profile={profile}
                 defaults={profileOptions.defaults}
                 sponsorBlockOpts={profileOptions.sponsorblock}
-                outputFormats={profileOptions.output_formats}
+                resolutions={profileOptions.resolutions}
+                videoCodecs={profileOptions.video_codecs}
+                audioCodecs={profileOptions.audio_codecs}
                 onSave={(data) => handleSave(data, profile.id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -163,27 +167,76 @@ function ProfileCard({
   onDuplicate: () => void
   onDelete: () => void
 }) {
-  const features = []
-  if (profile.embed_metadata) features.push('Metadata')
-  if (profile.embed_thumbnail) features.push('Thumbnail')
-  if (profile.download_subtitles) features.push('Subtitles')
-  if (!profile.include_shorts) features.push('No Shorts')
-  if (!profile.include_live) features.push('No Live')
-  if (profile.sponsorblock_behaviour !== 'disabled') features.push('SponsorBlock')
+  type Feature = { label: string; color: string }
+  const features: Feature[] = []
+
+  // Resolution - blue
+  if (profile.preferred_resolution === 0) {
+    features.push({ label: 'Audio Only', color: 'bg-purple-500/20 text-purple-400' })
+  } else if (profile.preferred_resolution) {
+    features.push({
+      label: `${profile.preferred_resolution}p`,
+      color: 'bg-blue-500/20 text-blue-400',
+    })
+  } else {
+    features.push({ label: 'Best Resolution', color: 'bg-blue-500/20 text-blue-400' })
+  }
+
+  // Output format - cyan
+  features.push({
+    label: profile.output_format ? profile.output_format.toUpperCase() : 'MKV',
+    color: 'bg-cyan-500/20 text-cyan-400',
+  })
+
+  // Codecs - green
+  features.push({
+    label: profile.preferred_video_codec
+      ? `Video: ${profile.preferred_video_codec}`
+      : 'Best Video Codec',
+    color: 'bg-green-500/20 text-green-400',
+  })
+  features.push({
+    label: profile.preferred_audio_codec
+      ? `Audio: ${profile.preferred_audio_codec}`
+      : 'Best Audio Codec',
+    color: 'bg-green-500/20 text-green-400',
+  })
+
+  // Embedding options - amber
+  if (profile.embed_metadata) {
+    features.push({ label: 'Embed Metadata', color: 'bg-amber-500/20 text-amber-400' })
+  }
+  if (profile.embed_thumbnail) {
+    features.push({ label: 'Embed Thumbnail', color: 'bg-amber-500/20 text-amber-400' })
+  }
+
+  // Subtitles - pink
+  if (profile.download_subtitles || profile.embed_subtitles) {
+    features.push({ label: 'Embed Subtitles', color: 'bg-pink-500/20 text-pink-400' })
+  }
+
+  // Content filters - red
+  if (!profile.include_shorts) {
+    features.push({ label: 'No Shorts', color: 'bg-red-500/20 text-red-400' })
+  }
+  if (!profile.include_live) {
+    features.push({ label: 'No Live', color: 'bg-red-500/20 text-red-400' })
+  }
+
+  // SponsorBlock - orange
+  if (profile.sponsorblock_behaviour !== 'disabled') {
+    features.push({ label: 'SponsorBlock', color: 'bg-orange-500/20 text-orange-400' })
+  }
 
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-medium">{profile.name}</h3>
-          <p className="mt-1 font-mono text-sm text-[var(--muted)]">{profile.output_template}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {features.map((f) => (
-              <span
-                key={f}
-                className="rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]"
-              >
-                {f}
+              <span key={f.label} className={`rounded px-2 py-0.5 text-xs ${f.color}`}>
+                {f.label}
               </span>
             ))}
           </div>
@@ -234,14 +287,18 @@ function ProfileForm({
   profile,
   defaults,
   sponsorBlockOpts,
-  outputFormats,
+  resolutions,
+  videoCodecs,
+  audioCodecs,
   onSave,
   onCancel,
 }: {
   profile?: Profile
   defaults: ProfileOptions['defaults']
   sponsorBlockOpts: ProfileOptions['sponsorblock']
-  outputFormats: string[]
+  resolutions: ProfileOptions['resolutions']
+  videoCodecs: ProfileOptions['video_codecs']
+  audioCodecs: ProfileOptions['audio_codecs']
   onSave: (data: Partial<Profile>) => Promise<void>
   onCancel: () => void
 }) {
@@ -249,6 +306,9 @@ function ProfileForm({
     name: string
     output_template: string
     output_format: string
+    preferred_resolution: number | null
+    preferred_video_codec: string
+    preferred_audio_codec: string
     embed_metadata: boolean
     embed_thumbnail: boolean
     include_shorts: boolean
@@ -264,7 +324,10 @@ function ProfileForm({
   }>({
     name: profile?.name || '',
     output_template: profile?.output_template || defaults.output_template,
-    output_format: profile?.output_format || defaults.output_format,
+    output_format: profile?.output_format || '',
+    preferred_resolution: profile?.preferred_resolution ?? null,
+    preferred_video_codec: profile?.preferred_video_codec || '',
+    preferred_audio_codec: profile?.preferred_audio_codec || '',
     embed_metadata: profile?.embed_metadata ?? defaults.embed_metadata,
     embed_thumbnail: profile?.embed_thumbnail ?? defaults.embed_thumbnail,
     include_shorts: profile?.include_shorts ?? defaults.include_shorts,
@@ -274,7 +337,7 @@ function ProfileForm({
     auto_generated_subtitles:
       profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
     subtitle_languages: profile?.subtitle_languages || defaults.subtitle_languages,
-    audio_track_language: profile?.audio_track_language || defaults.audio_track_language,
+    audio_track_language: profile?.audio_track_language || '',
     sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
     sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
     extra_args: profile?.extra_args || defaults.extra_args,
@@ -368,7 +431,23 @@ function ProfileForm({
     setSaving(true)
     setError(null)
     try {
-      await onSave(form)
+      const data: Record<string, unknown> = { ...form }
+      if (!data.output_format) {
+        delete data.output_format
+      }
+      if (!data.preferred_resolution) {
+        delete data.preferred_resolution
+      }
+      if (!data.preferred_video_codec) {
+        delete data.preferred_video_codec
+      }
+      if (!data.preferred_audio_codec) {
+        delete data.preferred_audio_codec
+      }
+      if (!data.audio_track_language) {
+        delete data.audio_track_language
+      }
+      await onSave(data as Partial<Profile>)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save profile'
       setError(message)
@@ -452,16 +531,94 @@ function ProfileForm({
 
       <FormField
         label="Output Format"
-        description="Remux video to a specific container format (leave empty to keep original)"
+        description="Remux video to a specific container format. Defaults to mkv if left empty."
       >
-        <Select
+        <input
+          type="text"
           value={form.output_format}
           onChange={(e) => setForm({ ...form, output_format: e.target.value })}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+          placeholder="mp4, mkv, webm..."
+        />
+      </FormField>
+
+      <FormField
+        label="Preferred Resolution"
+        description="Downloads the best quality up to this resolution. Leave as default for best available. Audio Only downloads best audio quality and saves as m4a."
+      >
+        <Select
+          value={form.preferred_resolution?.toString() || ''}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              preferred_resolution: e.target.value ? parseInt(e.target.value, 10) : null,
+            })
+          }
         >
-          <option value="">Keep original</option>
-          {outputFormats.map((fmt: string) => (
-            <option key={fmt} value={fmt}>
-              {fmt}
+          <option value="">Best available</option>
+          {resolutions.map((res) => (
+            <option key={res.value} value={res.value}>
+              {res.label}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+
+      <FormField
+        label="Preferred Video Codec"
+        description={
+          <>
+            Leave as default for best available. Falls back to yt-dlp&apos;s{' '}
+            <a
+              href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#sorting-formats"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent)] hover:underline"
+            >
+              default sorting
+            </a>{' '}
+            if unavailable.
+          </>
+        }
+      >
+        <Select
+          value={form.preferred_video_codec}
+          onChange={(e) => setForm({ ...form, preferred_video_codec: e.target.value })}
+        >
+          <option value="">Best available</option>
+          {videoCodecs.map((codec) => (
+            <option key={codec.value} value={codec.value}>
+              {codec.label}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+
+      <FormField
+        label="Preferred Audio Codec"
+        description={
+          <>
+            Leave as default for best available. Falls back to yt-dlp&apos;s{' '}
+            <a
+              href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#sorting-formats"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent)] hover:underline"
+            >
+              default sorting
+            </a>{' '}
+            if unavailable.
+          </>
+        }
+      >
+        <Select
+          value={form.preferred_audio_codec}
+          onChange={(e) => setForm({ ...form, preferred_audio_codec: e.target.value })}
+        >
+          <option value="">Best available</option>
+          {audioCodecs.map((codec) => (
+            <option key={codec.value} value={codec.value}>
+              {codec.label}
             </option>
           ))}
         </Select>

@@ -5,6 +5,7 @@ Profiles routes.
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.core.constants import AUDIO_CODECS, RESOLUTION_MAP, VIDEO_CODECS
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.validators import (
@@ -15,7 +16,6 @@ from app.extensions import get_db, get_read_db
 from app.models import HistoryAction, Profile
 from app.models.profile import (
     DEFAULT_OUTPUT_TEMPLATE,
-    OUTPUT_FORMATS,
     SPONSORBLOCK_CATEGORIES,
     SponsorBlockBehaviour,
 )
@@ -34,6 +34,46 @@ router = APIRouter(prefix="/api/profiles", tags=["Profiles"])
 @router.get("/options", response_model=ProfileOptionsResponse)
 def get_profile_options():
     """Return profile defaults and supported configuration options."""
+    resolutions = []
+    for height, label in RESOLUTION_MAP.items():
+        if height == 0:
+            resolutions.append({"label": label, "value": height})
+        else:
+            resolutions.append({"label": f"{label} ({height}p)", "value": height})
+
+    video_codec_labels = {
+        "av01": "AV1",
+        "vp9.2": "VP9.2 (HDR)",
+        "vp9": "VP9",
+        "h265": "H.265/HEVC",
+        "h264": "H.264/AVC",
+    }
+    video_codecs = sorted(
+        [
+            {"label": video_codec_labels.get(c, c.upper()), "value": c}
+            for c in VIDEO_CODECS
+        ],
+        key=lambda x: x["label"],
+    )
+
+    audio_codec_labels = {
+        "flac": "FLAC",
+        "alac": "ALAC",
+        "wav": "WAV",
+        "opus": "Opus",
+        "vorbis": "Vorbis",
+        "aac": "AAC",
+        "mp4a": "MP4A",
+        "mp3": "MP3",
+    }
+    audio_codecs = sorted(
+        [
+            {"label": audio_codec_labels.get(c, c.upper()), "value": c}
+            for c in AUDIO_CODECS
+        ],
+        key=lambda x: x["label"],
+    )
+
     return {
         "defaults": {
             "output_template": DEFAULT_OUTPUT_TEMPLATE,
@@ -45,10 +85,13 @@ def get_profile_options():
             "embed_subtitles": False,
             "auto_generated_subtitles": False,
             "subtitle_languages": "en",
-            "audio_track_language": "en",
+            "audio_track_language": None,
             "sponsorblock_behaviour": SponsorBlockBehaviour.DISABLED,
             "sponsorblock_categories": [],
-            "output_format": "mp4",
+            "output_format": None,
+            "preferred_resolution": None,
+            "preferred_video_codec": None,
+            "preferred_audio_codec": None,
             "extra_args": "{}",
         },
         "sponsorblock": {
@@ -65,7 +108,9 @@ def get_profile_options():
                 "filler": "Tangents/Jokes",
             },
         },
-        "output_formats": OUTPUT_FORMATS,
+        "resolutions": resolutions,
+        "video_codecs": video_codecs,
+        "audio_codecs": audio_codecs,
     }
 
 
@@ -94,6 +139,9 @@ def create_profile(payload: ProfileCreate, db: Session = Depends(get_db)):
         sponsorblock_behaviour=payload.sponsorblock_behaviour,
         sponsorblock_categories=payload.sponsorblock_categories,
         output_format=payload.output_format,
+        preferred_resolution=payload.preferred_resolution,
+        preferred_video_codec=payload.preferred_video_codec,
+        preferred_audio_codec=payload.preferred_audio_codec,
         extra_args=payload.extra_args,
     )
 

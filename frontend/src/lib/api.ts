@@ -187,9 +187,12 @@ export interface Profile {
   embed_subtitles: boolean
   auto_generated_subtitles: boolean
   subtitle_languages: string
-  audio_track_language: string
+  audio_track_language: string | null
   output_template: string
-  output_format: string
+  output_format: string | null
+  preferred_resolution: number | null
+  preferred_video_codec: string | null
+  preferred_audio_codec: string | null
   sponsorblock_behaviour: string
   sponsorblock_categories: string[]
   created_at: string
@@ -530,15 +533,30 @@ export interface ProfileDefaults {
   embed_subtitles: boolean
   auto_generated_subtitles: boolean
   subtitle_languages: string
-  audio_track_language: string
-  output_format: string
+  audio_track_language: string | null
+  output_format: string | null
+  preferred_resolution: number | null
+  preferred_video_codec: string | null
+  preferred_audio_codec: string | null
   sponsorblock_behaviour: string
   sponsorblock_categories: string[]
   extra_args: string
 }
 
+export interface ResolutionOption {
+  label: string
+  value: number
+}
+
+export interface CodecOption {
+  label: string
+  value: string
+}
+
 export interface ProfileOptions {
   defaults: ProfileDefaults
   sponsorblock: SponsorBlockOptions
-  output_formats: string[]
+  resolutions: ResolutionOption[]
+  video_codecs: CodecOption[]
+  audio_codecs: CodecOption[]
 }
