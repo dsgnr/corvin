@@ -379,6 +379,7 @@ class YtDlpService:
             unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
             unique_id.text = channel_id or name
 
+            ET.indent(root)
             tree = ET.ElementTree(root)
             output_path = output_dir / "tvshow.nfo"
             tree.write(output_path, encoding="unicode", xml_declaration=True)
@@ -453,6 +454,7 @@ class YtDlpService:
             unique_id = ET.SubElement(root, "uniqueid", type=extractor, default="true")
             unique_id.text = video.video_id
 
+            ET.indent(root)
             tree = ET.ElementTree(root)
             tree.write(nfo_path, encoding="unicode", xml_declaration=True)
 
