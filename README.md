@@ -12,6 +12,7 @@ The project is API-first by design. The web interface is optional, making it str
 - Optimised indexing approach
 - Automatic syncing on configurable schedules (daily, weekly, monthly)
 - Download profiles with control over format, quality, and post-processing
+- Download scheduling to restrict downloads to specific time windows
 - SponsorBlock integration to skip or mark sponsored segments
 - Subtitle downloading and embedding
 - Metadata and thumbnail embedding
@@ -73,8 +74,10 @@ The REST API is the primary interface. All endpoints are under `/api/`:
 | `/api/videos` | View and manage discovered videos |
 | `/api/tasks` | View task queue and status |
 | `/api/history` | View activity history |
+| `/api/schedules` | Manage download time windows |
 | `/api/progress` | Real-time download progress (SSE) |
 | `/api/docs` | Interactive API documentation (Scalar) |
+| `/health` | Health check endpoint |
 
 Standard REST conventions apply. `GET`, `POST`, `PUT`, `DELETE` where appropriate.
 
@@ -82,21 +85,29 @@ Standard REST conventions apply. `GET`, `POST`, `PUT`, `DELETE` where appropriat
 
 Profiles control how videos are downloaded and processed:
 
-- **Output format** — mp4, webm, mp3, etc.
+- **Preferred resolution** — target video quality (4K, 1080p, 720p, etc.) or audio-only mode
+- **Video codec** — prefer specific codecs (AV1, VP9, H.264, etc.)
+- **Audio codec** — prefer specific audio codecs (Opus, AAC, etc.)
+- **Output format** — container format (mp4, mkv, webm, etc.)
 - **Output template** — file naming using yt-dlp template syntax
 - **Metadata embedding** — include video metadata in the file
 - **Thumbnail embedding** — embed thumbnails as cover art
 - **Subtitles** — download, embed, or fetch auto-generated
 - **Audio language** — prefer specific audio tracks
 - **SponsorBlock** — skip or mark sponsors, intros, outros
+- **Content filters** — include or exclude Shorts and live streams
 - **Extra arguments** — additional yt-dlp options as JSON
 
 Default output template:
 ```
-%(uploader)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s
+%(uploader)s/Season %(upload_date>%Y)s/s%(upload_date>%Y)se%(upload_date>%m%d)s - %(title)s.%(ext)s
+```
+Renders as:
+```
+channel_name/Season YYYY/s20YYeMMDD video title.ext
 ```
 
-This organises downloads by uploader, with files named by season (year) and episode (date).
+This organises downloads by uploader, then season (year), with files named by season (year) and episode (date).
 
 ## Video Lists
 
@@ -105,9 +116,19 @@ Lists represent channels or playlists to monitor:
 - **Sync frequency** — how often to check for new videos
 - **From date** — only sync videos uploaded after this date
 - **Auto-download** — automatically queue new videos for download
-- **Exclude shorts** — skip YouTube Shorts
+- **Regex matching** — exclude videos from automatically downloading based on regex.
 
 Disable auto-download for an "index only" mode, then manually download specific videos as needed.
+
+## Download Schedules
+
+Schedules allow you to restrict downloads to specific time windows:
+
+- **Days of week** — which days the schedule is active
+- **Start/end time** — the time window when downloads are permitted
+- **Enable/disable** — toggle schedules without deleting them
+
+When no schedules are defined or enabled, downloads run at any time. When schedules are active, downloads only proceed during the permitted windows.
 
 ## Development
 
@@ -145,6 +166,14 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+Frontend uses ESLint and Prettier:
+
+```bash
+cd frontend
+npm run lint
+npm run format
+```
+
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 
 ### Running Tests
@@ -156,11 +185,10 @@ uv run pytest
 
 ## Architecture
 
-- **Backend**: Flask, SQLAlchemy, APScheduler for periodic tasks, yt-dlp for media extraction
-- **Frontend**: Next.js with React, Tailwind CSS
+- **Backend**: FastAPI, SQLAlchemy, APScheduler for periodic tasks, yt-dlp for media extraction
+- **Frontend**: Next.js 16 with React 19, Tailwind CSS 4
 - **Database**: SQLite (stored in `./corvin_data/corvin.db`)
 - **Task Queue**: Custom in-memory queue with persistent task state
-- **Scheduler**: Syncs every 30 minutes, downloads every 5 minutes
 
 ## Requirements
 
@@ -185,6 +213,6 @@ I'm thrilled that you're interested in contributing to this project! Here's how 
 - Website: https://danielhand.io
 - Github: [@dsgnr](https://github.com/dsgnr)
 
-## License
+## Licence
 
-See the [LICENSE](LICENSE) file for more details on terms and conditions.
+See the [LICENCE](LICENSE) file for more details on terms and conditions.
