@@ -237,22 +237,19 @@ class Profile(Base):
         if not self.sponsorblock_categories:
             return
 
-        categories_csv = ",".join(self.sponsorblock_categories)
-        categories_set = set(self.sponsorblock_categories)
-
         postprocessors.append(
             {
                 "key": "SponsorBlock",
                 "api": "https://sponsor.ajay.app",
-                "categories": categories_csv,
+                "categories": self.sponsorblock_categories,
                 "when": "after_filter",
             }
         )
 
         remove_segments = (
-            categories_set
+            self.sponsorblock_categories
             if self.sponsorblock_behaviour == SPONSORBLOCK_DELETE
-            else set()
+            else []
         )
         postprocessors.append(
             {
