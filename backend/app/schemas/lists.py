@@ -22,6 +22,12 @@ class ListCreate(BaseModel):
     blacklist_regex: str | None = Field(
         None, description="Regex pattern to blacklist videos by title"
     )
+    min_duration: int | None = Field(
+        None, description="Minimum video duration in seconds"
+    )
+    max_duration: int | None = Field(
+        None, description="Maximum video duration in seconds"
+    )
 
 
 class BulkListCreate(BaseModel):
@@ -58,6 +64,12 @@ class ListUpdate(BaseModel):
     blacklist_regex: str | None = Field(
         None, description="Regex pattern to blacklist videos by title"
     )
+    min_duration: int | None = Field(
+        None, description="Minimum video duration in seconds"
+    )
+    max_duration: int | None = Field(
+        None, description="Maximum video duration in seconds"
+    )
 
 
 class ListResponse(BaseModel):
@@ -77,6 +89,8 @@ class ListResponse(BaseModel):
     enabled: bool = True
     auto_download: bool = True
     blacklist_regex: str | None = None
+    min_duration: int | None = None
+    max_duration: int | None = None
     deleting: bool = False
     last_synced: str | None = None
     next_sync_at: str | None = None

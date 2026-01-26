@@ -38,6 +38,8 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     enabled: list?.enabled ?? true,
     auto_download: list?.auto_download ?? true,
     blacklist_regex: list?.blacklist_regex || '',
+    min_duration: list?.min_duration ?? null,
+    max_duration: list?.max_duration ?? null,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -140,6 +142,8 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
       await onSave({
         ...form,
         blacklist_regex: form.blacklist_regex || null,
+        min_duration: form.min_duration,
+        max_duration: form.max_duration,
       })
     } catch (err) {
       const message =
@@ -291,6 +295,46 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
             </p>
           </div>
         </FormField>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            label="Min Duration"
+            description="Videos shorter than this will be blacklisted from auto-download (in seconds)"
+          >
+            <input
+              type="number"
+              min="0"
+              value={form.min_duration ?? ''}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  min_duration: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              placeholder="e.g. 60 for 1 minute"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+            />
+          </FormField>
+
+          <FormField
+            label="Max Duration"
+            description="Videos longer than this will be blacklisted from auto-download (in seconds)"
+          >
+            <input
+              type="number"
+              min="0"
+              value={form.max_duration ?? ''}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  max_duration: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              placeholder="e.g. 3600 for 1 hour"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+            />
+          </FormField>
+        </div>
 
         <ToggleOption
           label="Enabled"

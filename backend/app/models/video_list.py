@@ -41,6 +41,8 @@ class VideoList(Base):
     last_synced = Column(DateTime, nullable=True)
     deleting = Column(Boolean, default=False)
     blacklist_regex = Column(Text, nullable=True)
+    min_duration = Column(Integer, nullable=True)
+    max_duration = Column(Integer, nullable=True)
 
     description = Column(Text, nullable=True)
     thumbnail = Column(String(500), nullable=True)
@@ -105,6 +107,8 @@ class VideoList(Base):
             "thumbnail": self.thumbnail,
             "tags": self.tags.split(",") if self.tags else [],
             "blacklist_regex": self.blacklist_regex,
+            "min_duration": self.min_duration,
+            "max_duration": self.max_duration,
             "deleting": self.deleting,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

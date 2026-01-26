@@ -97,6 +97,8 @@ def _execute_sync(list_id: int) -> dict:
         counters = {"new": 0, "total": 0, "blacklisted": 0, "last_notified": 0}
         lock = threading.Lock()
         list_name = video_list.name
+        min_duration = video_list.min_duration
+        max_duration = video_list.max_duration
 
         # Compile blacklist regex if set
         blacklist_pattern = None
@@ -123,12 +125,33 @@ def _execute_sync(list_id: int) -> dict:
 
             try:
                 with SessionLocal() as db_inner:
+                    # Collect all blacklist reasons
+                    blacklist_reasons = []
+
                     # Check if video title matches blacklist pattern
-                    is_blacklisted = False
                     if blacklist_pattern and blacklist_pattern.search(
                         video_data["title"]
                     ):
-                        is_blacklisted = True
+                        blacklist_reasons.append("Title matches blacklist pattern")
+
+                    # Check duration constraints
+                    duration = video_data.get("duration")
+                    if duration is not None:
+                        if min_duration is not None and duration < min_duration:
+                            blacklist_reasons.append(
+                                f"Duration ({duration}s) is below minimum ({min_duration}s)"
+                            )
+                        if max_duration is not None and duration > max_duration:
+                            blacklist_reasons.append(
+                                f"Duration ({duration}s) exceeds maximum ({max_duration}s)"
+                            )
+
+                    is_blacklisted = len(blacklist_reasons) > 0
+                    blacklist_reason = (
+                        "; ".join(blacklist_reasons) if blacklist_reasons else None
+                    )
+
+                    if is_blacklisted:
                         counters["blacklisted"] += 1
 
                     video = Video(
@@ -144,6 +167,7 @@ def _execute_sync(list_id: int) -> dict:
                         labels=video_data.get("labels", {}),
                         list_id=list_id,
                         blacklisted=is_blacklisted,
+                        error_message=blacklist_reason,
                     )
                     db_inner.add(video)
                     db_inner.commit()

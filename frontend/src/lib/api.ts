@@ -238,6 +238,8 @@ export interface VideoList {
   enabled: boolean
   auto_download: boolean
   blacklist_regex: string | null
+  min_duration: number | null
+  max_duration: number | null
   last_synced: string | null
   next_sync_at: string | null
   description: string | null

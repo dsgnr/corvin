@@ -886,17 +886,20 @@ function VideoRow({
         </span>
       )
     }
+    if (video.blacklisted) {
+      return (
+        <span
+          title={video.error_message || 'Blacklisted - excluded from auto-download'}
+          className={wrapperClass}
+        >
+          <CircleSlash size={18} className="text-[var(--muted)]" />
+        </span>
+      )
+    }
     if (video.error_message) {
       return (
         <span className={wrapperClass}>
           <XCircle size={18} className="text-[var(--error)]" />
-        </span>
-      )
-    }
-    if (video.blacklisted) {
-      return (
-        <span title="Blacklisted - excluded from auto-download" className={wrapperClass}>
-          <CircleSlash size={18} className="text-[var(--muted)]" />
         </span>
       )
     }
@@ -1007,8 +1010,11 @@ function VideoRow({
                 <DownloadProgress progress={progress} />
               </div>
             )}
-          {video.error_message && (
+          {video.error_message && !video.blacklisted && (
             <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{video.error_message}</p>
+          )}
+          {video.blacklisted && video.error_message && (
+            <p className="mt-1 line-clamp-1 text-xs text-[var(--muted)]">{video.error_message}</p>
           )}
         </div>
         {/* Desktop: status and download on right */}

@@ -214,7 +214,7 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with "live" pattern
-        _reapply_blacklist_background(sample_list, "Test List", "live")
+        _reapply_blacklist_background(sample_list, "Test List", "live", None, None)
 
         # Give background thread time to complete
         time.sleep(0.2)
@@ -245,7 +245,7 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with None pattern
-        _reapply_blacklist_background(sample_list, "Test List", None)
+        _reapply_blacklist_background(sample_list, "Test List", None, None, None)
 
         # Give background thread time to complete
         time.sleep(0.2)
@@ -270,7 +270,7 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with lowercase pattern
-        _reapply_blacklist_background(sample_list, "Test List", "live")
+        _reapply_blacklist_background(sample_list, "Test List", "live", None, None)
 
         time.sleep(0.2)
 
@@ -293,7 +293,7 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with invalid regex (unclosed bracket)
-        _reapply_blacklist_background(sample_list, "Test List", "[invalid")
+        _reapply_blacklist_background(sample_list, "Test List", "[invalid", None, None)
 
         time.sleep(0.2)
 
@@ -333,7 +333,9 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with OR pattern
-        _reapply_blacklist_background(sample_list, "Test List", "live|sponsor")
+        _reapply_blacklist_background(
+            sample_list, "Test List", "live|sponsor", None, None
+        )
 
         time.sleep(0.2)
 
@@ -370,7 +372,9 @@ class TestBlacklistReapplyBackground:
         db_session.commit()
 
         # Run reapply with phrase pattern
-        _reapply_blacklist_background(sample_list, "Test List", "after files")
+        _reapply_blacklist_background(
+            sample_list, "Test List", "after files", None, None
+        )
 
         time.sleep(0.2)
 
@@ -509,3 +513,259 @@ class TestVideoBlacklistedField:
         db_session.commit()
 
         assert video.blacklisted is False
+
+
+class TestDurationFiltering:
+    """Tests for duration-based blacklisting."""
+
+    def test_reapply_blacklist_min_duration(self, db_session, sample_list):
+        """Blacklist videos below minimum duration."""
+        from app.routes.lists import _reapply_blacklist_background
+
+        videos = [
+            Video(
+                video_id="dur1",
+                title="Short Video",
+                url="https://youtube.com/watch?v=dur1",
+                list_id=sample_list,
+                duration=30,  # 30 seconds
+                blacklisted=False,
+            ),
+            Video(
+                video_id="dur2",
+                title="Long Video",
+                url="https://youtube.com/watch?v=dur2",
+                list_id=sample_list,
+                duration=120,  # 2 minutes
+                blacklisted=False,
+            ),
+        ]
+        db_session.add_all(videos)
+        db_session.commit()
+
+        # Run reapply with min_duration of 60 seconds
+        _reapply_blacklist_background(sample_list, "Test List", None, 60, None)
+
+        time.sleep(0.2)
+
+        db_session.expire_all()
+        vid1 = db_session.query(Video).filter_by(video_id="dur1").first()
+        vid2 = db_session.query(Video).filter_by(video_id="dur2").first()
+
+        assert vid1.blacklisted is True  # 30s < 60s minimum
+        assert vid2.blacklisted is False  # 120s >= 60s minimum
+        assert "below minimum" in vid1.error_message
+
+    def test_reapply_blacklist_max_duration(self, db_session, sample_list):
+        """Blacklist videos above maximum duration."""
+        from app.routes.lists import _reapply_blacklist_background
+
+        videos = [
+            Video(
+                video_id="dur3",
+                title="Normal Video",
+                url="https://youtube.com/watch?v=dur3",
+                list_id=sample_list,
+                duration=1800,  # 30 minutes
+                blacklisted=False,
+            ),
+            Video(
+                video_id="dur4",
+                title="Very Long Video",
+                url="https://youtube.com/watch?v=dur4",
+                list_id=sample_list,
+                duration=7200,  # 2 hours
+                blacklisted=False,
+            ),
+        ]
+        db_session.add_all(videos)
+        db_session.commit()
+
+        # Run reapply with max_duration of 1 hour (3600 seconds)
+        _reapply_blacklist_background(sample_list, "Test List", None, None, 3600)
+
+        time.sleep(0.2)
+
+        db_session.expire_all()
+        vid3 = db_session.query(Video).filter_by(video_id="dur3").first()
+        vid4 = db_session.query(Video).filter_by(video_id="dur4").first()
+
+        assert vid3.blacklisted is False  # 1800s <= 3600s maximum
+        assert vid4.blacklisted is True  # 7200s > 3600s maximum
+        assert "exceeds maximum" in vid4.error_message
+
+    def test_reapply_blacklist_duration_range(self, db_session, sample_list):
+        """Blacklist videos outside duration range."""
+        from app.routes.lists import _reapply_blacklist_background
+
+        videos = [
+            Video(
+                video_id="dur5",
+                title="Too Short",
+                url="https://youtube.com/watch?v=dur5",
+                list_id=sample_list,
+                duration=30,
+                blacklisted=False,
+            ),
+            Video(
+                video_id="dur6",
+                title="Just Right",
+                url="https://youtube.com/watch?v=dur6",
+                list_id=sample_list,
+                duration=600,  # 10 minutes
+                blacklisted=False,
+            ),
+            Video(
+                video_id="dur7",
+                title="Too Long",
+                url="https://youtube.com/watch?v=dur7",
+                list_id=sample_list,
+                duration=7200,
+                blacklisted=False,
+            ),
+        ]
+        db_session.add_all(videos)
+        db_session.commit()
+
+        # Run reapply with min 60s and max 3600s
+        _reapply_blacklist_background(sample_list, "Test List", None, 60, 3600)
+
+        time.sleep(0.2)
+
+        db_session.expire_all()
+        vid5 = db_session.query(Video).filter_by(video_id="dur5").first()
+        vid6 = db_session.query(Video).filter_by(video_id="dur6").first()
+        vid7 = db_session.query(Video).filter_by(video_id="dur7").first()
+
+        assert vid5.blacklisted is True  # too short
+        assert vid6.blacklisted is False  # within range
+        assert vid7.blacklisted is True  # too long
+
+    def test_reapply_blacklist_multiple_reasons(self, db_session, sample_list):
+        """Collect multiple blacklist reasons."""
+        from app.routes.lists import _reapply_blacklist_background
+
+        video = Video(
+            video_id="dur_multi",
+            title="Live Stream Short",
+            url="https://youtube.com/watch?v=dur_multi",
+            list_id=sample_list,
+            duration=30,  # Too short
+            blacklisted=False,
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        # Run reapply with regex AND min_duration
+        _reapply_blacklist_background(sample_list, "Test List", "live", 60, None)
+
+        time.sleep(0.2)
+
+        db_session.expire_all()
+        video = db_session.query(Video).filter_by(video_id="dur_multi").first()
+
+        assert video.blacklisted is True
+        # Should contain both reasons
+        assert "Title matches blacklist pattern" in video.error_message
+        assert "below minimum" in video.error_message
+
+    def test_reapply_blacklist_null_duration_ignored(self, db_session, sample_list):
+        """Videos with null duration are not blacklisted by duration rules."""
+        from app.routes.lists import _reapply_blacklist_background
+
+        video = Video(
+            video_id="dur_null",
+            title="Unknown Duration Video",
+            url="https://youtube.com/watch?v=dur_null",
+            list_id=sample_list,
+            duration=None,
+            blacklisted=False,
+        )
+        db_session.add(video)
+        db_session.commit()
+
+        # Run reapply with duration constraints
+        _reapply_blacklist_background(sample_list, "Test List", None, 60, 3600)
+
+        time.sleep(0.2)
+
+        db_session.expire_all()
+        video = db_session.query(Video).filter_by(video_id="dur_null").first()
+
+        # Should not be blacklisted since duration is unknown
+        assert video.blacklisted is False
+
+
+class TestDurationOnListCreate:
+    """Tests for duration filters on list creation."""
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_create_list_with_duration_filters(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should create a list with duration filters."""
+        mock_metadata.return_value = {}
+
+        response = client.post(
+            "/api/lists",
+            json={
+                "name": "Duration Filtered Channel",
+                "url": "https://youtube.com/c/durationchannel",
+                "profile_id": sample_profile,
+                "min_duration": 60,
+                "max_duration": 3600,
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["min_duration"] == 60
+        assert data["max_duration"] == 3600
+
+
+class TestDurationOnListUpdate:
+    """Tests for duration filters on list update."""
+
+    @patch("app.routes.lists.threading.Thread")
+    def test_update_list_duration_triggers_reapply(
+        self, mock_thread, client, sample_list
+    ):
+        """Update duration filters and trigger background reapply."""
+        response = client.put(
+            f"/api/lists/{sample_list}",
+            json={"min_duration": 120},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["min_duration"] == 120
+        # Background thread should be started to reapply
+        mock_thread.assert_called_once()
+        mock_thread.return_value.start.assert_called_once()
+
+    @patch("app.routes.lists.threading.Thread")
+    def test_update_max_duration_triggers_reapply(
+        self, mock_thread, client, sample_list
+    ):
+        """Update max_duration triggers background reapply."""
+        response = client.put(
+            f"/api/lists/{sample_list}",
+            json={"max_duration": 7200},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["max_duration"] == 7200
+        mock_thread.assert_called_once()
+
+    def test_update_unrelated_field_no_reapply(self, client, sample_list):
+        """Should not trigger reapply if duration unchanged."""
+        with patch("app.routes.lists.threading.Thread") as mock_thread:
+            response = client.put(
+                f"/api/lists/{sample_list}",
+                json={"name": "New Name"},
+            )
+
+        assert response.status_code == 200
+        mock_thread.assert_not_called()

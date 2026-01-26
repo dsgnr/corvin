@@ -45,10 +45,14 @@ ACTIVE_TASK_STATUSES = (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
 
 
 def _reapply_blacklist_background(
-    list_id: int, list_name: str, blacklist_regex: str | None
+    list_id: int,
+    list_name: str,
+    blacklist_regex: str | None,
+    min_duration: int | None,
+    max_duration: int | None,
 ):
     """
-    Re-evaluate all videos in a list against the blacklist regex in batches.
+    Re-evaluate all videos in a list against blacklist criteria in batches.
 
     Runs in a background thread to avoid blocking the API for large lists.
 
@@ -56,6 +60,8 @@ def _reapply_blacklist_background(
         list_id: The VideoList ID to reapply blacklist for.
         list_name: Name of the list for logging.
         blacklist_regex: The regex pattern to match against video titles.
+        min_duration: Minimum video duration in seconds.
+        max_duration: Maximum video duration in seconds.
     """
     import re
     import time
@@ -68,7 +74,6 @@ def _reapply_blacklist_background(
             pattern = re.compile(blacklist_regex, re.IGNORECASE)
         except re.error as e:
             logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
-            return
 
     total_changed = 0
 
@@ -79,7 +84,15 @@ def _reapply_blacklist_background(
             while True:
                 videos = (
                     db.query(Video)
-                    .options(load_only(Video.id, Video.title, Video.blacklisted))
+                    .options(
+                        load_only(
+                            Video.id,
+                            Video.title,
+                            Video.duration,
+                            Video.blacklisted,
+                            Video.error_message,
+                        )
+                    )
                     .filter(Video.list_id == list_id)
                     .order_by(Video.id)
                     .offset(offset)
@@ -91,19 +104,59 @@ def _reapply_blacklist_background(
                     break
 
                 batch_changed = 0
+                blacklisted_video_ids = []
                 for video in videos:
-                    should_be_blacklisted = bool(
-                        pattern and pattern.search(video.title)
+                    # Collect all blacklist reasons
+                    blacklist_reasons = []
+
+                    # Check regex pattern
+                    if pattern and pattern.search(video.title):
+                        blacklist_reasons.append("Title matches blacklist pattern")
+
+                    # Check duration constraints
+                    if video.duration is not None:
+                        if min_duration is not None and video.duration < min_duration:
+                            blacklist_reasons.append(
+                                f"Duration ({video.duration}s) is below minimum ({min_duration}s)"
+                            )
+                        if max_duration is not None and video.duration > max_duration:
+                            blacklist_reasons.append(
+                                f"Duration ({video.duration}s) exceeds maximum ({max_duration}s)"
+                            )
+
+                    should_be_blacklisted = len(blacklist_reasons) > 0
+                    blacklist_reason = (
+                        "; ".join(blacklist_reasons) if blacklist_reasons else None
                     )
-                    if video.blacklisted != should_be_blacklisted:
+
+                    # Update if changed
+                    if (
+                        video.blacklisted != should_be_blacklisted
+                        or video.error_message != blacklist_reason
+                    ):
                         video.blacklisted = should_be_blacklisted
+                        video.error_message = blacklist_reason
                         batch_changed += 1
+                        # Track newly blacklisted videos to cancel their tasks
+                        if should_be_blacklisted:
+                            blacklisted_video_ids.append(video.id)
 
                 if batch_changed:
+                    # Cancel any pending download tasks for newly blacklisted videos
+                    if blacklisted_video_ids:
+                        db.query(Task).filter(
+                            Task.task_type == TaskType.DOWNLOAD.value,
+                            Task.entity_id.in_(blacklisted_video_ids),
+                            Task.status == TaskStatus.PENDING.value,
+                        ).update(
+                            {Task.status: TaskStatus.CANCELLED.value},
+                            synchronize_session=False,
+                        )
+
                     db.commit()
                     total_changed += batch_changed
                     # Notify after each batch so UI updates progressively
-                    broadcast(Channel.list_videos(list_id))
+                    broadcast(Channel.list_videos(list_id), Channel.TASKS)
 
                 offset += BATCH_SIZE
                 time.sleep(0.05)  # yield time to other connections
@@ -371,6 +424,8 @@ def _create_video_list(
     auto_download: bool = False,
     from_date: str | None = None,
     blacklist_regex: str | None = None,
+    min_duration: int | None = None,
+    max_duration: int | None = None,
     bulk: bool = False,
 ) -> VideoList:
     """
@@ -387,6 +442,8 @@ def _create_video_list(
         auto_download: Whether to auto-download new videos
         from_date: Optional date filter string
         blacklist_regex: Optional regex for blacklisting videos
+        min_duration: Minimum video duration in seconds
+        max_duration: Maximum video duration in seconds
         bulk: Whether this is part of a bulk creation (for history logging)
 
     Returns:
@@ -412,6 +469,8 @@ def _create_video_list(
         enabled=enabled,
         auto_download=auto_download,
         blacklist_regex=blacklist_regex,
+        min_duration=min_duration,
+        max_duration=max_duration,
         description=list_metadata.get("description"),
         thumbnail=list_metadata.get("thumbnail"),
         tags=",".join(list_metadata.get("tags", [])[:20])
@@ -507,6 +566,8 @@ def create_list(
         auto_download=payload.auto_download,
         from_date=payload.from_date,
         blacklist_regex=payload.blacklist_regex,
+        min_duration=payload.min_duration,
+        max_duration=payload.max_duration,
     )
 
     broadcast(Channel.LISTS)
@@ -626,17 +687,32 @@ def update_list(list_id: int, payload: ListUpdate, db: Session = Depends(get_db)
         and update_data["blacklist_regex"] != video_list.blacklist_regex
     )
 
+    # Check if duration filters are changing
+    duration_changed = (
+        "min_duration" in update_data
+        and update_data["min_duration"] != video_list.min_duration
+    ) or (
+        "max_duration" in update_data
+        and update_data["max_duration"] != video_list.max_duration
+    )
+
     for field, value in update_data.items():
         setattr(video_list, field, value)
 
     db.commit()
     db.refresh(video_list)
 
-    # Re-evaluate existing videos if blacklist regex changed
-    if blacklist_changed:
+    # Re-evaluate existing videos if blacklist criteria changed
+    if blacklist_changed or duration_changed:
         thread = threading.Thread(
             target=_reapply_blacklist_background,
-            args=(video_list.id, video_list.name, video_list.blacklist_regex),
+            args=(
+                video_list.id,
+                video_list.name,
+                video_list.blacklist_regex,
+                video_list.min_duration,
+                video_list.max_duration,
+            ),
             daemon=True,
         )
         thread.start()

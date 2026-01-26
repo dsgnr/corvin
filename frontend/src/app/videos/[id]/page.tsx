@@ -136,6 +136,7 @@ export default function VideoDetailPage() {
   // Determine status
   const getStatus = () => {
     if (video?.downloaded) return 'downloaded'
+    if (video?.blacklisted) return 'blacklisted'
     if (video?.error_message) return 'failed'
     if (downloadRunning) return 'downloading'
     if (downloadQueued) return 'queued'
@@ -235,6 +236,7 @@ export default function VideoDetailPage() {
               className={clsx(
                 'absolute top-2 left-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium shadow-lg',
                 status === 'downloaded' && 'bg-[var(--success)] text-white',
+                status === 'blacklisted' && 'bg-[var(--muted)] text-white',
                 status === 'failed' && 'bg-[var(--error)] text-white',
                 status === 'downloading' && 'bg-[var(--accent)] text-white',
                 status === 'queued' && 'bg-[var(--warning)] text-black',
@@ -245,6 +247,11 @@ export default function VideoDetailPage() {
               {status === 'downloaded' && (
                 <>
                   <CheckCircle size={12} /> Downloaded
+                </>
+              )}
+              {status === 'blacklisted' && (
+                <>
+                  <CircleSlash size={12} /> Blacklisted
                 </>
               )}
               {status === 'failed' && (
@@ -313,7 +320,7 @@ export default function VideoDetailPage() {
                 Downloading
               </div>
             )}
-            {video.error_message && (
+            {video.error_message && !video.blacklisted && (
               <button
                 onClick={handleRetry}
                 disabled={retrying}
@@ -359,13 +366,24 @@ export default function VideoDetailPage() {
           </div>
 
           {/* Error Message */}
-          {video.error_message && (
+          {video.error_message && !video.blacklisted && (
             <div className="rounded-lg border border-[var(--error)]/30 bg-[var(--error)]/10 p-4">
               <div className="mb-2 flex items-center gap-2 font-medium text-[var(--error)]">
                 <XCircle size={16} />
                 Download Failed
               </div>
               <p className="text-sm text-[var(--error)]">{video.error_message}</p>
+            </div>
+          )}
+
+          {/* Blacklist Reason */}
+          {video.blacklisted && video.error_message && (
+            <div className="rounded-lg border border-[var(--muted)]/30 bg-[var(--muted)]/10 p-4">
+              <div className="mb-2 flex items-center gap-2 font-medium text-[var(--muted)]">
+                <CircleSlash size={16} />
+                Blacklisted
+              </div>
+              <p className="text-sm text-[var(--muted)]">{video.error_message}</p>
             </div>
           )}
 
