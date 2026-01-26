@@ -184,7 +184,7 @@ function ProfileCard({
 
   // Output format - cyan
   features.push({
-    label: profile.output_format ? profile.output_format.toUpperCase() : 'MKV',
+    label: profile.output_format ? profile.output_format.toUpperCase() : 'MP4',
     color: 'bg-cyan-500/20 text-cyan-400',
   })
 
@@ -337,7 +337,7 @@ function ProfileForm({
     auto_generated_subtitles:
       profile?.auto_generated_subtitles ?? defaults.auto_generated_subtitles,
     subtitle_languages: profile?.subtitle_languages || defaults.subtitle_languages,
-    audio_track_language: profile?.audio_track_language || '',
+    audio_track_language: profile?.audio_track_language || defaults.audio_track_language || '',
     sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
     sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
     extra_args: profile?.extra_args || defaults.extra_args,
@@ -531,7 +531,7 @@ function ProfileForm({
 
       <FormField
         label="Output Format"
-        description="Remux video to a specific container format. Defaults to mkv if left empty."
+        description="Remux video to a specific container format. Defaults to mp4 for best compatibility with media servers. Leave empty for best results."
       >
         <input
           type="text"
@@ -701,7 +701,7 @@ function ProfileForm({
       <div className="space-y-4 border-t border-[var(--border)] pt-4">
         <FormField
           label="Audio language"
-          description="Preferred audio track language code (leave empty for default)"
+          description="Preferred audio track language code (defaults to en)"
           error={touched.audio_track_language ? errors.audio_track_language : null}
         >
           <ValidatedInput

@@ -135,7 +135,8 @@ class Profile(Base):
             format_sort.extend(["res", "fps", "hdr", "codec", "br", "size"])
 
             opts["audio_multistreams"] = True
-            opts["merge_output_format"] = self.output_format or "mkv"
+            # Default to mp4 for better metadata compatibility with media servers
+            opts["merge_output_format"] = self.output_format or "mp4"
             opts["format_sort"] = format_sort
 
             # Set format based on preferred resolution

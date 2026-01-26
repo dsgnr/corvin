@@ -65,7 +65,7 @@ def get_profile_options():
             "embed_subtitles": False,
             "auto_generated_subtitles": False,
             "subtitle_languages": "en",
-            "audio_track_language": None,
+            "audio_track_language": "en",
             "sponsorblock_behaviour": SPONSORBLOCK_DISABLED,
             "sponsorblock_categories": [],
             "output_format": None,

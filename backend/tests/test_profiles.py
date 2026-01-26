@@ -12,7 +12,7 @@ class TestProfileToYtDlpOpts:
         opts = profile.to_yt_dlp_opts()
 
         assert opts["format"] == "bv*+ba/best"
-        assert opts["merge_output_format"] == "mkv"
+        assert opts["merge_output_format"] == "mp4"
 
     def test_resolution_limited_format(self, db_session):
         """Should limit format to specified resolution."""

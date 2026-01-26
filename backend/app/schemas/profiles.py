@@ -26,7 +26,7 @@ class ProfileCreate(BaseModel):
         "en", description="Subtitle languages (comma-separated)"
     )
     audio_track_language: str | None = Field(
-        None, description="Preferred audio track language"
+        "en", description="Preferred audio track language"
     )
     sponsorblock_behaviour: str = Field(
         "disabled", description="SponsorBlock behaviour"
@@ -36,7 +36,7 @@ class ProfileCreate(BaseModel):
     )
     output_format: str | None = Field(
         None,
-        description="Output file format. For best results, leave this blank and the recommended container will be used (mkv)",
+        description="Output file format. For best results, leave this blank and the recommended container will be used (mp4)",
     )
     preferred_resolution: int | None = Field(
         None, description="Preferred video resolution height (e.g., 2160, 1080)"
@@ -80,7 +80,7 @@ class ProfileUpdate(BaseModel):
     )
     output_format: str | None = Field(
         None,
-        description="Output file format. For best results, leave this blank and the recommended container will be used (mkv)",
+        description="Output file format. For best results, leave this blank and the recommended container will be used (mp4)",
     )
     preferred_resolution: int | None = Field(
         None, description="Preferred video resolution height (e.g., 2160, 1080)"
@@ -112,7 +112,7 @@ class ProfileResponse(BaseModel):
     embed_subtitles: bool = False
     auto_generated_subtitles: bool = False
     subtitle_languages: str = "en"
-    audio_track_language: str | None = None
+    audio_track_language: str | None = "en"
     output_template: str = DEFAULT_OUTPUT_TEMPLATE
     sponsorblock_behaviour: str = "disabled"
     sponsorblock_categories: list[str] = []
