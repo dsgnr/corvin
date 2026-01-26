@@ -65,7 +65,7 @@ def retry_video(video_id: int, db: Session = Depends(get_db)):
 @router.post("/{video_id}/blacklist", response_model=VideoWithListResponse)
 def toggle_blacklist(video_id: int, db: Session = Depends(get_db)):
     """Toggle the blacklist status of a video."""
-    from app.sse_hub import Channel, notify
+    from app.sse_hub import Channel, broadcast
 
     video = db.get(Video, video_id)
     if not video:
@@ -78,7 +78,7 @@ def toggle_blacklist(video_id: int, db: Session = Depends(get_db)):
     logger.info("Video %d %s", video_id, action)
 
     # Notify SSE subscribers
-    notify(Channel.list_videos(video.list_id))
+    broadcast(Channel.list_videos(video.list_id))
 
     result = video.to_dict()
     result["list"] = video.video_list.to_dict() if video.video_list else None

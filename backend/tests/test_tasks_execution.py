@@ -25,7 +25,7 @@ class TestMarkDownloadSuccess:
         video = db_session.query(Video).get(sample_video)
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 result = _mark_download_success(
                     db_session, video, "/downloads/test.mp4", {}
                 )
@@ -42,7 +42,7 @@ class TestMarkDownloadSuccess:
         db_session.commit()
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 _mark_download_success(
                     db_session,
                     video,
@@ -61,7 +61,7 @@ class TestMarkDownloadSuccess:
         db_session.commit()
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 _mark_download_success(
                     db_session, video, "/path.mp4", {"format": "mp4"}
                 )
@@ -75,7 +75,7 @@ class TestMarkDownloadSuccess:
         db_session.commit()
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 _mark_download_success(db_session, video, "/path.mp4", {})
 
         # Existing labels should be preserved
@@ -90,7 +90,7 @@ class TestMarkDownloadFailure:
         video = db_session.query(Video).get(sample_video)
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 with pytest.raises(Exception, match="Download failed"):
                     _mark_download_failure(db_session, video, "Download failed")
 
@@ -101,7 +101,7 @@ class TestMarkDownloadFailure:
         video = db_session.query(Video).get(sample_video)
 
         with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 with pytest.raises(Exception, match="Network error"):
                     _mark_download_failure(db_session, video, "Network error")
 
@@ -386,7 +386,7 @@ class TestExecuteSync:
             mock_service.ensure_list_artwork.return_value = None
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     result = _execute_sync(sample_list)
 
         assert "new_videos" in result
@@ -404,7 +404,7 @@ class TestExecuteSync:
             mock_service.ensure_list_artwork.return_value = None
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     _execute_sync(sample_list)
 
         db_session.refresh(video_list)
@@ -436,7 +436,7 @@ class TestExecuteSync:
             mock_service.ensure_list_artwork.return_value = None
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     _execute_sync(video_list.id)
 
         # Check that extract_videos was called with /videos appended
@@ -461,7 +461,7 @@ class TestExecuteSync:
             mock_service.ensure_list_artwork.return_value = None
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     _execute_sync(video_list.id)
 
         call_args = mock_service.extract_videos.call_args
@@ -523,7 +523,7 @@ class TestExecuteDownload:
             )
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     result = _execute_download(sample_video)
 
         assert result["status"] == "completed"
@@ -541,7 +541,7 @@ class TestExecuteDownload:
             )
 
             with patch("app.services.HistoryService.log"):
-                with patch("app.sse_hub.notify"):
+                with patch("app.sse_hub.broadcast"):
                     with pytest.raises(Exception, match="Video unavailable"):
                         _execute_download(sample_video)
 
@@ -553,7 +553,7 @@ class TestEnqueueTask:
         """Should create a new task."""
         from app.tasks import enqueue_task
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 task = enqueue_task("sync", sample_list)
 
@@ -575,7 +575,7 @@ class TestEnqueueTask:
         db_session.add(existing)
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 task = enqueue_task("sync", sample_list)
 
@@ -594,7 +594,7 @@ class TestEnqueueTask:
         db_session.add(existing)
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 task = enqueue_task("sync", sample_list)
 
@@ -606,7 +606,7 @@ class TestEnqueueTask:
 
         mock_worker = MagicMock()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=mock_worker):
                 enqueue_task("sync", sample_list)
 
@@ -616,7 +616,7 @@ class TestEnqueueTask:
         """Should use custom max_retries value."""
         from app.tasks import enqueue_task
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 task = enqueue_task("sync", sample_list, max_retries=5)
 
@@ -650,7 +650,7 @@ class TestEnqueueTasksBulk:
 
         list_ids = [vl.id for vl in lists]
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = enqueue_tasks_bulk("sync", list_ids)
 
@@ -679,7 +679,7 @@ class TestEnqueueTasksBulk:
         db_session.add(existing)
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = enqueue_tasks_bulk("sync", [sample_list, vl2.id])
 
@@ -702,7 +702,7 @@ class TestEnqueueTasksBulk:
 
         list_ids = [vl.id for vl in lists]
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = enqueue_tasks_bulk("sync", list_ids)
 
@@ -716,7 +716,7 @@ class TestScheduleSyncs:
         """Should schedule sync for specific list IDs."""
         from app.tasks import schedule_syncs
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_syncs(list_ids=[sample_list], force=True)
 
@@ -736,7 +736,7 @@ class TestScheduleSyncs:
         db_session.add(disabled_list)
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_syncs(list_ids=[disabled_list.id], force=True)
 
@@ -752,7 +752,7 @@ class TestScheduleSyncs:
         video_list.sync_frequency = "daily"
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_syncs(list_ids=[sample_list], force=False)
 
@@ -781,7 +781,7 @@ class TestScheduleSyncs:
         video_list.last_synced = None
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_syncs(force=False)
 
@@ -797,7 +797,7 @@ class TestScheduleSyncs:
         video_list.sync_frequency = "daily"
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_syncs(force=False)
 
@@ -827,7 +827,7 @@ class TestScheduleDownloads:
         """Should schedule download for specific video IDs."""
         from app.tasks import schedule_downloads
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_downloads(video_ids=[sample_video])
 
@@ -841,7 +841,7 @@ class TestScheduleDownloads:
         video.downloaded = True
         db_session.commit()
 
-        with patch("app.sse_hub.notify"):
+        with patch("app.sse_hub.broadcast"):
             with patch("app.task_queue.get_worker", return_value=None):
                 result = schedule_downloads(video_ids=[sample_video])
 
@@ -875,7 +875,7 @@ class TestScheduleDownloads:
         db_session.commit()
 
         with patch.object(DownloadSchedule, "is_download_allowed", return_value=True):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 with patch("app.task_queue.get_worker", return_value=None):
                     result = schedule_downloads()
 
@@ -910,7 +910,7 @@ class TestScheduleDownloads:
         db_session.commit()
 
         with patch.object(DownloadSchedule, "is_download_allowed", return_value=True):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 with patch("app.task_queue.get_worker", return_value=None):
                     result = schedule_downloads()
 
@@ -934,7 +934,7 @@ class TestScheduleDownloads:
         db_session.commit()
 
         with patch.object(DownloadSchedule, "is_download_allowed", return_value=True):
-            with patch("app.sse_hub.notify"):
+            with patch("app.sse_hub.broadcast"):
                 with patch("app.task_queue.get_worker", return_value=None):
                     result = schedule_downloads()
 

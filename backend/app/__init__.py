@@ -121,6 +121,7 @@ def _register_routes(app: FastAPI) -> None:
         errors,
         history,
         lists,
+        notifications,
         profiles,
         progress,
         schedules,
@@ -135,6 +136,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(tasks.router)
     app.include_router(progress.router)
     app.include_router(schedules.router)
+    app.include_router(notifications.router)
     errors.register_exception_handlers(app)
 
     @app.get("/health", tags=["Health"])

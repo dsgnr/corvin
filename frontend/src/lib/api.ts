@@ -137,6 +137,22 @@ export const api = {
   pauseDownloadTasks: () => request<BulkTaskResult>('/tasks/pause/download', { method: 'POST' }),
   resumeDownloadTasks: () => request<BulkTaskResult>('/tasks/resume/download', { method: 'POST' }),
 
+  // Notifications
+  getNotifiers: () => request<Notifier[]>('/notifications'),
+  getNotifier: (id: string) => request<Notifier>(`/notifications/${id}`),
+  updateNotifier: (id: string, data: NotifierUpdate) =>
+    request<NotifierUpdateResponse>(`/notifications/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testNotifier: (id: string, config: Record<string, unknown>) =>
+    request<NotifierTestResponse>(`/notifications/${id}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ config }),
+    }),
+  getNotifierLibraries: (id: string) =>
+    request<NotifierLibrariesResponse>(`/notifications/${id}/libraries`),
+
   // History
   getHistory: (params?: { limit?: number; entity_type?: string; action?: string }) => {
     const query = new URLSearchParams()
@@ -569,4 +585,60 @@ export interface ProfileOptions {
   resolutions: ResolutionOption[]
   video_codecs: CodecOption[]
   audio_codecs: CodecOption[]
+}
+
+// Notification types
+export interface NotifierConfigField {
+  type: 'string' | 'password' | 'select'
+  label: string
+  placeholder?: string
+  required?: boolean
+  help?: string
+  dynamic_options?: string
+}
+
+export interface NotifierEvent {
+  id: string
+  label: string
+  description: string
+  default: boolean
+}
+
+export interface Notifier {
+  id: string
+  name: string
+  enabled: boolean
+  config: Record<string, string>
+  config_schema: Record<string, NotifierConfigField>
+  supported_events: NotifierEvent[]
+  events: Record<string, boolean>
+}
+
+export interface NotifierUpdate {
+  enabled: boolean
+  config: Record<string, string>
+  events: Record<string, boolean>
+}
+
+export interface NotifierUpdateResponse {
+  id: string
+  enabled: boolean
+  config: Record<string, string>
+  events: Record<string, boolean>
+}
+
+export interface NotifierTestResponse {
+  success: boolean
+  message: string
+}
+
+export interface NotifierLibrary {
+  id: string
+  title: string
+  type: string
+}
+
+export interface NotifierLibrariesResponse {
+  libraries: NotifierLibrary[]
+  error?: string
 }

@@ -1,10 +1,23 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Clock, ExternalLink, Plus, Trash2, AlertCircle } from 'lucide-react'
-import { api, DownloadSchedule, ScheduleStatus } from '@/lib/api'
+import {
+  Clock,
+  ExternalLink,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Bell,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
+import { api, DownloadSchedule, ScheduleStatus, Notifier, NotifierLibrary } from '@/lib/api'
 import { FormField, ValidatedInput } from '@/components/FormField'
 import { validators } from '@/lib/validation'
+import { ToggleOption } from '@/components/ToggleOption'
 
 const DAYS_OF_WEEK = [
   { value: 'mon', label: 'Mon' },
@@ -77,8 +90,22 @@ export default function SettingsPage() {
   const [errors, setErrors] = useState<ScheduleFormErrors>(defaultErrors)
   const [touched, setTouched] = useState<ScheduleTouchedFields>(defaultTouched)
 
+  // Notification state
+  const [notifiers, setNotifiers] = useState<Notifier[]>([])
+  const [notifierConfigs, setNotifierConfigs] = useState<Record<string, Record<string, string>>>({})
+  const [notifierEvents, setNotifierEvents] = useState<Record<string, Record<string, boolean>>>({})
+  const [notifierSaving, setNotifierSaving] = useState<Record<string, boolean>>({})
+  const [notifierTesting, setNotifierTesting] = useState<Record<string, boolean>>({})
+  const [notifierTestResults, setNotifierTestResults] = useState<
+    Record<string, { success: boolean; message: string } | null>
+  >({})
+  const [notifierLibraries, setNotifierLibraries] = useState<Record<string, NotifierLibrary[]>>({})
+  const [loadingLibraries, setLoadingLibraries] = useState<Record<string, boolean>>({})
+  const [expandedNotifiers, setExpandedNotifiers] = useState<Record<string, boolean>>({})
+
   useEffect(() => {
     loadSchedules()
+    loadNotifiers()
   }, [])
 
   const loadSchedules = async () => {
@@ -89,6 +116,38 @@ export default function SettingsPage() {
       ])
       setSchedules(schedulesData)
       setScheduleStatus(statusData)
+    } catch {
+      // Ignore errors on initial load
+    }
+  }
+
+  const loadNotifiers = async () => {
+    try {
+      const data = await api.getNotifiers()
+      setNotifiers(data)
+
+      // Initialise config and events state from loaded data
+      const configs: Record<string, Record<string, string>> = {}
+      const events: Record<string, Record<string, boolean>> = {}
+      for (const notifier of data) {
+        // Password fields come as empty strings from API
+        // We keep them empty - backend will use saved values
+        configs[notifier.id] = { ...notifier.config }
+        events[notifier.id] = { ...notifier.events }
+      }
+      setNotifierConfigs(configs)
+      setNotifierEvents(events)
+
+      // Load libraries for notifiers that have dynamic select fields with saved values
+      for (const notifier of data) {
+        const hasDynamicSelect = Object.values(notifier.config_schema).some(
+          (field) => field.type === 'select' && field.dynamic_options
+        )
+        const libraryId = notifier.config.library_id
+        if (hasDynamicSelect && libraryId) {
+          loadNotifierLibraries(notifier.id, libraryId)
+        }
+      }
     } catch {
       // Ignore errors on initial load
     }
@@ -253,33 +312,133 @@ export default function SettingsPage() {
     !errors.start_time &&
     !errors.end_time
 
+  // Notification handlers
+  const handleNotifierConfigChange = (notifierId: string, field: string, value: string) => {
+    setNotifierConfigs((prev) => ({
+      ...prev,
+      [notifierId]: { ...prev[notifierId], [field]: value },
+    }))
+    // Clear test result when config changes
+    setNotifierTestResults((prev) => ({ ...prev, [notifierId]: null }))
+  }
+
+  const handleNotifierEventChange = (notifierId: string, eventId: string, enabled: boolean) => {
+    setNotifierEvents((prev) => ({
+      ...prev,
+      [notifierId]: { ...prev[notifierId], [eventId]: enabled },
+    }))
+    // Clear test result when events change
+    setNotifierTestResults((prev) => ({ ...prev, [notifierId]: null }))
+  }
+
+  const handleNotifierToggle = async (notifier: Notifier) => {
+    setNotifierSaving((prev) => ({ ...prev, [notifier.id]: true }))
+    try {
+      await api.updateNotifier(notifier.id, {
+        enabled: !notifier.enabled,
+        config: notifierConfigs[notifier.id] || {},
+        events: notifierEvents[notifier.id] || {},
+      })
+      await loadNotifiers()
+    } catch {
+      // Ignore
+    } finally {
+      setNotifierSaving((prev) => ({ ...prev, [notifier.id]: false }))
+    }
+  }
+
+  const handleNotifierSave = async (notifierId: string) => {
+    setNotifierSaving((prev) => ({ ...prev, [notifierId]: true }))
+    try {
+      const notifier = notifiers.find((n) => n.id === notifierId)
+      await api.updateNotifier(notifierId, {
+        enabled: notifier?.enabled ?? false,
+        config: notifierConfigs[notifierId] || {},
+        events: notifierEvents[notifierId] || {},
+      })
+      await loadNotifiers()
+      setNotifierTestResults((prev) => ({
+        ...prev,
+        [notifierId]: { success: true, message: 'Settings saved' },
+      }))
+    } catch (err) {
+      setNotifierTestResults((prev) => ({
+        ...prev,
+        [notifierId]: {
+          success: false,
+          message: err instanceof Error ? err.message : 'Failed to save',
+        },
+      }))
+    } finally {
+      setNotifierSaving((prev) => ({ ...prev, [notifierId]: false }))
+    }
+  }
+
+  const handleNotifierTest = async (notifierId: string) => {
+    setNotifierTesting((prev) => ({ ...prev, [notifierId]: true }))
+    setNotifierTestResults((prev) => ({ ...prev, [notifierId]: null }))
+    try {
+      const result = await api.testNotifier(notifierId, notifierConfigs[notifierId] || {})
+      setNotifierTestResults((prev) => ({ ...prev, [notifierId]: result }))
+    } catch (err) {
+      setNotifierTestResults((prev) => ({
+        ...prev,
+        [notifierId]: {
+          success: false,
+          message: err instanceof Error ? err.message : 'Test failed',
+        },
+      }))
+    } finally {
+      setNotifierTesting((prev) => ({ ...prev, [notifierId]: false }))
+    }
+  }
+
+  const loadNotifierLibraries = async (notifierId: string, savedLibraryId?: string) => {
+    setLoadingLibraries((prev) => ({ ...prev, [notifierId]: true }))
+    try {
+      const result = await api.getNotifierLibraries(notifierId)
+      setNotifierLibraries((prev) => ({ ...prev, [notifierId]: result.libraries }))
+      // If a saved library ID was provided (from initial load), ensure it's preserved
+      if (
+        savedLibraryId &&
+        result.libraries.some((lib: NotifierLibrary) => lib.id === savedLibraryId)
+      ) {
+        setNotifierConfigs((prev) => ({
+          ...prev,
+          [notifierId]: { ...prev[notifierId], library_id: savedLibraryId },
+        }))
+      }
+    } catch {
+      setNotifierLibraries((prev) => ({ ...prev, [notifierId]: [] }))
+    } finally {
+      setLoadingLibraries((prev) => ({ ...prev, [notifierId]: false }))
+    }
+  }
+
+  const toggleNotifierExpanded = (notifierId: string) => {
+    setExpandedNotifiers((prev) => ({ ...prev, [notifierId]: !prev[notifierId] }))
+  }
+
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
 
-      <div className="space-y-6 rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+      <div className="space-y-6">
         <div>
-          <h2 className="mb-4 font-medium">API Configuration</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-[var(--muted)]">
-                API URL (leave empty for default)
-              </label>
-              <input
-                type="url"
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="http://localhost:5001/api"
-                className="w-full max-w-md rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
-              />
-              <p className="mt-1 text-xs text-[var(--muted)]">Default: http://localhost:5001/api</p>
-            </div>
-            <button
-              onClick={handleSave}
-              className="rounded-md bg-[var(--accent)] px-4 py-2 text-white transition-colors hover:bg-[var(--accent-hover)]"
-            >
-              {saved ? 'Saved!' : 'Save'}
-            </button>
+          <h2 className="mb-4 font-medium">About</h2>
+          <div className="space-y-2 text-sm text-[var(--muted)]">
+            <p>Corvin is a video download manager powered by yt-dlp.</p>
+            <p className="flex items-center gap-2">
+              <a
+                href="https://github.com/yt-dlp/yt-dlp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[var(--accent)] hover:underline"
+              >
+                yt-dlp Documentation
+                <ExternalLink size={12} />
+              </a>
+            </p>
           </div>
         </div>
 
@@ -471,21 +630,268 @@ export default function SettingsPage() {
 
         <hr className="border-[var(--border)]" />
 
+        {/* Notifications Section */}
         <div>
-          <h2 className="mb-4 font-medium">About</h2>
-          <div className="space-y-2 text-sm text-[var(--muted)]">
-            <p>Corvin is a video download manager powered by yt-dlp.</p>
-            <p className="flex items-center gap-2">
-              <a
-                href="https://github.com/yt-dlp/yt-dlp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[var(--accent)] hover:underline"
-              >
-                yt-dlp Documentation
-                <ExternalLink size={12} />
-              </a>
+          <div className="mb-4">
+            <h2 className="flex items-center gap-2 font-medium">
+              <Bell size={18} />
+              Notifications
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Configure integrations to notify external services when events occur. Sensitive fields
+              like tokens and API keys can also be set via environment variables (e.g.
+              NOTIFICATION_PLEX_TOKEN).
             </p>
+          </div>
+
+          <div className="space-y-3">
+            {notifiers.map((notifier) => {
+              const isExpanded = expandedNotifiers[notifier.id]
+              const hasConfig = Object.keys(notifier.config_schema).length > 0
+
+              return (
+                <div
+                  key={notifier.id}
+                  className={`rounded-md border bg-[var(--background)] transition-colors ${
+                    notifier.enabled ? 'border-[var(--accent)]/30' : 'border-[var(--border)]'
+                  }`}
+                >
+                  {/* Header - always visible */}
+                  <div
+                    className="flex cursor-pointer items-center justify-between p-4"
+                    onClick={() => toggleNotifierExpanded(notifier.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="text-[var(--muted)]"
+                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                      >
+                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                      </button>
+                      <div>
+                        <h3 className="font-medium">{notifier.name}</h3>
+                        <p className="text-xs text-[var(--muted)]">
+                          {notifier.enabled ? (
+                            <span className="text-green-500">Enabled</span>
+                          ) : (
+                            'Disabled'
+                          )}
+                          {notifier.enabled &&
+                            notifier.supported_events.filter(
+                              (e) => notifierEvents[notifier.id]?.[e.id] ?? e.default
+                            ).length > 0 && (
+                              <span>
+                                {' • '}
+                                {notifier.supported_events
+                                  .filter((e) => notifierEvents[notifier.id]?.[e.id] ?? e.default)
+                                  .map((e) => e.label)
+                                  .join(', ')}
+                              </span>
+                            )}
+                        </p>
+                      </div>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={notifier.enabled}
+                        onClick={() => handleNotifierToggle(notifier)}
+                        disabled={notifierSaving[notifier.id]}
+                        className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          notifier.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                            notifier.enabled ? 'translate-x-4' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div className="border-t border-[var(--border)] p-4">
+                      {/* Configuration fields */}
+                      {hasConfig && (
+                        <div className="space-y-3">
+                          {Object.entries(notifier.config_schema).map(
+                            ([fieldName, fieldSchema]) => (
+                              <div key={fieldName}>
+                                <label className="mb-1 flex items-center gap-1 text-sm font-medium">
+                                  {fieldSchema.label}
+                                  {fieldSchema.required && (
+                                    <span className="text-[var(--error)]">*</span>
+                                  )}
+                                </label>
+                                {fieldSchema.help && (
+                                  <p className="mb-2 text-xs text-[var(--muted)]">
+                                    {fieldSchema.help}
+                                  </p>
+                                )}
+                                {fieldSchema.type === 'select' && fieldSchema.dynamic_options ? (
+                                  <div className="flex gap-2">
+                                    <select
+                                      value={notifierConfigs[notifier.id]?.[fieldName] || ''}
+                                      onChange={(e) =>
+                                        handleNotifierConfigChange(
+                                          notifier.id,
+                                          fieldName,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                                    >
+                                      <option value="">
+                                        {fieldSchema.placeholder || 'Select...'}
+                                      </option>
+                                      {(notifierLibraries[notifier.id] || []).map((lib) => (
+                                        <option key={lib.id} value={lib.id}>
+                                          {lib.title} ({lib.type})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        loadNotifierLibraries(
+                                          notifier.id,
+                                          notifierConfigs[notifier.id]?.library_id
+                                        )
+                                      }
+                                      disabled={loadingLibraries[notifier.id]}
+                                      className="rounded-md border border-[var(--border)] px-3 py-2 text-[var(--muted)] transition-colors hover:bg-[var(--border)] disabled:opacity-50"
+                                      title="Refresh libraries"
+                                    >
+                                      {loadingLibraries[notifier.id] ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <RefreshCw size={16} />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <input
+                                    type={fieldSchema.type === 'password' ? 'password' : 'text'}
+                                    value={notifierConfigs[notifier.id]?.[fieldName] || ''}
+                                    onChange={(e) =>
+                                      handleNotifierConfigChange(
+                                        notifier.id,
+                                        fieldName,
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder={
+                                      fieldSchema.type === 'password' &&
+                                      notifier.config[`_${fieldName}_env`]
+                                        ? '(set via environment variable)'
+                                        : fieldSchema.type === 'password' &&
+                                            notifier.config[`_${fieldName}_set`]
+                                          ? '••••••••  (saved)'
+                                          : fieldSchema.placeholder
+                                    }
+                                    disabled={
+                                      !!(
+                                        fieldSchema.type === 'password' &&
+                                        notifier.config[`_${fieldName}_env`]
+                                      )
+                                    }
+                                    className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${
+                                      fieldSchema.type === 'password' &&
+                                      notifier.config[`_${fieldName}_env`]
+                                        ? 'cursor-not-allowed opacity-60'
+                                        : ''
+                                    }`}
+                                  />
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {/* Event Options */}
+                      {notifier.supported_events.length > 0 && (
+                        <div
+                          className={`${hasConfig ? 'mt-4 border-t border-[var(--border)] pt-4' : ''}`}
+                        >
+                          <h4 className="mb-3 text-sm font-medium">Trigger Events</h4>
+                          <div className="space-y-3">
+                            {notifier.supported_events.map((event) => (
+                              <ToggleOption
+                                key={event.id}
+                                label={event.label}
+                                description={event.description}
+                                checked={notifierEvents[notifier.id]?.[event.id] ?? event.default}
+                                onChange={() =>
+                                  handleNotifierEventChange(
+                                    notifier.id,
+                                    event.id,
+                                    !(notifierEvents[notifier.id]?.[event.id] ?? event.default)
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Test result */}
+                      {notifierTestResults[notifier.id] && (
+                        <div
+                          className={`mt-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
+                            notifierTestResults[notifier.id]?.success
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-red-500/10 text-red-500'
+                          }`}
+                        >
+                          {notifierTestResults[notifier.id]?.success ? (
+                            <CheckCircle2 size={14} />
+                          ) : (
+                            <AlertCircle size={14} />
+                          )}
+                          {notifierTestResults[notifier.id]?.message}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleNotifierSave(notifier.id)}
+                          disabled={notifierSaving[notifier.id]}
+                          className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                        >
+                          {notifierSaving[notifier.id] ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleNotifierTest(notifier.id)}
+                          disabled={notifierTesting[notifier.id]}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-[var(--border)] disabled:opacity-50"
+                        >
+                          {notifierTesting[notifier.id] ? (
+                            <span className="flex items-center gap-2">
+                              <Loader2 size={14} className="animate-spin" />
+                              Testing...
+                            </span>
+                          ) : (
+                            'Test Connection'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {notifiers.length === 0 && (
+              <p className="text-sm text-[var(--muted)]">No notification integrations available.</p>
+            )}
           </div>
         </div>
 
@@ -505,7 +911,7 @@ export default function SettingsPage() {
               <ExternalLink size={12} className="ml-1 inline" />
             </a>
           </p>
-          <div className="space-y-1 rounded-md bg-[var(--background)] p-4 font-mono text-sm text-[var(--muted)]">
+          <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--card)] p-4 font-mono text-sm text-[var(--muted)]">
             <p>%(title)s - Video title</p>
             <p>%(uploader)s - Channel name</p>
             <p>%(upload_date)s - Upload date (YYYYMMDD)</p>

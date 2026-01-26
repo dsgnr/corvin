@@ -46,9 +46,9 @@ class HistoryService:
         if commit:
             db.commit()
 
-        from app.sse_hub import Channel, notify
+        from app.sse_hub import Channel, broadcast
 
-        notify(Channel.HISTORY)
+        broadcast(Channel.HISTORY)
 
         logger.debug(
             "History: %s %s/%s %s",

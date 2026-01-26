@@ -34,7 +34,7 @@ from app.schemas.lists import (
 from app.schemas.videos import VideoResponse
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService
-from app.sse_hub import Channel, hub, notify
+from app.sse_hub import Channel, broadcast, hub
 from app.sse_stream import sse_cors_headers, sse_response, wants_sse
 from app.tasks import enqueue_task
 
@@ -103,7 +103,7 @@ def _reapply_blacklist_background(
                     db.commit()
                     total_changed += batch_changed
                     # Notify after each batch so UI updates progressively
-                    notify(Channel.list_videos(list_id))
+                    broadcast(Channel.list_videos(list_id))
 
                 offset += BATCH_SIZE
                 time.sleep(0.05)  # yield time to other connections
@@ -120,7 +120,7 @@ def _reapply_blacklist_background(
             db.rollback()
         finally:
             # Final notification to ensure UI is up to date
-            notify(Channel.list_videos(list_id))
+            broadcast(Channel.list_videos(list_id))
 
 
 def _list_exists(db: Session, list_id: int) -> bool:
@@ -478,7 +478,7 @@ def _create_video_list_background(
                 blacklist_regex=blacklist_regex,
                 bulk=bulk,
             )
-            notify(Channel.LISTS)
+            broadcast(Channel.LISTS)
         except Exception as exc:
             logger.error("Failed to create list for %s: %s", url, exc)
             db.rollback()
@@ -509,7 +509,7 @@ def create_list(
         blacklist_regex=payload.blacklist_regex,
     )
 
-    notify(Channel.LISTS)
+    broadcast(Channel.LISTS)
     return video_list.to_dict()
 
 
@@ -544,7 +544,7 @@ def _create_lists_bulk_background(
                     auto_download=auto_download,
                     bulk=True,
                 )
-                notify(Channel.LISTS)
+                broadcast(Channel.LISTS)
             except Exception as exc:
                 db.rollback()
                 logger.error("Failed to create list for %s: %s", url, exc)
@@ -650,7 +650,7 @@ def update_list(list_id: int, payload: ListUpdate, db: Session = Depends(get_db)
     )
 
     logger.info("Updated list: %s", video_list.name)
-    notify(Channel.LISTS, Channel.list_history(video_list.id))
+    broadcast(Channel.LISTS, Channel.list_history(video_list.id))
     return video_list.to_dict()
 
 
@@ -750,7 +750,9 @@ def _delete_list_background(list_id: int, list_name: str):
                 video_list.deleting = False
                 db.commit()
         finally:
-            notify(Channel.LISTS, Channel.TASKS, Channel.TASKS_STATS, Channel.HISTORY)
+            broadcast(
+                Channel.LISTS, Channel.TASKS, Channel.TASKS_STATS, Channel.HISTORY
+            )
 
 
 @router.delete(
@@ -804,7 +806,7 @@ def delete_list(list_id: int, db: Session = Depends(get_db)):
     list_name = video_list.name
     video_list.deleting = True
     db.commit()
-    notify(Channel.LISTS)
+    broadcast(Channel.LISTS)
 
     # Run deletion in background thread
     thread = threading.Thread(

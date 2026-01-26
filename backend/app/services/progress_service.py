@@ -8,7 +8,7 @@ Progress data is stored in memory.
 import threading
 import time
 
-from app.sse_hub import Channel, notify
+from app.sse_hub import Channel, broadcast
 
 _lock = threading.Lock()
 _store: dict[int, dict] = {}
@@ -24,7 +24,7 @@ def _set(video_id: int, **fields) -> None:
             _store[video_id] = {"video_id": video_id}
         _store[video_id].update(fields)
         _timestamps[video_id] = time.time()
-    notify(Channel.PROGRESS)
+    broadcast(Channel.PROGRESS)
 
 
 def get_all() -> dict[int, dict]:

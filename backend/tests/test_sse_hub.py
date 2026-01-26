@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.sse_hub import Channel, SSEHub, hub, notify
+from app.sse_hub import Channel, SSEHub, broadcast, hub
 
 
 class TestChannel:
@@ -65,13 +65,13 @@ class TestSSEHub:
         assert "test_channel" not in test_hub._subscribers
 
     @pytest.mark.asyncio
-    async def test_notify_dispatches_to_subscribers(self):
+    async def test_broadcast_dispatches_to_subscribers(self):
         """Should dispatch notification to all subscribers."""
         test_hub = SSEHub()
 
         async with test_hub.subscribe("test_channel") as queue:
-            # Notify the channel
-            test_hub.notify("test_channel")
+            # Broadcast to the channel
+            test_hub.broadcast("test_channel")
 
             # Give the event loop a chance to process
             await asyncio.sleep(0.01)
@@ -82,13 +82,13 @@ class TestSSEHub:
             assert msg is True
 
     @pytest.mark.asyncio
-    async def test_notify_multiple_channels(self):
-        """Should notify multiple channels at once."""
+    async def test_broadcast_multiple_channels(self):
+        """Should broadcast to multiple channels at once."""
         test_hub = SSEHub()
 
         async with test_hub.subscribe("channel1") as q1:
             async with test_hub.subscribe("channel2") as q2:
-                test_hub.notify("channel1", "channel2")
+                test_hub.broadcast("channel1", "channel2")
 
                 await asyncio.sleep(0.01)
 
@@ -96,22 +96,22 @@ class TestSSEHub:
                 assert not q2.empty()
 
     @pytest.mark.asyncio
-    async def test_notify_ignores_unsubscribed_channels(self):
-        """Should not fail when notifying channels with no subscribers."""
+    async def test_broadcast_ignores_unsubscribed_channels(self):
+        """Should not fail when broadcasting to channels with no subscribers."""
         test_hub = SSEHub()
 
         # Set up the loop first
         async with test_hub.subscribe("other_channel"):
             # This should not raise
-            test_hub.notify("nonexistent_channel")
+            test_hub.broadcast("nonexistent_channel")
 
-    def test_notify_without_loop_does_nothing(self):
+    def test_broadcast_without_loop_does_nothing(self):
         """Should do nothing if no event loop is set."""
         test_hub = SSEHub()
         assert test_hub._loop is None
 
         # Should not raise
-        test_hub.notify("test_channel")
+        test_hub.broadcast("test_channel")
 
     @pytest.mark.asyncio
     async def test_dispatch_handles_full_queue(self):
@@ -128,7 +128,7 @@ class TestSSEHub:
 
 
 class TestGlobalHub:
-    """Tests for global hub instance and notify function."""
+    """Tests for global hub instance and broadcast function."""
 
     def test_global_hub_exists(self):
         """Should have a global hub instance."""
@@ -136,8 +136,8 @@ class TestGlobalHub:
         assert isinstance(hub, SSEHub)
 
     @pytest.mark.asyncio
-    async def test_notify_function(self):
-        """Should call hub.notify with channels."""
-        with patch.object(hub, "notify") as mock_notify:
-            notify(Channel.TASKS, Channel.LISTS)
-            mock_notify.assert_called_once_with(Channel.TASKS, Channel.LISTS)
+    async def test_broadcast_function(self):
+        """Should call hub.broadcast with channels."""
+        with patch.object(hub, "broadcast") as mock_broadcast:
+            broadcast(Channel.TASKS, Channel.LISTS)
+            mock_broadcast.assert_called_once_with(Channel.TASKS, Channel.LISTS)

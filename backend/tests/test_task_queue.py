@@ -286,7 +286,7 @@ class TestTaskWorkerFailTask:
         db_session.add(task)
         db_session.commit()
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._fail_task(db_session, task, "Test error")
 
         assert task.status == TaskStatus.FAILED.value
@@ -305,7 +305,7 @@ class TestTaskWorkerFailTask:
         db_session.add(task)
         db_session.commit()
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._fail_task(db_session, task, "Test error")
 
         logs = list(task.logs)
@@ -332,7 +332,7 @@ class TestTaskWorkerRetryLogic:
         db_session.add(task)
         db_session.commit()
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._handle_task_failure(db_session, task, Exception("Temp error"), 1)
 
         assert task.status == TaskStatus.PENDING.value
@@ -355,7 +355,7 @@ class TestTaskWorkerRetryLogic:
         db_session.add(task)
         db_session.commit()
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._handle_task_failure(db_session, task, Exception("Final error"), 3)
 
         assert task.status == TaskStatus.FAILED.value
@@ -382,7 +382,7 @@ class TestTaskWorkerRunHandler:
         db_session.commit()
         task_id = task.id
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._run_task_handler(task_id, "sync")
 
         db_session.refresh(task)
@@ -404,7 +404,7 @@ class TestTaskWorkerRunHandler:
         db_session.commit()
         task_id = task.id
 
-        with patch("app.task_queue.notify"):
+        with patch("app.task_queue.broadcast"):
             worker._run_task_handler(task_id, "sync")
 
         db_session.refresh(task)

@@ -56,6 +56,12 @@ Both directories are mounted as volumes and persist between container restarts.
 | `TZ` | `UTC` | Container timezone |
 | `MAX_SYNC_WORKERS` | `2` | Concurrent sync operations |
 | `MAX_DOWNLOAD_WORKERS` | `2` | Concurrent downloads |
+| `NOTIFICATION_PLEX_TOKEN` | | Plex authentication token |
+| `NOTIFICATION_JELLYFIN_API_KEY` | | Jellyfin/Emby API key |
+| `NOTIFICATION_SLACK_WEBHOOK_URL` | | Slack webhook URL |
+| `NOTIFICATION_DISCORD_WEBHOOK_URL` | | Discord webhook URL |
+| `NOTIFICATION_NTFY_ACCESS_TOKEN` | | ntfy access token |
+| `NOTIFICATION_GOTIFY_APP_TOKEN` | | Gotify application token |
 
 **Frontend:**
 
@@ -131,6 +137,31 @@ Schedules allow you to restrict downloads to specific time windows:
 - **Enable/disable** — toggle schedules without deleting them
 
 When no schedules are defined or enabled, downloads run at any time. When schedules are active, downloads only proceed during the permitted windows.
+
+## Notifications
+
+Corvin supports pluggable notification integrations to alert external services when events occur:
+
+### Supported Integrations
+
+| Integration | Description |
+|-------------|-------------|
+| Plex | Trigger library scans when new media is downloaded |
+| Jellyfin / Emby | Trigger library scans when new media is downloaded |
+| Slack | Send messages via incoming webhooks |
+| Discord | Send messages via webhooks with rich embeds |
+| ntfy | Send push notifications via ntfy.sh or self-hosted |
+| Gotify | Send push notifications via Gotify server |
+
+### Supported Events
+
+| Event | Description |
+|-------|-------------|
+| Download Completed | Triggered when a video finishes downloading |
+| Video Discovered | Triggered when new videos are found during sync |
+| Sync Completed | Triggered when a list sync completes |
+
+Configure notifications in **Settings** > **Notifications**. Each integration can be enabled independently with its own event triggers.
 
 ## Development
 

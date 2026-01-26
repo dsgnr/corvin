@@ -13,7 +13,7 @@ from datetime import datetime
 
 from app.core.logging import get_logger
 from app.extensions import SessionLocal
-from app.sse_hub import Channel, notify
+from app.sse_hub import Channel, broadcast
 
 logger = get_logger("task_queue")
 
@@ -289,7 +289,7 @@ class TaskWorker:
                     if task_type == "sync":
                         channels.append(Channel.list_tasks(task.entity_id))
                         channels.append(Channel.list_videos(task.entity_id))
-                    notify(*channels)
+                    broadcast(*channels)
 
                     logger.info(
                         "Starting task %d (%s) for entity %d",
@@ -356,7 +356,7 @@ class TaskWorker:
                 if task_type == "sync":
                     channels.append(Channel.list_tasks(task.entity_id))
                     channels.append(Channel.list_videos(task.entity_id))
-                notify(*channels)
+                broadcast(*channels)
 
             except Exception as e:
                 self._handle_task_failure(db, task, e, attempt)
@@ -377,7 +377,7 @@ class TaskWorker:
 
         tasks_failed_total.labels(task_type=task.task_type).inc()
 
-        notify(Channel.TASKS, Channel.TASKS_STATS)
+        broadcast(Channel.TASKS, Channel.TASKS_STATS)
 
     def _handle_task_failure(
         self, db, task, exception: Exception, attempt: int
@@ -430,7 +430,7 @@ class TaskWorker:
                 task_duration_seconds.labels(task_type=task.task_type).observe(duration)
 
         db.commit()
-        notify(Channel.TASKS, Channel.TASKS_STATS)
+        broadcast(Channel.TASKS, Channel.TASKS_STATS)
 
     def _decrement_running_count(self, task_type: str) -> None:
         """Reduce the running task count and wake the poll loop."""

@@ -9,7 +9,7 @@ from enum import Enum
 
 class Channel(str, Enum):
     """
-    SSE notification channels.
+    SSE broadcast channels.
 
     Each channel represents a category of events that clients can subscribe to.
     """
@@ -38,9 +38,9 @@ class Channel(str, Enum):
 
 class SSEHub:
     """
-    Pub/sub hub for SSE event notifications.
+    Pub/sub hub for SSE event broadcasts.
 
-    Manages subscriptions and dispatches notifications to connected clients.
+    Manages subscriptions and dispatches updates to connected clients.
     """
 
     def __init__(self):
@@ -51,19 +51,19 @@ class SSEHub:
     @asynccontextmanager
     async def subscribe(self, channel: str):
         """
-        Subscribe to a channel for notifications.
+        Subscribe to a channel for updates.
 
         Args:
             channel: The channel name to subscribe to.
 
         Yields:
-            An asyncio.Queue that receives notifications.
+            An asyncio.Queue that receives updates.
 
         Example:
             async with hub.subscribe("tasks") as queue:
                 while True:
                     await queue.get()
-                    # Handle notification
+                    # Handle update
         """
         # Capture the event loop on first subscription
         if self._loop is None:
@@ -81,14 +81,14 @@ class SSEHub:
                     if not self._subscribers[channel]:
                         del self._subscribers[channel]
 
-    def notify(self, *channels: str) -> None:
+    def broadcast(self, *channels: str) -> None:
         """
-        Notify subscribers on one or more channels.
+        Broadcast updates to subscribers on one or more channels.
 
         This method is thread-safe and can be called from any thread.
 
         Args:
-            *channels: Channel names to notify.
+            *channels: Channel names to broadcast to.
         """
         if self._loop is None:
             return
@@ -101,7 +101,7 @@ class SSEHub:
                 pass
 
     def _dispatch(self, channel: str) -> None:
-        """Dispatch notification to all subscribers on a channel."""
+        """Dispatch update to all subscribers on a channel."""
         if channel not in self._subscribers:
             return
         for queue in self._subscribers.get(channel, set()):
@@ -115,6 +115,6 @@ class SSEHub:
 hub = SSEHub()
 
 
-def notify(*channels: str) -> None:
-    """Convenience function to notify channels."""
-    hub.notify(*channels)
+def broadcast(*channels: str) -> None:
+    """Broadcast updates to SSE subscribers on the specified channels."""
+    hub.broadcast(*channels)

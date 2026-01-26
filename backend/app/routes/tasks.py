@@ -23,7 +23,7 @@ from app.schemas.tasks import (
     TasksPaginatedResponse,
     TaskStatsResponse,
 )
-from app.sse_hub import Channel, hub, notify
+from app.sse_hub import Channel, broadcast, hub
 from app.sse_stream import sse_cors_headers, sse_response, wants_sse
 from app.task_queue import get_worker
 from app.tasks import enqueue_task, schedule_downloads, schedule_syncs
@@ -281,7 +281,7 @@ def trigger_list_sync(list_id: int):
     if not task:
         raise ConflictError("List sync already queued or running")
     logger.info("Triggered sync for list %d", list_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS, Channel.list_tasks(list_id))
+    broadcast(Channel.TASKS, Channel.TASKS_STATS, Channel.list_tasks(list_id))
     return task.to_dict()
 
 
@@ -290,7 +290,7 @@ def trigger_all_syncs():
     """Force trigger a sync for all enabled lists."""
     result = schedule_syncs(force=True)
     logger.info("Triggered sync for all lists: %d queued", result["queued"])
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     return {"queued": result["queued"], "skipped": result["skipped"]}
 
 
@@ -301,7 +301,7 @@ def trigger_video_download(video_id: int):
     if not task:
         raise ConflictError("Video download already queued or running")
     logger.info("Triggered download for video %d", video_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     return task.to_dict()
 
 
@@ -310,13 +310,13 @@ def trigger_pending_downloads():
     """Trigger download for all pending videos."""
     result = schedule_downloads()
     logger.info("Triggered pending downloads: %d queued", result["queued"])
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     return {"queued": result["queued"], "skipped": result["skipped"]}
 
 
 def _notify_if_changed(affected: int):
     if affected > 0:
-        notify(Channel.TASKS, Channel.TASKS_STATS)
+        broadcast(Channel.TASKS, Channel.TASKS_STATS)
         # Wake up worker to pick up newly pending tasks
         worker = get_worker()
         if worker:
@@ -392,7 +392,7 @@ def pause_sync_tasks():
     worker = get_worker()
     if worker:
         worker.pause("sync")
-    notify(Channel.TASKS_STATS)
+    broadcast(Channel.TASKS_STATS)
     return {"affected": 1, "paused": True}
 
 
@@ -401,7 +401,7 @@ def resume_sync_tasks():
     worker = get_worker()
     if worker:
         worker.resume("sync")
-    notify(Channel.TASKS_STATS)
+    broadcast(Channel.TASKS_STATS)
     return {"affected": 1, "paused": False}
 
 
@@ -410,7 +410,7 @@ def pause_download_tasks():
     worker = get_worker()
     if worker:
         worker.pause("download")
-    notify(Channel.TASKS_STATS)
+    broadcast(Channel.TASKS_STATS)
     return {"affected": 1, "paused": True}
 
 
@@ -419,7 +419,7 @@ def resume_download_tasks():
     worker = get_worker()
     if worker:
         worker.resume("download")
-    notify(Channel.TASKS_STATS)
+    broadcast(Channel.TASKS_STATS)
     return {"affected": 1, "paused": False}
 
 
@@ -443,7 +443,7 @@ def retry_task(task_id: int, db: Session = Depends(get_db)):
     task.retry_count = 0
     db.commit()
     logger.info("Task %d reset for retry", task_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     # Wake up worker to pick up the task
     worker = get_worker()
     if worker:
@@ -463,7 +463,7 @@ def pause_task(task_id: int, db: Session = Depends(get_db)):
     task.status = TaskStatus.PAUSED.value
     db.commit()
     logger.info("Task %d paused", task_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     return task.to_dict()
 
 
@@ -479,7 +479,7 @@ def resume_task(task_id: int, db: Session = Depends(get_db)):
     task.status = TaskStatus.PENDING.value
     db.commit()
     logger.info("Task %d resumed", task_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     # Wake up worker to pick up the task
     worker = get_worker()
     if worker:
@@ -499,5 +499,5 @@ def cancel_task(task_id: int, db: Session = Depends(get_db)):
     task.status = TaskStatus.CANCELLED.value
     db.commit()
     logger.info("Task %d cancelled", task_id)
-    notify(Channel.TASKS, Channel.TASKS_STATS)
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
     return task.to_dict()

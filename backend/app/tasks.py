@@ -109,8 +109,7 @@ def _execute_sync(list_id: int) -> dict:
                 logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
 
         # Import here to avoid circular imports
-        from app.sse_hub import Channel
-        from app.sse_hub import notify as sse_notify
+        from app.sse_hub import Channel, broadcast
 
     def on_video_fetched(video_data: dict) -> None:
         with lock:
@@ -162,7 +161,7 @@ def _execute_sync(list_id: int) -> dict:
                             "blacklisted": is_blacklisted,
                         },
                     )
-                    sse_notify(Channel.list_videos(list_id))
+                    broadcast(Channel.list_videos(list_id))
             except Exception:
                 pass  # Rollback handled by context manager
 
@@ -185,8 +184,8 @@ def _execute_sync(list_id: int) -> dict:
             },
         )
 
-        # Notify SSE subscribers
-        sse_notify(
+        # Broadcast to SSE subscribers
+        broadcast(
             Channel.list_videos(list_id), Channel.list_history(list_id), Channel.LISTS
         )
 
@@ -303,7 +302,8 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
 
     from app.models import HistoryAction
     from app.services import HistoryService
-    from app.sse_hub import Channel, notify
+    from app.services.notifications import NotificationService
+    from app.sse_hub import Channel, broadcast
 
     video.downloaded = True
     video.download_path = path
@@ -316,6 +316,8 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
         flag_modified(video, "labels")
 
     list_id = video.list_id
+    list_name = video.video_list.name
+    video_title = video.title
     db.commit()
 
     HistoryService.log(
@@ -323,13 +325,16 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
         HistoryAction.VIDEO_DOWNLOAD_COMPLETED,
         "video",
         video.id,
-        {"title": video.title, "path": path, "list_id": list_id},
+        {"title": video_title, "path": path, "list_id": list_id},
     )
 
-    logger.info("Video '%s' downloaded to: %s", video.title, path)
+    # Send notifications (Plex library refresh, etc.)
+    NotificationService.download_completed(video_title, path, list_name=list_name)
+
+    logger.info("Video '%s' downloaded to: %s", video_title, path)
     channel = Channel.list_videos(list_id)
-    logger.debug("Notifying channel: %s", channel)
-    notify(channel)
+    logger.debug("Broadcasting to channel: %s", channel)
+    broadcast(channel)
     return {"status": "completed", "path": path}
 
 
@@ -347,7 +352,7 @@ def _mark_download_failure(db, video, error: str) -> dict:
     """
     from app.models import HistoryAction
     from app.services import HistoryService
-    from app.sse_hub import Channel, notify
+    from app.sse_hub import Channel, broadcast
 
     video.error_message = error
     list_id = video.list_id
@@ -362,7 +367,7 @@ def _mark_download_failure(db, video, error: str) -> dict:
     )
 
     logger.error("Video %d download failed: %s", video.id, error)
-    notify(Channel.list_videos(list_id))
+    broadcast(Channel.list_videos(list_id))
     raise Exception(error)
 
 
@@ -379,7 +384,7 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
         The created Task, or None if already queued.
     """
     from app.models.task import Task, TaskStatus
-    from app.sse_hub import Channel, notify
+    from app.sse_hub import Channel, broadcast
     from app.task_queue import get_worker
 
     with SessionLocal() as db:
@@ -408,11 +413,11 @@ def enqueue_task(task_type: str, entity_id: int, max_retries: int = 3):
 
         logger.info("Enqueued task %d: %s/%d", task.id, task_type, entity_id)
 
-        # Notify SSE subscribers
+        # Broadcast to SSE subscribers
         channels = [Channel.TASKS, Channel.TASKS_STATS]
         if task_type == "sync":
             channels.append(Channel.list_tasks(entity_id))
-        notify(*channels)
+        broadcast(*channels)
 
         # Notify worker that new tasks are available
         worker = get_worker()
@@ -437,7 +442,7 @@ def enqueue_tasks_bulk(
         Dictionary with 'queued' count, 'skipped' count, and 'tasks' list.
     """
     from app.models.task import Task, TaskStatus
-    from app.sse_hub import Channel, notify
+    from app.sse_hub import Channel, broadcast
     from app.task_queue import get_worker
 
     if not entity_ids:
@@ -480,8 +485,8 @@ def enqueue_tasks_bulk(
         if tasks:
             db.commit()
 
-            # Notify SSE subscribers
-            notify(Channel.TASKS, Channel.TASKS_STATS)
+            # Broadcast to SSE subscribers
+            broadcast(Channel.TASKS, Channel.TASKS_STATS)
 
             # Notify worker that new tasks are available
             worker = get_worker()
