@@ -267,8 +267,8 @@ class Profile(Base):
                 {
                     "key": "FFmpegMetadata",
                     "add_chapters": True,
-                    "add_infojson": None,
-                    "add_metadata": False,
+                    "add_infojson": "if_exists",
+                    "add_metadata": True,
                 }
             )
 
