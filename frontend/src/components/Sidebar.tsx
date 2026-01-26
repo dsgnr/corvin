@@ -101,7 +101,9 @@ export function Sidebar() {
         >
           <Menu size={20} />
         </button>
-        <span className="text-lg font-semibold tracking-tight">Corvin</span>
+        <Link href="/" className="text-lg font-semibold tracking-tight">
+          Corvin
+        </Link>
         <div className="w-9" /> {/* Spacer for centering */}
       </header>
 
@@ -126,14 +128,16 @@ export function Sidebar() {
         )}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
-          <span
+          <Link
+            href="/"
+            onClick={closeMobileSidebar}
             className={clsx(
               'overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap transition-all',
               collapsed && mounted ? 'md:w-0 md:opacity-0' : 'w-auto opacity-100'
             )}
           >
             Corvin
-          </span>
+          </Link>
           {/* Mobile close button */}
           <button
             onClick={() => setMobileOpen(false)}
