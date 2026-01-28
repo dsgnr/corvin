@@ -43,3 +43,27 @@ def validate_sponsorblock_behaviour(behaviour: str) -> None:
             f"Invalid SponsorBlock behaviour: {behaviour}. "
             f"Valid options: {SPONSORBLOCK_BEHAVIOURS}"
         )
+
+
+def validate_extra_args(extra_args: dict | None) -> None:
+    """
+    Validate extra_args is a JSON serialisable dict.
+
+    Args:
+        extra_args: Dict to validate.
+
+    Raises:
+        ValidationError: If not a dict or not JSON serialisable.
+    """
+    import json
+
+    if extra_args is None:
+        return
+
+    if not isinstance(extra_args, dict):
+        raise ValidationError("extra_args must be a dict")
+
+    try:
+        json.dumps(extra_args)
+    except (TypeError, ValueError) as e:
+        raise ValidationError(f"extra_args must be JSON serialisable: {e}") from e

@@ -104,6 +104,43 @@ class TestProfileToYtDlpOpts:
         assert "vcodec:av01" in opts["format_sort"]
         assert "acodec:opus" in opts["format_sort"]
 
+    def test_extra_args_adds_new_options(self, db_session):
+        """Should add new options from extra_args."""
+        profile = Profile(
+            name="With Extra Args",
+            extra_args={"cookiefile": "/path/to/cookies.txt", "geo_bypass": True},
+        )
+        opts = profile.to_yt_dlp_opts()
+
+        assert opts["cookiefile"] == "/path/to/cookies.txt"
+        assert opts["geo_bypass"] is True
+
+    def test_extra_args_does_not_overwrite_existing(self, db_session):
+        """Should not overwrite existing profile options with extra_args."""
+        profile = Profile(
+            name="No Overwrite",
+            extra_args={"format": "worst", "retries": 999},
+        )
+        opts = profile.to_yt_dlp_opts()
+
+        # format and retries are set by the profile, should not be overwritten
+        assert opts["format"] == "bv*+ba/best"
+        assert opts["retries"] == 10
+
+    def test_extra_args_empty_dict(self, db_session):
+        """Should handle empty extra_args dict."""
+        profile = Profile(name="Empty Extra Args", extra_args={})
+        opts = profile.to_yt_dlp_opts()
+
+        assert "format" in opts  # Normal options should still work
+
+    def test_extra_args_none(self, db_session):
+        """Should handle None extra_args."""
+        profile = Profile(name="None Extra Args", extra_args=None)
+        opts = profile.to_yt_dlp_opts()
+
+        assert "format" in opts  # Normal options should still work
+
 
 class TestProfileOptions:
     """Tests for GET /api/profiles/options."""
@@ -313,6 +350,31 @@ class TestCreateProfile:
         data = response.json()
         assert data["preferred_audio_codec"] == "opus"
 
+    def test_create_profile_with_extra_args(self, client):
+        """Should create profile with extra_args."""
+        response = client.post(
+            "/api/profiles",
+            json={
+                "name": "Extra Args Profile",
+                "extra_args": {"cookiefile": "/path/to/cookies.txt"},
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["extra_args"] == {"cookiefile": "/path/to/cookies.txt"}
+
+    def test_create_profile_extra_args_defaults_empty(self, client):
+        """Should default extra_args to empty dict."""
+        response = client.post(
+            "/api/profiles",
+            json={"name": "No Extra Args Profile"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["extra_args"] == {}
+
 
 class TestListProfiles:
     """Tests for GET /api/profiles."""
@@ -429,6 +491,17 @@ class TestUpdateProfile:
         )
 
         assert response.status_code == 409
+
+    def test_update_profile_extra_args(self, client, sample_profile):
+        """Should update extra_args."""
+        response = client.put(
+            f"/api/profiles/{sample_profile}",
+            json={"extra_args": {"geo_bypass": True, "sleep_interval": 5}},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["extra_args"] == {"geo_bypass": True, "sleep_interval": 5}
 
 
 class TestDeleteProfile:

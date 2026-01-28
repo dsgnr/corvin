@@ -17,6 +17,7 @@ from app.core.constants import (
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.validators import (
+    validate_extra_args,
     validate_sponsorblock_behaviour,
     validate_sponsorblock_categories,
 )
@@ -72,7 +73,7 @@ def get_profile_options():
             "preferred_resolution": None,
             "preferred_video_codec": None,
             "preferred_audio_codec": None,
-            "extra_args": "{}",
+            "extra_args": {},
         },
         "sponsorblock": {
             "behaviours": SPONSORBLOCK_BEHAVIOURS,
@@ -94,6 +95,7 @@ def create_profile(payload: ProfileCreate, db: Session = Depends(get_db)):
 
     validate_sponsorblock_behaviour(payload.sponsorblock_behaviour)
     validate_sponsorblock_categories(payload.sponsorblock_categories)
+    validate_extra_args(payload.extra_args)
 
     profile = Profile(
         name=payload.name,
@@ -173,6 +175,9 @@ def update_profile(
 
     if "sponsorblock_categories" in update_data:
         validate_sponsorblock_categories(update_data["sponsorblock_categories"])
+
+    if "extra_args" in update_data:
+        validate_extra_args(update_data["extra_args"])
 
     for field_name, field_value in update_data.items():
         setattr(profile, field_name, field_value)

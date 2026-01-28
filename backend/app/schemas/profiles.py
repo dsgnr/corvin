@@ -49,7 +49,7 @@ class ProfileCreate(BaseModel):
         None,
         description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
     )
-    extra_args: str = Field("{}", description="Extra yt-dlp arguments as JSON")
+    extra_args: dict = Field(default_factory=dict, description="Extra yt-dlp arguments")
 
 
 class ProfileUpdate(BaseModel):
@@ -93,7 +93,7 @@ class ProfileUpdate(BaseModel):
         None,
         description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
     )
-    extra_args: str | None = Field(None, description="Extra yt-dlp arguments as JSON")
+    extra_args: dict | None = Field(None, description="Extra yt-dlp arguments")
 
 
 class ProfileResponse(BaseModel):
@@ -107,7 +107,7 @@ class ProfileResponse(BaseModel):
     embed_thumbnail: bool = True
     include_shorts: bool = True
     include_live: bool = True
-    extra_args: str = "{}"
+    extra_args: dict = {}
     download_subtitles: bool = False
     embed_subtitles: bool = False
     auto_generated_subtitles: bool = False
@@ -143,7 +143,7 @@ class ProfileDefaults(BaseModel):
     preferred_resolution: int | None
     preferred_video_codec: str | None
     preferred_audio_codec: str | None
-    extra_args: str
+    extra_args: dict
 
 
 class SponsorBlockOptions(BaseModel):

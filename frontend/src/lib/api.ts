@@ -208,7 +208,7 @@ export interface Profile {
   embed_thumbnail: boolean
   include_shorts: boolean
   include_live: boolean
-  extra_args: string
+  extra_args: Record<string, unknown>
   download_subtitles: boolean
   embed_subtitles: boolean
   auto_generated_subtitles: boolean
@@ -568,7 +568,7 @@ export interface ProfileDefaults {
   preferred_audio_codec: string | null
   sponsorblock_behaviour: string
   sponsorblock_categories: string[]
-  extra_args: string
+  extra_args: Record<string, unknown>
 }
 
 export interface ResolutionOption {

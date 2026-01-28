@@ -3,7 +3,18 @@
 import { useEffect, useState, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { api, Profile, ProfileOptions } from '@/lib/api'
-import { Plus, Trash2, Edit2, Loader2, Copy, X, Check, AlertCircle } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Loader2,
+  Copy,
+  X,
+  Check,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import { Select } from '@/components/Select'
 import { ToggleOption } from '@/components/ToggleOption'
 import { FormField, ValidatedInput } from '@/components/FormField'
@@ -274,6 +285,7 @@ interface FormErrors {
   output_template: string | null
   subtitle_languages: string | null
   audio_track_language: string | null
+  extra_args: string | null
 }
 
 interface TouchedFields {
@@ -281,6 +293,7 @@ interface TouchedFields {
   output_template: boolean
   subtitle_languages: boolean
   audio_track_language: boolean
+  extra_args: boolean
 }
 
 function ProfileForm({
@@ -340,21 +353,26 @@ function ProfileForm({
     audio_track_language: profile?.audio_track_language || defaults.audio_track_language || '',
     sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
     sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
-    extra_args: profile?.extra_args || defaults.extra_args,
+    extra_args: JSON.stringify(profile?.extra_args || defaults.extra_args || {}, null, 2),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(
+    profile?.extra_args && Object.keys(profile.extra_args).length > 0 ? true : false
+  )
   const [errors, setErrors] = useState<FormErrors>({
     name: null,
     output_template: null,
     subtitle_languages: null,
     audio_track_language: null,
+    extra_args: null,
   })
   const [touched, setTouched] = useState<TouchedFields>({
     name: false,
     output_template: false,
     subtitle_languages: false,
     audio_track_language: false,
+    extra_args: false,
   })
 
   const validateName = useCallback((value: string): string | null => {
@@ -378,6 +396,19 @@ function ProfileForm({
     return validators.languageCodes(value)
   }, [])
 
+  const validateExtraArgs = useCallback((value: string): string | null => {
+    if (!value || value === '{}') return null
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return 'Must be a JSON object'
+      }
+      return null
+    } catch {
+      return 'Invalid JSON'
+    }
+  }, [])
+
   const handleFieldChange = (field: keyof FormErrors, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (touched[field]) {
@@ -386,6 +417,8 @@ function ProfileForm({
       else if (field === 'output_template') error = validateOutputTemplate(value)
       else if (field === 'subtitle_languages' || field === 'audio_track_language') {
         error = validateLanguageCodes(value)
+      } else if (field === 'extra_args') {
+        error = validateExtraArgs(value)
       }
       setErrors((prev) => ({ ...prev, [field]: error }))
     }
@@ -399,6 +432,7 @@ function ProfileForm({
     else if (field === 'subtitle_languages') error = validateLanguageCodes(form.subtitle_languages)
     else if (field === 'audio_track_language')
       error = validateLanguageCodes(form.audio_track_language)
+    else if (field === 'extra_args') error = validateExtraArgs(form.extra_args)
     setErrors((prev) => ({ ...prev, [field]: error }))
   }
 
@@ -407,21 +441,24 @@ function ProfileForm({
     const templateError = validateOutputTemplate(form.output_template)
     const subtitleError = validateLanguageCodes(form.subtitle_languages)
     const audioError = validateLanguageCodes(form.audio_track_language)
+    const extraArgsError = validateExtraArgs(form.extra_args)
 
     setErrors({
       name: nameError,
       output_template: templateError,
       subtitle_languages: subtitleError,
       audio_track_language: audioError,
+      extra_args: extraArgsError,
     })
     setTouched({
       name: true,
       output_template: true,
       subtitle_languages: true,
       audio_track_language: true,
+      extra_args: true,
     })
 
-    return !nameError && !templateError && !subtitleError && !audioError
+    return !nameError && !templateError && !subtitleError && !audioError && !extraArgsError
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -446,6 +483,14 @@ function ProfileForm({
       }
       if (!data.audio_track_language) {
         delete data.audio_track_language
+      }
+      // Convert extra_args from JSON string to object
+      if (typeof data.extra_args === 'string') {
+        try {
+          data.extra_args = JSON.parse(data.extra_args as string)
+        } catch {
+          data.extra_args = {}
+        }
       }
       await onSave(data as Partial<Profile>)
     } catch (err) {
@@ -472,7 +517,8 @@ function ProfileForm({
     !errors.name &&
     !errors.output_template &&
     !errors.subtitle_languages &&
-    !errors.audio_track_language
+    !errors.audio_track_language &&
+    !errors.extra_args
 
   return (
     <form
@@ -749,6 +795,52 @@ function ProfileForm({
             </div>
           )}
         </FormField>
+      </div>
+
+      <div className="border-t border-[var(--border)] pt-4">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-2 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+        >
+          {showAdvanced ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          Advanced Options
+        </button>
+        {showAdvanced && (
+          <div className="mt-4 space-y-4">
+            <FormField
+              label="Extra yt-dlp Arguments"
+              description={
+                <>
+                  Additional yt-dlp options as a JSON object. Only new options are added - existing
+                  profile settings won&apos;t be overwritten.{' '}
+                  <a
+                    href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#usage-and-options"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent)] hover:underline"
+                  >
+                    See yt-dlp docs
+                  </a>
+                </>
+              }
+              error={touched.extra_args ? errors.extra_args : null}
+            >
+              <textarea
+                value={form.extra_args}
+                onChange={(e) => handleFieldChange('extra_args', e.target.value)}
+                onBlur={() => handleBlur('extra_args')}
+                rows={4}
+                className={`w-full rounded-md border bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:outline-none ${
+                  touched.extra_args && errors.extra_args
+                    ? 'border-[var(--error)] focus:border-[var(--error)]'
+                    : 'border-[var(--border)] focus:border-[var(--accent)]'
+                }`}
+                placeholder='{"cookiefile": "/path/to/cookies.txt"}'
+              />
+            </FormField>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">

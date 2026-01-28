@@ -5,7 +5,7 @@ Profiles define how videos are downloaded.
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.core.constants import (
@@ -34,7 +34,7 @@ class Profile(Base):
     embed_thumbnail = Column(Boolean, default=True)
     include_shorts = Column(Boolean, default=True)
     include_live = Column(Boolean, default=True)
-    extra_args = Column(Text, default="{}")
+    extra_args = Column(JSON, default=dict)
 
     # Subtitle options
     download_subtitles = Column(Boolean, default=False)
@@ -79,7 +79,7 @@ class Profile(Base):
             "embed_thumbnail": self.embed_thumbnail,
             "include_shorts": self.include_shorts,
             "include_live": self.include_live,
-            "extra_args": self.extra_args,
+            "extra_args": self.extra_args or {},
             "download_subtitles": self.download_subtitles,
             "embed_subtitles": self.embed_subtitles,
             "auto_generated_subtitles": self.auto_generated_subtitles,
@@ -161,7 +161,28 @@ class Profile(Base):
         self._add_sponsorblock_postprocessors(postprocessors)
 
         opts["postprocessors"] = postprocessors
+
+        # Merge extra_args (only adds new keys, won't overwrite existing)
+        self._merge_extra_args(opts)
+
         return opts
+
+    def _merge_extra_args(self, opts: dict) -> None:
+        """
+        Merge extra_args into opts without overwriting existing keys.
+
+        Only top-level keys that don't already exist in opts are added.
+        This ensures profile settings take precedence over extra_args.
+        """
+        if not self.extra_args:
+            return
+
+        if not isinstance(self.extra_args, dict):
+            return
+
+        for key, value in self.extra_args.items():
+            if key not in opts:
+                opts[key] = value
 
     def _add_metadata_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add metadata and thumbnail postprocessors."""
