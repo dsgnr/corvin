@@ -94,6 +94,7 @@ def _execute_sync(list_id: int) -> dict:
 
         include_shorts = video_list.profile.include_shorts
         include_live = video_list.profile.include_live
+        auto_download = video_list.auto_download
         counters = {"new": 0, "total": 0, "blacklisted": 0, "last_notified": 0}
         lock = threading.Lock()
         list_name = video_list.name
@@ -186,6 +187,10 @@ def _execute_sync(list_id: int) -> dict:
                         },
                     )
                     broadcast(Channel.list_videos(list_id))
+
+                    # Immediately queue download if auto_download enabled and not blacklisted
+                    if auto_download and not is_blacklisted:
+                        enqueue_task("download", video.id)
             except Exception:
                 pass  # Rollback handled by context manager
 
@@ -217,6 +222,7 @@ def _execute_sync(list_id: int) -> dict:
         _ensure_list_artwork(video_list)
 
     logger.info("List '%s' synced: %d new videos", list_name, counters["new"])
+
     return {"new_videos": counters["new"], "total_found": counters["total"]}
 
 
