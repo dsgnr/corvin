@@ -449,11 +449,11 @@ def _create_video_list(
     Returns:
         The created VideoList instance
     """
-    list_metadata: dict = {}
     try:
         list_metadata = YtDlpService.extract_list_metadata(url)
     except Exception as exc:
-        logger.warning("Failed to fetch metadata for %s: %s", url, exc)
+        logger.error("Failed to fetch metadata for %s: %s", url, exc)
+        raise ValidationError(f"Failed to fetch list metadata: {exc}") from exc
 
     # Use provided name, fall back to metadata name, then URL as last resort
     resolved_name = name or list_metadata.get("name") or url
