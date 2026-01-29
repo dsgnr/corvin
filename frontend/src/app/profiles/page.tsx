@@ -333,6 +333,8 @@ function ProfileForm({
     audio_track_language: string
     sponsorblock_behaviour: string
     sponsorblock_categories: string[]
+    windows_filenames: boolean
+    restrict_filenames: boolean
     extra_args: string
   }>({
     name: profile?.name || '',
@@ -353,12 +355,18 @@ function ProfileForm({
     audio_track_language: profile?.audio_track_language || defaults.audio_track_language || '',
     sponsorblock_behaviour: profile?.sponsorblock_behaviour || defaults.sponsorblock_behaviour,
     sponsorblock_categories: profile?.sponsorblock_categories || defaults.sponsorblock_categories,
+    windows_filenames: profile?.windows_filenames ?? defaults.windows_filenames,
+    restrict_filenames: profile?.restrict_filenames ?? defaults.restrict_filenames,
     extra_args: JSON.stringify(profile?.extra_args || defaults.extra_args || {}, null, 2),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(
-    profile?.extra_args && Object.keys(profile.extra_args).length > 0 ? true : false
+    (profile?.extra_args && Object.keys(profile.extra_args).length > 0) ||
+      profile?.windows_filenames ||
+      profile?.restrict_filenames
+      ? true
+      : false
   )
   const [errors, setErrors] = useState<FormErrors>({
     name: null,
@@ -792,6 +800,20 @@ function ProfileForm({
         </button>
         {showAdvanced && (
           <div className="mt-4 space-y-4">
+            <ToggleOption
+              label="Windows-compatible filenames"
+              description="Force filenames to be Windows-compatible"
+              checked={form.windows_filenames}
+              onChange={() => setForm({ ...form, windows_filenames: !form.windows_filenames })}
+            />
+
+            <ToggleOption
+              label="Restrict filenames"
+              description="Restrict filenames to only ASCII characters, and avoid '&' and spaces in filenames"
+              checked={form.restrict_filenames}
+              onChange={() => setForm({ ...form, restrict_filenames: !form.restrict_filenames })}
+            />
+
             <FormField
               label="Extra yt-dlp Arguments"
               description={

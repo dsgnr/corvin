@@ -104,6 +104,8 @@ Profiles control how videos are downloaded and processed:
 - **Audio language** — prefer specific audio tracks
 - **SponsorBlock** — skip or mark sponsors, intros, outros
 - **Content filters** — include or exclude Shorts and live streams
+- **Windows-compatible filenames** — force filenames to be Windows-compatible
+- **Restrict filenames** — limit filenames to ASCII characters, avoiding `&` and spaces
 - **Extra arguments** — additional yt-dlp options as JSON
 
 Default output template:

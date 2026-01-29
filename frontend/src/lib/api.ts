@@ -219,6 +219,8 @@ export interface Profile {
   preferred_resolution: number | null
   preferred_video_codec: string | null
   preferred_audio_codec: string | null
+  windows_filenames: boolean
+  restrict_filenames: boolean
   sponsorblock_behaviour: string
   sponsorblock_categories: string[]
   created_at: string
@@ -566,6 +568,8 @@ export interface ProfileDefaults {
   preferred_resolution: number | null
   preferred_video_codec: string | null
   preferred_audio_codec: string | null
+  windows_filenames: boolean
+  restrict_filenames: boolean
   sponsorblock_behaviour: string
   sponsorblock_categories: string[]
   extra_args: Record<string, unknown>

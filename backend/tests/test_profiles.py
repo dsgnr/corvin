@@ -141,6 +141,60 @@ class TestProfileToYtDlpOpts:
 
         assert "format" in opts  # Normal options should still work
 
+    def test_windows_filenames_enabled(self, db_session):
+        """Should add windowsfilenames option when enabled."""
+        profile = Profile(name="Windows Filenames", windows_filenames=True)
+        opts = profile.to_yt_dlp_opts()
+
+        assert opts["windowsfilenames"] is True
+
+    def test_windows_filenames_disabled(self, db_session):
+        """Should not add windowsfilenames option when disabled."""
+        profile = Profile(name="No Windows Filenames", windows_filenames=False)
+        opts = profile.to_yt_dlp_opts()
+
+        assert "windowsfilenames" not in opts
+
+    def test_restrict_filenames_enabled(self, db_session):
+        """Should add restrictfilenames option when enabled."""
+        profile = Profile(name="Restrict Filenames", restrict_filenames=True)
+        opts = profile.to_yt_dlp_opts()
+
+        assert opts["restrictfilenames"] is True
+
+    def test_restrict_filenames_disabled(self, db_session):
+        """Should not add restrictfilenames option when disabled."""
+        profile = Profile(name="No Restrict Filenames", restrict_filenames=False)
+        opts = profile.to_yt_dlp_opts()
+
+        assert "restrictfilenames" not in opts
+
+    def test_both_filename_options_enabled(self, db_session):
+        """Should add both filename options when enabled."""
+        profile = Profile(
+            name="Both Filename Options",
+            windows_filenames=True,
+            restrict_filenames=True,
+        )
+        opts = profile.to_yt_dlp_opts()
+
+        assert opts["windowsfilenames"] is True
+        assert opts["restrictfilenames"] is True
+
+    def test_filename_options_with_audio_only(self, db_session):
+        """Filename options should work with audio-only mode."""
+        profile = Profile(
+            name="Audio Only with Filename Options",
+            preferred_resolution=0,
+            windows_filenames=True,
+            restrict_filenames=True,
+        )
+        opts = profile.to_yt_dlp_opts()
+
+        assert opts["format"] == "bestaudio/best"
+        assert opts["windowsfilenames"] is True
+        assert opts["restrictfilenames"] is True
+
 
 class TestProfileOptions:
     """Tests for GET /api/profiles/options."""
@@ -164,6 +218,16 @@ class TestProfileOptions:
         data = response.json()
         assert "include_live" in data["defaults"]
         assert data["defaults"]["include_live"] is True
+
+    def test_get_options_contains_filename_options_defaults(self, client):
+        """Should include filename options in defaults."""
+        response = client.get("/api/profiles/options")
+
+        data = response.json()
+        assert "windows_filenames" in data["defaults"]
+        assert "restrict_filenames" in data["defaults"]
+        assert data["defaults"]["windows_filenames"] is False
+        assert data["defaults"]["restrict_filenames"] is False
 
     def test_get_options_contains_sponsorblock_behaviours(self, client):
         """Should include all sponsorblock behaviour options."""
@@ -375,6 +439,46 @@ class TestCreateProfile:
         data = response.json()
         assert data["extra_args"] == {}
 
+    def test_create_profile_with_windows_filenames(self, client):
+        """Should create profile with windows_filenames enabled."""
+        response = client.post(
+            "/api/profiles",
+            json={
+                "name": "Windows Filenames Profile",
+                "windows_filenames": True,
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["windows_filenames"] is True
+
+    def test_create_profile_with_restrict_filenames(self, client):
+        """Should create profile with restrict_filenames enabled."""
+        response = client.post(
+            "/api/profiles",
+            json={
+                "name": "Restrict Filenames Profile",
+                "restrict_filenames": True,
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["restrict_filenames"] is True
+
+    def test_create_profile_filename_options_default_false(self, client):
+        """Should default filename options to False."""
+        response = client.post(
+            "/api/profiles",
+            json={"name": "Default Filename Options Profile"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["windows_filenames"] is False
+        assert data["restrict_filenames"] is False
+
 
 class TestListProfiles:
     """Tests for GET /api/profiles."""
@@ -502,6 +606,41 @@ class TestUpdateProfile:
         assert response.status_code == 200
         data = response.json()
         assert data["extra_args"] == {"geo_bypass": True, "sleep_interval": 5}
+
+    def test_update_profile_windows_filenames(self, client, sample_profile):
+        """Should update windows_filenames setting."""
+        response = client.put(
+            f"/api/profiles/{sample_profile}",
+            json={"windows_filenames": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["windows_filenames"] is True
+
+    def test_update_profile_restrict_filenames(self, client, sample_profile):
+        """Should update restrict_filenames setting."""
+        response = client.put(
+            f"/api/profiles/{sample_profile}",
+            json={"restrict_filenames": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["restrict_filenames"] is True
+
+    def test_update_profile_both_filename_options(self, client, sample_profile):
+        """Should update both filename options."""
+        response = client.put(
+            f"/api/profiles/{sample_profile}",
+            json={
+                "windows_filenames": True,
+                "restrict_filenames": True,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["windows_filenames"] is True
+        assert data["restrict_filenames"] is True
 
 
 class TestDeleteProfile:

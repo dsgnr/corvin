@@ -49,6 +49,13 @@ class ProfileCreate(BaseModel):
         None,
         description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
     )
+    windows_filenames: bool = Field(
+        False, description="Force filenames to be Windows-compatible"
+    )
+    restrict_filenames: bool = Field(
+        False,
+        description="Restrict filenames to only ASCII characters, and avoid '&' and spaces in filenames",
+    )
     extra_args: dict = Field(default_factory=dict, description="Extra yt-dlp arguments")
 
 
@@ -93,6 +100,13 @@ class ProfileUpdate(BaseModel):
         None,
         description="Preferred audio codec. Falls back to yt-dlp's default sorting if unavailable. See https://github.com/yt-dlp/yt-dlp#sorting-formats",
     )
+    windows_filenames: bool | None = Field(
+        None, description="Force filenames to be Windows-compatible"
+    )
+    restrict_filenames: bool | None = Field(
+        None,
+        description="Restrict filenames to only ASCII characters, and avoid '&' and spaces in filenames",
+    )
     extra_args: dict | None = Field(None, description="Extra yt-dlp arguments")
 
 
@@ -120,6 +134,8 @@ class ProfileResponse(BaseModel):
     preferred_resolution: int | None
     preferred_video_codec: str | None
     preferred_audio_codec: str | None
+    windows_filenames: bool = False
+    restrict_filenames: bool = False
     created_at: str
     updated_at: str
 
@@ -143,6 +159,8 @@ class ProfileDefaults(BaseModel):
     preferred_resolution: int | None
     preferred_video_codec: str | None
     preferred_audio_codec: str | None
+    windows_filenames: bool
+    restrict_filenames: bool
     extra_args: dict
 
 

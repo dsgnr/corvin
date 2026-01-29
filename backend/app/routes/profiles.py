@@ -73,6 +73,8 @@ def get_profile_options():
             "preferred_resolution": None,
             "preferred_video_codec": None,
             "preferred_audio_codec": None,
+            "windows_filenames": False,
+            "restrict_filenames": False,
             "extra_args": {},
         },
         "sponsorblock": {
@@ -115,6 +117,8 @@ def create_profile(payload: ProfileCreate, db: Session = Depends(get_db)):
         preferred_resolution=payload.preferred_resolution,
         preferred_video_codec=payload.preferred_video_codec,
         preferred_audio_codec=payload.preferred_audio_codec,
+        windows_filenames=payload.windows_filenames,
+        restrict_filenames=payload.restrict_filenames,
         extra_args=payload.extra_args,
     )
 

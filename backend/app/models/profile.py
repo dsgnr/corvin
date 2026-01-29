@@ -65,6 +65,10 @@ class Profile(Base):
     preferred_video_codec = Column(String(10))
     preferred_audio_codec = Column(String(10))
 
+    # Filename restrictions
+    windows_filenames = Column(Boolean, default=False)
+    restrict_filenames = Column(Boolean, default=False)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -92,6 +96,8 @@ class Profile(Base):
             "preferred_resolution": self.preferred_resolution,
             "preferred_video_codec": self.preferred_video_codec,
             "preferred_audio_codec": self.preferred_audio_codec,
+            "windows_filenames": self.windows_filenames,
+            "restrict_filenames": self.restrict_filenames,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -111,6 +117,12 @@ class Profile(Base):
             "fragment_retries": 10,
             "retries": 10,
         }
+
+        # Filename restrictions
+        if self.windows_filenames:
+            opts["windowsfilenames"] = True
+        if self.restrict_filenames:
+            opts["restrictfilenames"] = True
 
         postprocessors = []
 
