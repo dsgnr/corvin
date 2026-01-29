@@ -9,6 +9,7 @@ import { useEventSource } from '@/lib/useEventSource'
 import { DownloadProgress } from '@/components/DownloadProgress'
 import { VideoLabels } from '@/components/VideoLabels'
 import { ExtractorIcon } from '@/components/ExtractorIcon'
+import { TaskStatusIcon } from '@/components/TaskStatusIcon'
 import { formatDuration } from '@/lib/utils'
 import { linkifyText } from '@/lib/text'
 import {
@@ -26,6 +27,8 @@ import {
   Hash,
   FolderOpen,
   RefreshCw,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -39,6 +42,14 @@ export default function VideoDetailPage() {
   const [togglingBlacklist, setTogglingBlacklist] = useState(false)
   const [downloadQueued, setDownloadQueued] = useState(false)
   const [downloadRunning, setDownloadRunning] = useState(false)
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+
+  // Tasks state
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksTotal, setTasksTotal] = useState(0)
+  const [tasksPage, setTasksPage] = useState(1)
+  const [tasksTotalPages, setTasksTotalPages] = useState(1)
+  const tasksPageSize = 5
 
   // Track if we initiated a download locally to prevent SSE from clearing state prematurely
   const localDownloadInitiated = useRef(false)
@@ -95,23 +106,48 @@ export default function VideoDetailPage() {
     fetchVideo()
   }, [videoId])
 
-  // Refresh video data when download completes or fails
+  // Fetch tasks for this video
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const data = await api.getVideoTasksPaginated(videoId, {
+          page: tasksPage,
+          pageSize: tasksPageSize,
+        })
+        setTasks(data.tasks)
+        setTasksTotal(data.total)
+        setTasksTotalPages(data.total_pages)
+      } catch (err) {
+        console.error('Failed to fetch tasks:', err)
+      }
+    }
+
+    fetchTasks()
+  }, [videoId, tasksPage])
+
+  // Refresh video data and tasks when download completes or fails
   useEffect(() => {
     if (progress?.status === 'completed' || progress?.status === 'error') {
-      const refetchVideo = async () => {
+      const refetchData = async () => {
         try {
-          const data = await api.getVideo(videoId)
-          setVideo(data)
+          const [videoData, tasksData] = await Promise.all([
+            api.getVideo(videoId),
+            api.getVideoTasksPaginated(videoId, { page: tasksPage, pageSize: tasksPageSize }),
+          ])
+          setVideo(videoData)
+          setTasks(tasksData.tasks)
+          setTasksTotal(tasksData.total)
+          setTasksTotalPages(tasksData.total_pages)
           // Clear task states since download finished
           setDownloadQueued(false)
           setDownloadRunning(false)
         } catch (err) {
-          console.error('Failed to fetch video:', err)
+          console.error('Failed to fetch data:', err)
         }
       }
-      setTimeout(refetchVideo, 1000)
+      setTimeout(refetchData, 1000)
     }
-  }, [progress?.status, videoId])
+  }, [progress?.status, videoId, tasksPage])
 
   const handleDownload = async () => {
     if (!video) return
@@ -516,16 +552,104 @@ export default function VideoDetailPage() {
             </div>
           )}
 
-          {/* Description */}
+          {/* Description - Collapsible */}
           {video.description && (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <h2 className="mb-3 font-medium">Description</h2>
               <div
-                className="text-sm leading-relaxed break-words whitespace-pre-wrap text-[var(--muted)] [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:hover:opacity-80"
+                className={clsx(
+                  'text-sm leading-relaxed break-words whitespace-pre-wrap text-[var(--muted)] [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:hover:opacity-80',
+                  !descriptionExpanded && 'line-clamp-3'
+                )}
                 dangerouslySetInnerHTML={{ __html: linkifyText(video.description) }}
               />
+              {video.description.split('\n').length > 3 || video.description.length > 300 ? (
+                <button
+                  onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                  className="mt-2 flex items-center gap-1 text-sm text-[var(--accent)] hover:opacity-80"
+                >
+                  {descriptionExpanded ? (
+                    <>
+                      Show less <ChevronUp size={14} />
+                    </>
+                  ) : (
+                    <>
+                      Show more <ChevronDown size={14} />
+                    </>
+                  )}
+                </button>
+              ) : null}
             </div>
           )}
+
+          {/* Tasks Table */}
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+            <div className="border-b border-[var(--border)] p-4">
+              <h2 className="font-medium">Tasks ({tasksTotal})</h2>
+            </div>
+            <div className="divide-y divide-[var(--border)]">
+              {tasks.length === 0 ? (
+                <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
+              ) : (
+                tasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-3 p-4">
+                    <TaskStatusIcon status={task.status} size={16} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">Download</p>
+                      <p className="text-xs text-[var(--muted)]">
+                        {new Date(task.created_at).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                        {task.completed_at &&
+                          ` • Completed ${new Date(task.completed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                      </p>
+                      {task.error && (
+                        <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">
+                          {task.error}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={clsx(
+                        'rounded px-2 py-1 text-xs',
+                        task.status === 'completed' &&
+                          'bg-[var(--success)]/20 text-[var(--success)]',
+                        task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
+                        task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
+                        task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
+                        task.status === 'paused' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
+                        task.status === 'cancelled' && 'bg-[var(--border)] text-[var(--muted)]'
+                      )}
+                    >
+                      {task.status === 'pending' ? 'queued' : task.status}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            {tasksTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 border-t border-[var(--border)] p-3">
+                <button
+                  onClick={() => setTasksPage((p) => Math.max(1, p - 1))}
+                  disabled={tasksPage === 1}
+                  className="rounded px-2 py-1 text-xs transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-[var(--muted)]">
+                  {tasksPage} / {tasksTotalPages}
+                </span>
+                <button
+                  onClick={() => setTasksPage((p) => Math.min(tasksTotalPages, p + 1))}
+                  disabled={tasksPage === tasksTotalPages}
+                  className="rounded px-2 py-1 text-xs transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

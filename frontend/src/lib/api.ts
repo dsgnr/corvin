@@ -198,6 +198,14 @@ export const api = {
     if (params.search) query.set('search', params.search)
     return request<ListHistoryPaginatedResponse>(`/lists/${listId}/history?${query}`)
   },
+
+  // Video-specific tasks (paginated)
+  getVideoTasksPaginated: (videoId: number, params: { page: number; pageSize: number }) => {
+    const query = new URLSearchParams()
+    query.set('page', String(params.page))
+    query.set('page_size', String(params.pageSize))
+    return request<TasksPaginatedResponse>(`/videos/${videoId}/tasks?${query}`)
+  },
 }
 
 // Types

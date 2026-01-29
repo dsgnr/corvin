@@ -4,14 +4,15 @@ Videos routes.
 
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.extensions import ReadSessionLocal, get_db, sse_executor
 from app.models import HistoryAction, Video
-from app.models.task import TaskType
+from app.models.task import Task, TaskType
+from app.schemas.tasks import TasksPaginatedResponse
 from app.schemas.videos import VideoRetryResponse, VideoWithListResponse
 from app.services import HistoryService, progress_service
 from app.sse_hub import Channel, broadcast
@@ -94,3 +95,42 @@ def toggle_blacklist(video_id: int, db: Session = Depends(get_db)):
     result = video.to_dict()
     result["list"] = video.video_list.to_dict() if video.video_list else None
     return result
+
+
+def _fetch_video_tasks(video_id: int, page: int, page_size: int) -> dict:
+    """Fetch paginated tasks for a specific video."""
+    with ReadSessionLocal() as db:
+        # Query download tasks for this video
+        query = db.query(Task).filter(
+            Task.task_type == TaskType.DOWNLOAD.value, Task.entity_id == video_id
+        )
+
+        # Get total count
+        total = query.count()
+        total_pages = max(1, (total + page_size - 1) // page_size)
+
+        # Apply pagination
+        tasks = (
+            query.order_by(Task.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        return {
+            "tasks": [task.to_dict() for task in tasks],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        }
+
+
+@router.get("/{video_id}/tasks", response_model=TasksPaginatedResponse)
+async def get_video_tasks(
+    video_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+):
+    """Get paginated tasks for a specific video."""
+    return _fetch_video_tasks(video_id, page, page_size)
