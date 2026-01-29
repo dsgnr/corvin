@@ -723,3 +723,79 @@ def prune_old_data() -> dict:
             "deleted_history": deleted_history,
             "retention_days": retention_days,
         }
+
+
+def update_ytdlp() -> dict:
+    """
+    Update yt-dlp to the latest nightly build.
+
+    Called by the scheduler nightly to keep yt-dlp current.
+
+    Returns:
+        dict: Result with old version, new version, and success status.
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    import yt_dlp
+
+    old_version = yt_dlp.version.__version__
+    use_uv = shutil.which("uv") is not None
+
+    # Use uv if available (dev), otherwise fall back to pip (prod)
+    if use_uv:
+        cmd = ["uv", "pip", "install", "-U", "--prerelease=allow", "yt-dlp[default]"]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "-U", "--pre", "yt-dlp[default]"]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        if result.returncode == 0:
+            # Updates lockfile if using uv.
+            # If the latest update doesn't match the uv lockfile,
+            # we'll be fighting it in the FastAPI live reloader.
+            if use_uv:
+                subprocess.run(
+                    ["uv", "lock"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+            # Reload to get new version
+            import importlib
+
+            importlib.reload(yt_dlp.version)
+            new_version = yt_dlp.version.__version__
+
+            if old_version != new_version:
+                logger.info("Updated yt-dlp from %s to %s", old_version, new_version)
+            else:
+                logger.debug("yt-dlp already at latest version: %s", old_version)
+
+            return {
+                "success": True,
+                "old_version": old_version,
+                "new_version": new_version,
+            }
+        else:
+            logger.warning("Failed to update yt-dlp: %s", result.stderr)
+            return {
+                "success": False,
+                "old_version": old_version,
+                "error": result.stderr,
+            }
+    except Exception as e:
+        logger.error("Error updating yt-dlp: %s", str(e))
+        return {
+            "success": False,
+            "old_version": old_version,
+            "error": str(e),
+        }

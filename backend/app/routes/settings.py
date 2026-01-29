@@ -17,6 +17,8 @@ from app.schemas.settings import (
     DataRetentionResponse,
     DataRetentionUpdate,
     VacuumResponse,
+    YtdlpUpdateResponse,
+    YtdlpVersionResponse,
 )
 
 logger = get_logger("routes.settings")
@@ -95,4 +97,67 @@ def vacuum_database():
         return VacuumResponse(
             success=False,
             message=f"Vacuum failed: {e!s}",
+        )
+
+
+@router.get("/ytdlp/version", response_model=YtdlpVersionResponse)
+def get_ytdlp_version():
+    """
+    Get current yt-dlp version and check for updates.
+
+    Returns the currently installed version and whether a newer
+    nightly build is available.
+    """
+    import yt_dlp
+    from yt_dlp.update import Updater
+
+    current_version = yt_dlp.version.__version__
+    channel = "nightly"
+
+    try:
+        ydl = yt_dlp.YoutubeDL({"quiet": True})
+        updater = Updater(ydl, channel)
+        update_info = updater.query_update()
+
+        latest_version = update_info.version if update_info else current_version
+        update_available = latest_version != current_version
+
+        return YtdlpVersionResponse(
+            current_version=current_version,
+            latest_version=latest_version,
+            update_available=update_available,
+            channel=channel,
+        )
+    except Exception as e:
+        logger.warning("Failed to check yt-dlp updates: %s", e)
+        return YtdlpVersionResponse(
+            current_version=current_version,
+            latest_version=None,
+            update_available=False,
+            channel=channel,
+        )
+
+
+@router.post("/ytdlp/update", response_model=YtdlpUpdateResponse)
+def update_ytdlp():
+    """
+    Triggers an immediate update of yt-dlp to the latest available nightly channel build.
+    """
+    from app.tasks import update_ytdlp as do_update
+
+    result = do_update()
+
+    if result.get("success"):
+        return YtdlpUpdateResponse(
+            success=True,
+            old_version=result["old_version"],
+            new_version=result.get("new_version"),
+            message=f"Updated from {result['old_version']} to {result.get('new_version', 'unknown')}",
+        )
+    else:
+        return YtdlpUpdateResponse(
+            success=False,
+            old_version=result["old_version"],
+            new_version=None,
+            message=result.get("error", "Update failed"),
         )

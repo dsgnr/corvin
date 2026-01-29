@@ -11,7 +11,7 @@ dependencies = [
     "alembic>=1.14",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
-    "yt-dlp>=2025.1",
+    "yt-dlp[default]>=0a0",
     "apscheduler>=3.11",
     "sse-starlette>=2.2",
     "prometheus-fastapi-instrumentator>=7.0",
@@ -78,3 +78,6 @@ reportGeneralTypeIssues = false
 reportOptionalMemberAccess = false
 reportOptionalSubscript = false
 reportCallIssue = false
+
+[tool.uv]
+prerelease = "if-necessary-or-explicit"

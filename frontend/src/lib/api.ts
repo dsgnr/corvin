@@ -186,6 +186,10 @@ export const api = {
     }),
   vacuumDatabase: () => request<VacuumResponse>('/settings/vacuum', { method: 'POST' }),
 
+  // yt-dlp version management
+  getYtdlpVersion: () => request<YtdlpVersionResponse>('/settings/ytdlp/version'),
+  updateYtdlp: () => request<YtdlpUpdateResponse>('/settings/ytdlp/update', { method: 'POST' }),
+
   // List-specific tasks and history (paginated)
   getListTasksPaginated: (
     listId: number,
@@ -678,4 +682,18 @@ export interface VacuumResponse {
   size_before: number | null
   size_after: number | null
   space_reclaimed: number | null
+}
+
+export interface YtdlpVersionResponse {
+  current_version: string
+  latest_version: string | null
+  update_available: boolean
+  channel: string
+}
+
+export interface YtdlpUpdateResponse {
+  success: boolean
+  old_version: string
+  new_version: string | null
+  message: string
 }

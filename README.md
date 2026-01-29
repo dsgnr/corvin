@@ -177,6 +177,16 @@ Configure data retention in **Settings** > **Data Retention**. Only completed, f
 
 For SQLite databases, use the "Run VACUUM" button to compact the database file and reclaim disk space after deleting large amounts of data. PostgreSQL handles this automatically.
 
+## yt-dlp Updates
+
+Corvin automatically keeps yt-dlp up to date to ensure compatibility with the latest site changes:
+
+- **Automatic updates** — yt-dlp is updated to the latest nightly build on every container start and daily at 4 AM
+- **Manual updates** — trigger an update anytime (if one is available) from **Settings** > **About**
+- **Version info** — view current and latest available versions in the settings UI
+
+This ensures you always have the latest extractors and bug fixes without manual intervention.
+
 ## Notifications
 
 Corvin supports pluggable notification integrations to alert external services when events occur:

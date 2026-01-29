@@ -35,3 +35,25 @@ class VacuumResponse(BaseModel):
     space_reclaimed: int | None = Field(
         default=None, description="Bytes reclaimed by vacuum"
     )
+
+
+class YtdlpVersionResponse(BaseModel):
+    """yt-dlp version information."""
+
+    current_version: str = Field(description="Currently installed yt-dlp version")
+    latest_version: str | None = Field(
+        default=None, description="Latest available version (null if check failed)"
+    )
+    update_available: bool = Field(description="Whether an update is available")
+    channel: str = Field(default="nightly", description="Update channel")
+
+
+class YtdlpUpdateResponse(BaseModel):
+    """Response from yt-dlp update operation."""
+
+    success: bool = Field(description="Whether the update succeeded")
+    old_version: str = Field(description="Version before update")
+    new_version: str | None = Field(
+        default=None, description="Version after update (null if failed)"
+    )
+    message: str = Field(description="Status message")

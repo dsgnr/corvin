@@ -27,10 +27,12 @@ async def lifespan(app: FastAPI):
     """
     Manage the application lifecycle.
 
-    Startup: initialises database, starts background workers, schedules periodic jobs.
+    Startup: checks and updates yt-dlp, initialises database,
+    starts background workers, schedules periodic jobs.
     Shutdown: gracefully stops scheduler and worker threads.
     """
     logger.info("Application starting up...")
+    _update_ytdlp_async()
     _init_database(app)
 
     if not app.state.testing:
@@ -237,7 +239,12 @@ def _setup_scheduler(app: FastAPI) -> None:
     """
     from apscheduler.schedulers.background import BackgroundScheduler
 
-    from app.tasks import prune_old_data, schedule_all_syncs, schedule_downloads
+    from app.tasks import (
+        prune_old_data,
+        schedule_all_syncs,
+        schedule_downloads,
+        update_ytdlp,
+    )
 
     scheduler = BackgroundScheduler()
     app.state.scheduler = scheduler
@@ -264,8 +271,41 @@ def _setup_scheduler(app: FastAPI) -> None:
         id="prune_old_data",
         replace_existing=True,
     )
+    scheduler.add_job(
+        func=update_ytdlp,
+        trigger="cron",
+        hour=4,
+        minute=0,
+        id="update_ytdlp",
+        replace_existing=True,
+    )
 
     scheduler.start()
+
+
+def _update_ytdlp_async() -> None:
+    """Update yt-dlp in a background thread to avoid blocking startup."""
+    import threading
+
+    from app.tasks import update_ytdlp
+
+    def do_update():
+        logger.info("Checking for yt-dlp updates...")
+        result = update_ytdlp()
+        if result.get("success"):
+            if result["old_version"] != result.get("new_version"):
+                logger.info(
+                    "yt-dlp updated from %s to %s",
+                    result["old_version"],
+                    result.get("new_version"),
+                )
+            else:
+                logger.info("yt-dlp is up to date: %s", result["old_version"])
+        else:
+            logger.warning("Failed to update yt-dlp: %s", result.get("error"))
+
+    thread = threading.Thread(target=do_update, daemon=True)
+    thread.start()
 
 
 def _shutdown(app: FastAPI) -> None:

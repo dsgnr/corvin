@@ -22,6 +22,8 @@ import {
   Notifier,
   NotifierLibrary,
   VacuumResponse,
+  YtdlpVersionResponse,
+  YtdlpUpdateResponse,
 } from '@/lib/api'
 import { FormField, ValidatedInput } from '@/components/FormField'
 import { validators } from '@/lib/validation'
@@ -120,10 +122,16 @@ export default function SettingsPage() {
   const [vacuumRunning, setVacuumRunning] = useState(false)
   const [vacuumResult, setVacuumResult] = useState<VacuumResponse | null>(null)
 
+  // yt-dlp state
+  const [ytdlpVersion, setYtdlpVersion] = useState<YtdlpVersionResponse | null>(null)
+  const [ytdlpUpdating, setYtdlpUpdating] = useState(false)
+  const [ytdlpUpdateResult, setYtdlpUpdateResult] = useState<YtdlpUpdateResponse | null>(null)
+
   useEffect(() => {
     loadSchedules()
     loadNotifiers()
     loadDataRetention()
+    loadYtdlpVersion()
   }, [])
 
   const loadSchedules = async () => {
@@ -177,6 +185,36 @@ export default function SettingsPage() {
       setRetentionDays(data.retention_days)
     } catch {
       // Ignore errors on initial load
+    }
+  }
+
+  const loadYtdlpVersion = async () => {
+    try {
+      const data = await api.getYtdlpVersion()
+      setYtdlpVersion(data)
+    } catch {
+      // Ignore errors on initial load
+    }
+  }
+
+  const handleYtdlpUpdate = async () => {
+    setYtdlpUpdating(true)
+    setYtdlpUpdateResult(null)
+    try {
+      const result = await api.updateYtdlp()
+      setYtdlpUpdateResult(result)
+      if (result.success) {
+        await loadYtdlpVersion()
+      }
+    } catch (err) {
+      setYtdlpUpdateResult({
+        success: false,
+        old_version: ytdlpVersion?.current_version || 'unknown',
+        new_version: null,
+        message: err instanceof Error ? err.message : 'Update failed',
+      })
+    } finally {
+      setYtdlpUpdating(false)
     }
   }
 
@@ -506,6 +544,66 @@ export default function SettingsPage() {
                 yt-dlp Documentation
                 <ExternalLink size={12} />
               </a>
+            </p>
+          </div>
+
+          {/* yt-dlp Version */}
+          <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--background)] p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium">yt-dlp Version</h3>
+                {ytdlpVersion ? (
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    <span className="font-mono">{ytdlpVersion.current_version}</span>
+                    {ytdlpVersion.update_available && ytdlpVersion.latest_version && (
+                      <span className="ml-2 text-[var(--accent)]">
+                        → {ytdlpVersion.latest_version} available
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-[var(--muted)]">Loading...</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadYtdlpVersion}
+                  disabled={ytdlpUpdating}
+                  className="rounded-md border border-[var(--border)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--border)] disabled:opacity-50"
+                  title="Check for updates"
+                >
+                  <RefreshCw size={16} />
+                </button>
+                <button
+                  onClick={handleYtdlpUpdate}
+                  disabled={ytdlpUpdating || !ytdlpVersion?.update_available}
+                  className="flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {ytdlpUpdating ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Update'
+                  )}
+                </button>
+              </div>
+            </div>
+            {ytdlpUpdateResult && (
+              <div
+                className={`mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
+                  ytdlpUpdateResult.success
+                    ? 'bg-green-500/10 text-green-500'
+                    : 'bg-red-500/10 text-red-500'
+                }`}
+              >
+                {ytdlpUpdateResult.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                {ytdlpUpdateResult.message}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              yt-dlp is automatically updated nightly at 4 AM.
             </p>
           </div>
         </div>
