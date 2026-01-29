@@ -61,6 +61,7 @@ def _execute_sync(list_id: int) -> dict:
 
     from app.models import HistoryAction, Video, VideoList
     from app.services import HistoryService, YtDlpService
+    from app.services.notifications import NotificationService
 
     with SessionLocal() as db:
         video_list = db.query(VideoList).get(list_id)
@@ -220,6 +221,16 @@ def _execute_sync(list_id: int) -> dict:
 
         # Download artwork if missing
         _ensure_list_artwork(video_list)
+
+        # Send notification if we discover new videos
+        if counters["new"] > 0:
+            from app.services.notifications import NotificationService
+
+            NotificationService.video_discovered(
+                f"{counters['new']} new video(s)",
+                video_list.name,
+                count=counters["new"],
+            )
 
     logger.info("List '%s' synced: %d new videos", list_name, counters["new"])
 
