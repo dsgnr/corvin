@@ -18,6 +18,7 @@ class VideoResponse(BaseModel):
     description: str | None = None
     extractor: str | None = None
     media_type: str = "video"
+    filesize: int | None = None
     labels: dict = {}
     list_id: int
     downloaded: bool = False
@@ -44,6 +45,7 @@ class VideoWithListResponse(BaseModel):
     description: str | None = None
     extractor: str | None = None
     media_type: str = "video"
+    filesize: int | None = None
     labels: dict = {}
     list_id: int
     downloaded: bool = False

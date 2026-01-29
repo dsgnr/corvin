@@ -21,6 +21,8 @@ def _fetch_history_paginated(
     page_size: int,
 ) -> dict:
     """Fetch paginated history entries."""
+    from app.extensions import json_text
+
     with ReadSessionLocal() as db:
         base_query = db.query(History)
         if entity_type:
@@ -29,10 +31,11 @@ def _fetch_history_paginated(
             base_query = base_query.filter(History.action == action)
         if search:
             search_pattern = f"%{search}%"
+            details_text = json_text(History.details)
             base_query = base_query.filter(
                 (History.action.ilike(search_pattern))
                 | (History.entity_type.ilike(search_pattern))
-                | (History.details.ilike(search_pattern))
+                | (details_text.ilike(search_pattern))
             )
 
         total = base_query.count()

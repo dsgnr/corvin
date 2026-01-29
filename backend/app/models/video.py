@@ -15,10 +15,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     desc,
-    text,
 )
-from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import JSON
 
 from app.models import Base
 
@@ -40,6 +39,7 @@ class Video(Base):
     description = Column(Text, nullable=True)
     extractor = Column(String(50), nullable=True)
     media_type = Column(String(20), nullable=False, default="video")
+    filesize = Column(Integer, nullable=True)
     labels = Column(JSON, nullable=True, default=dict)
     list_id = Column(Integer, ForeignKey("video_lists.id"), nullable=False)
     downloaded = Column(Boolean, default=False)
@@ -57,12 +57,6 @@ class Video(Base):
         Index("ix_videos_list_id_desc", "list_id", desc("id")),
         Index("ix_videos_list_downloaded", "list_id", "downloaded", desc("id")),
         Index("ix_videos_list_updated", "list_id", "updated_at"),
-        Index(
-            "ix_videos_pending",
-            "list_id",
-            desc("id"),
-            sqlite_where=text("downloaded = 0"),
-        ),
         Index("ix_videos_list_failed", "list_id", "downloaded", "error_message"),
         Index("ix_videos_list_id_updated", "list_id", "id", "updated_at"),
     )
@@ -80,6 +74,7 @@ class Video(Base):
             "description": self.description,
             "extractor": self.extractor,
             "media_type": self.media_type,
+            "filesize": self.filesize,
             "labels": self.labels or {},
             "list_id": self.list_id,
             "downloaded": self.downloaded,

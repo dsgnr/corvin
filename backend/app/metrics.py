@@ -200,10 +200,9 @@ def _collect_entity_metrics() -> None:
             db.query(Video).filter(Video.error_message.isnot(None)).count()
         )
 
-        # Storage: sum of filesize_approx from labels JSON
-        # Only count videos that have this label set
+        # Storage: sum of filesize from downloaded videos
         total_bytes = (
-            db.query(func.sum(Video.labels["filesize_approx"].as_integer()))
+            db.query(func.sum(Video.filesize))
             .filter(Video.downloaded.is_(True))
             .scalar()
         )

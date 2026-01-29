@@ -89,3 +89,41 @@ class TestToggleBlacklist:
         data = response.json()
         assert "list" in data
         assert data["list"] is not None
+
+
+class TestVideoFilesize:
+    """Tests for Video.filesize field."""
+
+    def test_video_filesize_default_none(self, client, sample_video):
+        """Should have filesize as None by default."""
+        response = client.get(f"/api/videos/{sample_video}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filesize"] is None
+
+    def test_video_filesize_stored(self, client, db_session, sample_video):
+        """Should store and return filesize."""
+        from app.models import Video
+
+        video = db_session.query(Video).get(sample_video)
+        video.filesize = 1024000
+        db_session.commit()
+
+        response = client.get(f"/api/videos/{sample_video}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filesize"] == 1024000
+
+    def test_video_to_dict_includes_filesize(self, db_session, sample_video):
+        """Video.to_dict should include filesize."""
+        from app.models import Video
+
+        video = db_session.query(Video).get(sample_video)
+        video.filesize = 5000000
+        db_session.commit()
+
+        video_dict = video.to_dict()
+        assert "filesize" in video_dict
+        assert video_dict["filesize"] == 5000000

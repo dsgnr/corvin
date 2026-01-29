@@ -1,0 +1,46 @@
+services:
+  backend:
+    image: ghcr.io/dsgnr/corvin-backend:latest
+    expose:
+      - "5000"
+    volumes:
+      - ./downloads:/downloads
+    environment:
+      - TZ=UTC
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=corvin
+      - POSTGRES_PASSWORD=corvin
+      - POSTGRES_DB=corvin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/dsgnr/corvin-frontend:latest
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - TZ=UTC
+      - POSTGRES_USER=corvin
+      - POSTGRES_PASSWORD=corvin
+      #- POSTGRES_HOST_AUTH_METHOD=trust  # if not using a password
+      - POSTGRES_DB=corvin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-corvin} -d ${POSTGRES_DB:-corvin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

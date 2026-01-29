@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - ./downloads:/downloads
+    environment:
+      - TZ=UTC
+      - DEBUG=true
+      - DEBUG_METRICS=1
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=corvin
+      - POSTGRES_PASSWORD=corvin
+      - POSTGRES_DB=corvin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - TZ=UTC
+      - POSTGRES_USER=corvin
+      - POSTGRES_PASSWORD=corvin
+      #- POSTGRES_HOST_AUTH_METHOD=trust  # if not using a password
+      - POSTGRES_DB=corvin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corvin -d corvin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

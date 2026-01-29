@@ -373,23 +373,26 @@ def _fetch_list_history(
     """Fetch paginated history for a list."""
     from sqlalchemy import or_
 
+    from app.extensions import json_text
+
     with ReadSessionLocal() as db:
         # Include both list events and video events for this list
         # Video events store list_id in the details JSON
+        details_text = json_text(History.details)
         query = db.query(History).filter(
             or_(
                 # List-level events
                 (History.entity_type == "list") & (History.entity_id == list_id),
                 # Video events that belong to this list (stored in details.list_id)
                 (History.entity_type == "video")
-                & (History.details.like(f'%"list_id": {list_id}%')),
+                & (details_text.like(f'%"list_id": {list_id}%')),
             )
         )
 
         if search:
             pattern = f"%{search}%"
             query = query.filter(
-                History.action.ilike(pattern) | History.details.ilike(pattern)
+                History.action.ilike(pattern) | details_text.ilike(pattern)
             )
 
         # Get total count

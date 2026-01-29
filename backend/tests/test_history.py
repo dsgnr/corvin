@@ -73,3 +73,22 @@ class TestGetHistory:
         data = response.json()
         assert len(data["entries"]) == 1
         assert data["entries"][0]["entity_type"] == "profile"
+
+    def test_get_history_search_in_details(self, client, sample_history):
+        """Should search within JSON details field."""
+        response = client.get("/api/history?search=Test%20List")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["entries"]) == 1
+        assert data["entries"][0]["action"] == "list_created"
+        assert data["entries"][0]["details"]["name"] == "Test List"
+
+    def test_get_history_search_case_insensitive(self, client, sample_history):
+        """Should search case-insensitively."""
+        response = client.get("/api/history?search=TEST%20PROFILE")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["entries"]) == 1
+        assert data["entries"][0]["entity_type"] == "profile"

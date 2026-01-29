@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import Column, DateTime, Index, Integer, String
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy.types import JSON
 
 from app.models import Base
 

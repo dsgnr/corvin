@@ -20,6 +20,7 @@ The project is API-first by design. The web interface is optional, making it str
 - Real-time download progress via SSE
 - Web interface for managing lists, profiles, and monitoring tasks
 - OpenAPI documentation with Scalar UI
+- SQLite or PostgreSQL backends
 
 ## Installation
 
@@ -36,12 +37,29 @@ Once running:
 
 The API is proxied through the frontend, so you only need to expose port 80.
 
+### Using PostgreSQL
+
+For PostgreSQL instead of SQLite, use the PostgreSQL compose file:
+
+```bash
+# Copy and configure the example env file
+cp .env.postgres.example .env
+
+# Edit .env and set POSTGRES_PASSWORD
+nano .env
+
+# Start with PostgreSQL
+docker compose -f docker-compose-postgres.yml up -d
+```
+
+See [docker-compose-postgres.yml](docker-compose-postgres.yml) for the full configuration.
+
 ## Configuration
 
 ### Directory Structure
 
 ```
-./corvin_data/    # SQLite database
+./corvin_data/    # SQLite database (when using SQLite)
 ./downloads/      # Downloaded media files
 ```
 
@@ -56,6 +74,11 @@ Both directories are mounted as volumes and persist between container restarts.
 | `TZ` | `UTC` | Container timezone |
 | `MAX_SYNC_WORKERS` | `2` | Concurrent sync operations |
 | `MAX_DOWNLOAD_WORKERS` | `2` | Concurrent downloads |
+| `POSTGRES_HOST` | | PostgreSQL host (enables PostgreSQL mode) |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `POSTGRES_USER` | `corvin` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | | PostgreSQL password (required when using PostgreSQL) |
+| `POSTGRES_DB` | `corvin` | PostgreSQL database name |
 | `NOTIFICATION_PLEX_TOKEN` | | Plex authentication token |
 | `NOTIFICATION_JELLYFIN_API_KEY` | | Jellyfin/Emby API key |
 | `NOTIFICATION_SLACK_WEBHOOK_URL` | | Slack webhook URL |
@@ -173,6 +196,12 @@ For local development with live reloading:
 docker compose -f docker-compose-dev.yml up
 ```
 
+For development with PostgreSQL:
+
+```bash
+docker compose -f docker-compose-postgres-dev.yml up
+```
+
 The frontend runs on port 3000 in development mode.
 
 ### Local Setup
@@ -222,7 +251,7 @@ uv run pytest
 
 - **Backend**: FastAPI, SQLAlchemy, APScheduler for periodic tasks, yt-dlp for media extraction
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4
-- **Database**: SQLite (stored in `./corvin_data/corvin.db`)
+- **Database**: SQLite (default) or PostgreSQL
 - **Task Queue**: Custom in-memory queue with persistent task state
 
 ## Requirements
