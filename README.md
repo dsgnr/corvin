@@ -104,6 +104,7 @@ The REST API is the primary interface. All endpoints are under `/api/`:
 | `/api/tasks` | View task queue and status |
 | `/api/history` | View activity history |
 | `/api/schedules` | Manage download time windows |
+| `/api/settings` | Manage application settings |
 | `/api/progress` | Real-time download progress (SSE) |
 | `/api/docs` | Interactive API documentation (Scalar) |
 | `/health` | Health check endpoint |
@@ -162,6 +163,19 @@ Schedules allow you to restrict downloads to specific time windows:
 - **Enable/disable** — toggle schedules without deleting them
 
 When no schedules are defined or enabled, downloads run at any time. When schedules are active, downloads only proceed during the permitted windows.
+
+## Data Retention
+
+Corvin automatically cleans up old completed tasks and history entries to prevent database bloat:
+
+- **Retention period** — number of days to keep completed/failed tasks and history (default: 90 days)
+- **Automatic cleanup** — runs daily at 3 AM
+- **Disable cleanup** — set retention to 0 to keep all data indefinitely
+- **Database vacuum** — manually reclaim disk space after cleanup (SQLite only)
+
+Configure data retention in **Settings** > **Data Retention**. Only completed, failed, and cancelled tasks are pruned; pending and running tasks are always preserved.
+
+For SQLite databases, use the "Run VACUUM" button to compact the database file and reclaim disk space after deleting large amounts of data. PostgreSQL handles this automatically.
 
 ## Notifications
 

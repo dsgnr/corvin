@@ -13,8 +13,16 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  Database,
 } from 'lucide-react'
-import { api, DownloadSchedule, ScheduleStatus, Notifier, NotifierLibrary } from '@/lib/api'
+import {
+  api,
+  DownloadSchedule,
+  ScheduleStatus,
+  Notifier,
+  NotifierLibrary,
+  VacuumResponse,
+} from '@/lib/api'
 import { FormField, ValidatedInput } from '@/components/FormField'
 import { validators } from '@/lib/validation'
 import { ToggleOption } from '@/components/ToggleOption'
@@ -103,9 +111,19 @@ export default function SettingsPage() {
   const [loadingLibraries, setLoadingLibraries] = useState<Record<string, boolean>>({})
   const [expandedNotifiers, setExpandedNotifiers] = useState<Record<string, boolean>>({})
 
+  // Data retention state
+  const [retentionDays, setRetentionDays] = useState<number>(90)
+  const [retentionSaving, setRetentionSaving] = useState(false)
+  const [retentionSaved, setRetentionSaved] = useState(false)
+
+  // Vacuum state
+  const [vacuumRunning, setVacuumRunning] = useState(false)
+  const [vacuumResult, setVacuumResult] = useState<VacuumResponse | null>(null)
+
   useEffect(() => {
     loadSchedules()
     loadNotifiers()
+    loadDataRetention()
   }, [])
 
   const loadSchedules = async () => {
@@ -151,6 +169,56 @@ export default function SettingsPage() {
     } catch {
       // Ignore errors on initial load
     }
+  }
+
+  const loadDataRetention = async () => {
+    try {
+      const data = await api.getDataRetention()
+      setRetentionDays(data.retention_days)
+    } catch {
+      // Ignore errors on initial load
+    }
+  }
+
+  const handleRetentionSave = async () => {
+    setRetentionSaving(true)
+    setRetentionSaved(false)
+    try {
+      await api.updateDataRetention(retentionDays)
+      setRetentionSaved(true)
+      setTimeout(() => setRetentionSaved(false), 2000)
+    } catch {
+      // Ignore
+    } finally {
+      setRetentionSaving(false)
+    }
+  }
+
+  const handleVacuum = async () => {
+    setVacuumRunning(true)
+    setVacuumResult(null)
+    try {
+      const result = await api.vacuumDatabase()
+      setVacuumResult(result)
+    } catch (err) {
+      setVacuumResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Vacuum failed',
+        size_before: null,
+        size_after: null,
+        space_reclaimed: null,
+      })
+    } finally {
+      setVacuumRunning(false)
+    }
+  }
+
+  const formatBytes = (bytes: number | null): string => {
+    if (bytes === null) return 'Unknown'
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
   const handleSave = () => {
@@ -881,6 +949,103 @@ export default function SettingsPage() {
             {notifiers.length === 0 && (
               <p className="text-sm text-[var(--muted)]">No notification integrations available.</p>
             )}
+          </div>
+        </div>
+
+        <hr className="border-[var(--border)]" />
+
+        {/* Data Retention Section */}
+        <div>
+          <div className="mb-4">
+            <h2 className="flex items-center gap-2 font-medium">
+              <Database size={18} />
+              Data Retention
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Automatically delete old completed tasks and history entries after a specified number
+              of days. Set to 0 to disable automatic cleanup.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Retention Period (days)</label>
+              <div className="flex max-w-md items-center gap-4">
+                <input
+                  type="number"
+                  min="0"
+                  max="3650"
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-32 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                />
+                <button
+                  onClick={handleRetentionSave}
+                  disabled={retentionSaving}
+                  className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                >
+                  {retentionSaving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : retentionSaved ? (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Saved
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                {retentionDays === 0
+                  ? 'Automatic cleanup disabled'
+                  : `Tasks and history older than ${retentionDays} days will be deleted daily at 3 AM`}
+              </p>
+            </div>
+
+            <div className="border-t border-[var(--border)] pt-4">
+              <label className="mb-1 block text-sm font-medium">Database Maintenance</label>
+              <p className="mb-3 text-xs text-[var(--muted)]">
+                Run VACUUM to reclaim disk space after deleting data. Only available for SQLite
+                databases.
+              </p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleVacuum}
+                  disabled={vacuumRunning}
+                  className="flex items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-[var(--border)] disabled:opacity-50"
+                >
+                  {vacuumRunning ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Running VACUUM...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} />
+                      Run VACUUM
+                    </>
+                  )}
+                </button>
+                {vacuumResult && (
+                  <div
+                    className={`flex items-center gap-2 text-sm ${
+                      vacuumResult.success ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    {vacuumResult.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                    <span>
+                      {vacuumResult.success && vacuumResult.space_reclaimed !== null
+                        ? `Reclaimed ${formatBytes(vacuumResult.space_reclaimed)}`
+                        : vacuumResult.message}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

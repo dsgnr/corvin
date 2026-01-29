@@ -177,6 +177,15 @@ export const api = {
     return request<HistoryPaginatedResponse>(`/history?${query}`)
   },
 
+  // Settings
+  getDataRetention: () => request<DataRetentionSettings>('/settings/data-retention'),
+  updateDataRetention: (retentionDays: number) =>
+    request<DataRetentionSettings>('/settings/data-retention', {
+      method: 'PUT',
+      body: JSON.stringify({ retention_days: retentionDays }),
+    }),
+  vacuumDatabase: () => request<VacuumResponse>('/settings/vacuum', { method: 'POST' }),
+
   // List-specific tasks and history (paginated)
   getListTasksPaginated: (
     listId: number,
@@ -657,4 +666,16 @@ export interface NotifierLibrary {
 export interface NotifierLibrariesResponse {
   libraries: NotifierLibrary[]
   error?: string
+}
+
+export interface DataRetentionSettings {
+  retention_days: number
+}
+
+export interface VacuumResponse {
+  success: boolean
+  message: string
+  size_before: number | null
+  size_after: number | null
+  space_reclaimed: number | null
 }

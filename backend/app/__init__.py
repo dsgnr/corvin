@@ -125,6 +125,7 @@ def _register_routes(app: FastAPI) -> None:
         profiles,
         progress,
         schedules,
+        settings,
         tasks,
         videos,
     )
@@ -136,6 +137,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(tasks.router)
     app.include_router(progress.router)
     app.include_router(schedules.router)
+    app.include_router(settings.router)
     app.include_router(notifications.router)
     errors.register_exception_handlers(app)
 
@@ -229,12 +231,13 @@ def _setup_scheduler(app: FastAPI) -> None:
 
     - Syncs: every 30 minutes (checks for new videos)
     - Downloads: every 5 minutes (processes pending videos)
+    - Data pruning: daily at 3 AM (removes old tasks and history)
 
     Manual triggers are also available via the API.
     """
     from apscheduler.schedulers.background import BackgroundScheduler
 
-    from app.tasks import schedule_all_syncs, schedule_downloads
+    from app.tasks import prune_old_data, schedule_all_syncs, schedule_downloads
 
     scheduler = BackgroundScheduler()
     app.state.scheduler = scheduler
@@ -251,6 +254,14 @@ def _setup_scheduler(app: FastAPI) -> None:
         trigger="interval",
         minutes=5,
         id="download_videos",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        func=prune_old_data,
+        trigger="cron",
+        hour=3,
+        minute=0,
+        id="prune_old_data",
         replace_existing=True,
     )
 

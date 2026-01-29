@@ -647,3 +647,79 @@ def schedule_downloads(video_ids: list[int] | None = None) -> dict:
     result = enqueue_tasks_bulk(TaskType.DOWNLOAD.value, ids_to_queue)
     logger.info("Scheduled %d video downloads", result["queued"])
     return result
+
+
+def prune_old_data() -> dict:
+    """
+    Delete old completed/failed tasks and history entries based on retention setting.
+
+    Called by the scheduler daily to clean up old data.
+
+    Returns:
+        Dictionary with deleted_tasks and deleted_history counts.
+    """
+    from datetime import timedelta
+
+    from app.models.history import History
+    from app.models.settings import (
+        DEFAULT_DATA_RETENTION_DAYS,
+        SETTING_DATA_RETENTION_DAYS,
+        Settings,
+    )
+    from app.models.task import Task, TaskStatus
+
+    with SessionLocal() as db:
+        retention_days = Settings.get_int(
+            db, SETTING_DATA_RETENTION_DAYS, DEFAULT_DATA_RETENTION_DAYS
+        )
+
+        if retention_days <= 0:
+            logger.info(
+                "Data retention disabled (set to %d days), skipping prune",
+                retention_days,
+            )
+            return {
+                "deleted_tasks": 0,
+                "deleted_history": 0,
+                "retention_days": retention_days,
+            }
+
+        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+
+        # Delete old completed/failed/cancelled tasks
+        deleted_tasks = (
+            db.query(Task)
+            .filter(
+                Task.status.in_(
+                    [
+                        TaskStatus.COMPLETED.value,
+                        TaskStatus.FAILED.value,
+                        TaskStatus.CANCELLED.value,
+                    ]
+                )
+            )
+            .filter(Task.created_at < cutoff_date)
+            .delete(synchronize_session=False)
+        )
+
+        # Delete old history entries
+        deleted_history = (
+            db.query(History)
+            .filter(History.created_at < cutoff_date)
+            .delete(synchronize_session=False)
+        )
+
+        db.commit()
+
+        logger.info(
+            "Pruned %d tasks and %d history entries older than %d days",
+            deleted_tasks,
+            deleted_history,
+            retention_days,
+        )
+
+        return {
+            "deleted_tasks": deleted_tasks,
+            "deleted_history": deleted_history,
+            "retention_days": retention_days,
+        }

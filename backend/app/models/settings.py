@@ -4,6 +4,10 @@ from sqlalchemy import Column, String, Text
 
 from app.models import Base
 
+# Setting keys
+SETTING_DATA_RETENTION_DAYS = "data_retention_days"
+DEFAULT_DATA_RETENTION_DAYS = 90
+
 
 class Settings(Base):
     """
@@ -82,3 +86,35 @@ class Settings(Base):
             commit: Whether to commit the transaction.
         """
         cls.set(db, key, "true" if value else "false", commit=commit)
+
+    @classmethod
+    def get_int(cls, db, key: str, default: int = 0) -> int:
+        """
+        Get an integer setting value.
+
+        Args:
+            db: Database session.
+            key: The setting key.
+            default: Default value if not found.
+
+        Returns:
+            The integer value.
+        """
+        value = cls.get(db, key, str(default))
+        try:
+            return int(value)
+        except ValueError:
+            return default
+
+    @classmethod
+    def set_int(cls, db, key: str, value: int, commit: bool = True) -> None:
+        """
+        Set an integer setting value.
+
+        Args:
+            db: Database session.
+            key: The setting key.
+            value: The integer value to store.
+            commit: Whether to commit the transaction.
+        """
+        cls.set(db, key, str(value), commit=commit)
