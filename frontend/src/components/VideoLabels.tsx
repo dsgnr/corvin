@@ -6,6 +6,8 @@ import { clsx } from 'clsx'
 
 interface VideoLabelsProps {
   labels: VideoLabelsType
+  /** Actual file size in bytes (from downloaded video) */
+  filesize?: number | null
   /** Use smaller text for compact displays (e.g. list rows) */
   compact?: boolean
 }
@@ -14,11 +16,14 @@ interface VideoLabelsProps {
  * Displays video metadata labels (format, resolution, HDR, audio codec, etc.)
  * as styled badges. Used in video detail pages and video list rows.
  */
-export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
+export function VideoLabels({ labels, filesize, compact = false }: VideoLabelsProps) {
   if (!labels || Object.keys(labels).length === 0) return null
 
-  const textSize = compact ? 'text-[10px]' : 'text-sm'
-  const padding = compact ? 'px-1.5 py-0.5' : 'px-2 py-1'
+  const textSize = compact ? 'text-[10px]' : 'text-xs'
+  const padding = compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5'
+
+  // Use actual filesize if available, otherwise fall back to approximate
+  const displayFilesize = filesize ?? labels.filesize_approx
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -27,7 +32,7 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           className={clsx(
             padding,
             textSize,
-            'rounded bg-[var(--muted)]/10 font-medium text-[var(--prose-color)]'
+            'rounded-full bg-zinc-700/50 font-medium text-zinc-300'
           )}
         >
           {labels.format.toUpperCase()}
@@ -38,7 +43,7 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           className={clsx(
             padding,
             textSize,
-            'rounded bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
+            'rounded-full bg-blue-500/20 font-medium text-blue-400'
           )}
         >
           {labels.resolution}
@@ -49,17 +54,19 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           className={clsx(
             padding,
             textSize,
-            'rounded font-medium',
+            'rounded-full font-medium',
             labels.dynamic_range.toLowerCase().includes('hdr')
-              ? 'bg-purple-500/10 text-purple-400'
-              : 'bg-[var(--muted)]/10 text-[var(--muted)]'
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'bg-zinc-700/50 text-zinc-400'
           )}
         >
           {labels.dynamic_range}
         </span>
       )}
       {labels.was_live && (
-        <span className={clsx(padding, textSize, 'rounded bg-red-500/10 font-medium text-red-400')}>
+        <span
+          className={clsx(padding, textSize, 'rounded-full bg-red-500/20 font-medium text-red-400')}
+        >
           Was Live
         </span>
       )}
@@ -68,7 +75,7 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           className={clsx(
             padding,
             textSize,
-            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+            'rounded-full bg-emerald-500/20 font-medium text-emerald-400'
           )}
         >
           {labels.acodec.toUpperCase()}
@@ -79,21 +86,21 @@ export function VideoLabels({ labels, compact = false }: VideoLabelsProps) {
           className={clsx(
             padding,
             textSize,
-            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+            'rounded-full bg-violet-500/20 font-medium text-violet-400'
           )}
         >
           {formatAudioChannels(labels.audio_channels)}
         </span>
       )}
-      {labels.filesize_approx && (
+      {displayFilesize && (
         <span
           className={clsx(
             padding,
             textSize,
-            'rounded bg-[var(--muted)]/10 text-[var(--prose-color)]'
+            'rounded-full bg-zinc-700/50 font-medium text-zinc-400'
           )}
         >
-          {formatFileSize(labels.filesize_approx)}
+          {formatFileSize(displayFilesize)}
         </span>
       )}
     </div>

@@ -51,6 +51,10 @@ import { Select } from '@/components/Select'
 import { TaskStatusIcon } from '@/components/TaskStatusIcon'
 import { VideoLabels } from '@/components/VideoLabels'
 import { ExtractorIcon } from '@/components/ExtractorIcon'
+import { MediaTypeBadge } from '@/components/MediaTypeBadge'
+import { BlacklistedBadge } from '@/components/BlacklistedBadge'
+import { EmptyState } from '@/components/EmptyState'
+import { VideoThumbnail } from '@/components/VideoThumbnail'
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 export default function ListDetailPage() {
@@ -419,11 +423,17 @@ export default function ListDetailPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Link
           href="/lists"
-          className="self-start rounded-md p-2 transition-colors hover:bg-[var(--card)]"
+          className="hidden rounded-md p-2 transition-colors hover:bg-[var(--card)] sm:block"
         >
           <ArrowLeft size={20} />
         </Link>
         <div className="flex flex-1 items-center gap-3 sm:gap-4">
+          <Link
+            href="/lists"
+            className="rounded-md p-2 transition-colors hover:bg-[var(--card)] sm:hidden"
+          >
+            <ArrowLeft size={20} />
+          </Link>
           {list.thumbnail && (
             <img
               src={list.thumbnail}
@@ -743,7 +753,7 @@ export default function ListDetailPage() {
         </div>
         <div className="divide-y divide-[var(--border)]">
           {videos.length === 0 ? (
-            <p className="p-4 text-sm text-[var(--muted)]">No videos found</p>
+            <EmptyState message="No videos found" />
           ) : (
             videos.map((video: Video) => (
               <VideoRow
@@ -801,7 +811,7 @@ export default function ListDetailPage() {
         </div>
         <div className="divide-y divide-[var(--border)]">
           {tasks.length === 0 ? (
-            <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
+            <EmptyState message="No tasks found" />
           ) : (
             tasks.map((task) => <TaskRow key={task.id} task={task} />)
           )}
@@ -972,15 +982,7 @@ function VideoRow({
     <div className="p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Link href={`/videos/${video.id}`} className="shrink-0">
-          {video.thumbnail ? (
-            <img
-              src={video.thumbnail}
-              alt=""
-              className="aspect-video w-full rounded bg-[var(--border)] object-cover transition-opacity hover:opacity-80 sm:h-14 sm:w-24"
-            />
-          ) : (
-            <div className="aspect-video w-full rounded bg-[var(--border)] sm:h-14 sm:w-24" />
-          )}
+          <VideoThumbnail src={video.thumbnail} size="sm" hoverEffect />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -994,14 +996,8 @@ function VideoRow({
             <div className="sm:hidden">{renderActions()}</div>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-            <span className="rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-              {video.media_type}
-            </span>
-            {video.blacklisted && (
-              <span className="rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)]">
-                blacklisted
-              </span>
-            )}
+            <MediaTypeBadge type={video.media_type} compact />
+            {video.blacklisted && <BlacklistedBadge compact />}
             <span>{formatDuration(video.duration)}</span>
             {video.upload_date && (
               <span className="hidden sm:inline">
@@ -1011,7 +1007,7 @@ function VideoRow({
                 })}
               </span>
             )}
-            {hasLabels && <VideoLabels labels={video.labels} compact />}
+            {hasLabels && <VideoLabels labels={video.labels} filesize={video.filesize} compact />}
           </div>
           {(isActiveDownload || downloadQueued) && (
             <div className="mt-2 max-w-sm">

@@ -281,7 +281,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
                 : ''
             }
             onChange={(e) => setForm({ ...form, from_date: e.target.value.replace(/-/g, '') })}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+            className="input"
           />
         </FormField>
       </div>
@@ -342,7 +342,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
               }}
               onBlur={() => handleBlur('min_duration')}
               placeholder="e.g. 60 for 1 minute"
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+              className="input"
             />
           </FormField>
 
@@ -371,7 +371,7 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
               }}
               onBlur={() => handleBlur('max_duration')}
               placeholder="e.g. 3600 for 1 hour"
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+              className="input"
             />
           </FormField>
         </div>

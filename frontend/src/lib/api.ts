@@ -295,6 +295,7 @@ export interface Video {
   description: string | null
   extractor: string | null
   media_type: string | null
+  filesize: number | null
   labels: VideoLabels
   list_id: number
   list?: VideoList

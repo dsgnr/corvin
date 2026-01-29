@@ -37,12 +37,7 @@ export function ValidatedInput({
   required: _required,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${className}`}
-    />
-  )
+  return <input {...props} className={`input ${className}`} />
 }
 
 // Textarea wrapper
@@ -50,10 +45,5 @@ export function ValidatedTextarea({
   className = '',
   ...props
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${className}`}
-    />
-  )
+  return <textarea {...props} className={`input min-h-[80px] resize-y ${className}`} />
 }

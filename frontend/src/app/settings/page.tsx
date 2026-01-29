@@ -548,7 +548,7 @@ export default function SettingsPage() {
           </div>
 
           {/* yt-dlp Version */}
-          <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--background)] p-4">
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium">yt-dlp Version</h3>
@@ -639,7 +639,7 @@ export default function SettingsPage() {
               {schedules.map((schedule) => (
                 <div
                   key={schedule.id}
-                  className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--background)] p-3"
+                  className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--card)] p-3"
                 >
                   <div className="flex items-center gap-3">
                     <button
@@ -684,7 +684,7 @@ export default function SettingsPage() {
           {showScheduleForm ? (
             <form
               onSubmit={handleScheduleSubmit}
-              className="space-y-4 rounded-md border border-[var(--border)] bg-[var(--background)] p-4"
+              className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
             >
               <FormField label="Schedule Name" required error={touched.name ? errors.name : null}>
                 <ValidatedInput
@@ -807,7 +807,7 @@ export default function SettingsPage() {
               return (
                 <div
                   key={notifier.id}
-                  className={`rounded-md border bg-[var(--background)] transition-colors ${
+                  className={`rounded-lg border bg-[var(--card)] transition-colors ${
                     notifier.enabled ? 'border-[var(--accent)]/30' : 'border-[var(--border)]'
                   }`}
                 >
@@ -898,7 +898,7 @@ export default function SettingsPage() {
                                           e.target.value
                                         )
                                       }
-                                      className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                                      className="input flex-1"
                                     >
                                       <option value="">
                                         {fieldSchema.placeholder || 'Select...'}
@@ -954,7 +954,7 @@ export default function SettingsPage() {
                                         notifier.config[`_${fieldName}_env`]
                                       )
                                     }
-                                    className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${
+                                    className={`input ${
                                       fieldSchema.type === 'password' &&
                                       notifier.config[`_${fieldName}_env`]
                                         ? 'cursor-not-allowed opacity-60'
@@ -1075,7 +1075,7 @@ export default function SettingsPage() {
                   max="3650"
                   value={retentionDays}
                   onChange={(e) => setRetentionDays(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-32 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
+                  className="input w-32"
                 />
                 <button
                   onClick={handleRetentionSave}

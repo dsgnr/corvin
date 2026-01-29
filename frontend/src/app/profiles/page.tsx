@@ -18,6 +18,7 @@ import {
 import { Select } from '@/components/Select'
 import { ToggleOption } from '@/components/ToggleOption'
 import { FormField, ValidatedInput } from '@/components/FormField'
+import { EmptyState } from '@/components/EmptyState'
 import { validators } from '@/lib/validation'
 
 export default function ProfilesPage() {
@@ -120,37 +121,40 @@ function ProfilesContent() {
         )}
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {editingId === 'new' && profileOptions && (
-          <ProfileForm
-            defaults={profileOptions.defaults}
-            sponsorBlockOpts={profileOptions.sponsorblock}
-            resolutions={profileOptions.resolutions}
-            videoCodecs={profileOptions.video_codecs}
-            audioCodecs={profileOptions.audio_codecs}
-            onSave={(data) => handleSave(data)}
-            onCancel={() => setEditingId(null)}
-          />
+          <div className="sm:col-span-2 lg:col-span-3">
+            <ProfileForm
+              defaults={profileOptions.defaults}
+              sponsorBlockOpts={profileOptions.sponsorblock}
+              resolutions={profileOptions.resolutions}
+              videoCodecs={profileOptions.video_codecs}
+              audioCodecs={profileOptions.audio_codecs}
+              onSave={(data) => handleSave(data)}
+              onCancel={() => setEditingId(null)}
+            />
+          </div>
         )}
 
         {profiles.length === 0 && editingId !== 'new' ? (
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center">
-            <p className="text-[var(--muted)]">No profiles yet. Create one to get started.</p>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center sm:col-span-2 lg:col-span-3">
+            <EmptyState message="No profiles yet. Create one to get started." className="p-0" />
           </div>
         ) : (
           profiles.map((profile) =>
             editingId === profile.id && profileOptions ? (
-              <ProfileForm
-                key={profile.id}
-                profile={profile}
-                defaults={profileOptions.defaults}
-                sponsorBlockOpts={profileOptions.sponsorblock}
-                resolutions={profileOptions.resolutions}
-                videoCodecs={profileOptions.video_codecs}
-                audioCodecs={profileOptions.audio_codecs}
-                onSave={(data) => handleSave(data, profile.id)}
-                onCancel={() => setEditingId(null)}
-              />
+              <div key={profile.id} className="sm:col-span-2 lg:col-span-3">
+                <ProfileForm
+                  profile={profile}
+                  defaults={profileOptions.defaults}
+                  sponsorBlockOpts={profileOptions.sponsorblock}
+                  resolutions={profileOptions.resolutions}
+                  videoCodecs={profileOptions.video_codecs}
+                  audioCodecs={profileOptions.audio_codecs}
+                  onSave={(data) => handleSave(data, profile.id)}
+                  onCancel={() => setEditingId(null)}
+                />
+              </div>
             ) : (
               <ProfileCard
                 key={profile.id}
@@ -240,41 +244,39 @@ function ProfileCard({
   }
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h3 className="font-medium">{profile.name}</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {features.map((f) => (
-              <span key={f.label} className={`rounded px-2 py-0.5 text-xs ${f.color}`}>
-                {f.label}
-              </span>
-            ))}
-          </div>
-        </div>
+    <div className="flex h-full flex-col rounded-lg border border-[var(--border)] bg-[var(--card)]">
+      <div className="flex items-start justify-between border-b border-[var(--border)] p-4">
+        <h3 className="font-medium">{profile.name}</h3>
         <div className="flex items-center gap-1">
           <button
             onClick={onDuplicate}
-            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
+            className="rounded-md border border-[var(--border)] p-1.5 text-[var(--muted)] transition-colors hover:border-[var(--muted-foreground)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
             title="Duplicate"
           >
-            <Copy size={16} />
+            <Copy size={14} />
           </button>
           <button
             onClick={onEdit}
-            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]"
+            className="rounded-md border border-[var(--border)] p-1.5 text-[var(--accent)] transition-colors hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/10"
             title="Edit"
           >
-            <Edit2 size={16} />
+            <Edit2 size={14} />
           </button>
           <button
             onClick={onDelete}
-            className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--error)]"
+            className="rounded-md border border-[var(--border)] p-1.5 text-[var(--error)] transition-colors hover:border-[var(--error)]/50 hover:bg-[var(--error)]/10"
             title="Delete"
           >
-            <Trash2 size={16} />
+            <Trash2 size={14} />
           </button>
         </div>
+      </div>
+      <div className="flex flex-1 flex-wrap content-start gap-1.5 p-4">
+        {features.map((f) => (
+          <span key={f.label} className={`rounded px-2 py-0.5 text-xs ${f.color}`}>
+            {f.label}
+          </span>
+        ))}
       </div>
     </div>
   )

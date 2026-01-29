@@ -10,6 +10,10 @@ import { DownloadProgress } from '@/components/DownloadProgress'
 import { VideoLabels } from '@/components/VideoLabels'
 import { ExtractorIcon } from '@/components/ExtractorIcon'
 import { TaskStatusIcon } from '@/components/TaskStatusIcon'
+import { MediaTypeBadge } from '@/components/MediaTypeBadge'
+import { BlacklistedBadge } from '@/components/BlacklistedBadge'
+import { EmptyState } from '@/components/EmptyState'
+import { VideoThumbnail } from '@/components/VideoThumbnail'
 import { formatDuration } from '@/lib/utils'
 import { linkifyText } from '@/lib/text'
 import {
@@ -278,74 +282,63 @@ export default function VideoDetailPage() {
         {/* Left Column - Thumbnail & Actions */}
         <div className="space-y-4 lg:col-span-2">
           {/* Thumbnail with status overlay */}
-          <div className="group relative">
-            {video.thumbnail ? (
-              <img
-                src={video.thumbnail}
-                alt={video.title}
-                className="aspect-video w-full rounded-lg bg-[var(--card)] object-cover"
-              />
-            ) : (
-              <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-[var(--card)]">
-                <span className="text-[var(--muted)]">No thumbnail</span>
+          <VideoThumbnail
+            src={video.thumbnail}
+            alt={video.title}
+            duration={video.duration ? formatDuration(video.duration) : undefined}
+            size="lg"
+            className="rounded-lg bg-[var(--card)]"
+            overlay={
+              <div
+                className={clsx(
+                  'absolute top-2 left-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium shadow-lg',
+                  status === 'downloaded' && 'bg-[var(--success)] text-white',
+                  status === 'blacklisted' && 'bg-[var(--muted)] text-white',
+                  status === 'failed' && 'bg-[var(--error)] text-white',
+                  status === 'downloading' && 'bg-[var(--accent)] text-white',
+                  status === 'queued' && 'bg-[var(--warning)] text-black',
+                  status === 'pending' && 'bg-[var(--warning)] text-black',
+                  status === 'manual' && 'border border-[var(--border)] bg-black/80 text-white'
+                )}
+              >
+                {status === 'downloaded' && (
+                  <>
+                    <CheckCircle size={12} /> Downloaded
+                  </>
+                )}
+                {status === 'blacklisted' && (
+                  <>
+                    <CircleSlash size={12} /> Blacklisted
+                  </>
+                )}
+                {status === 'failed' && (
+                  <>
+                    <XCircle size={12} /> Failed
+                  </>
+                )}
+                {status === 'downloading' && (
+                  <>
+                    <Loader2 size={12} className="animate-spin" /> Downloading
+                  </>
+                )}
+                {status === 'queued' && (
+                  <>
+                    <Clock size={12} /> Queued
+                  </>
+                )}
+                {status === 'pending' && (
+                  <>
+                    <Clock size={12} /> Pending
+                  </>
+                )}
+                {status === 'manual' && (
+                  <>
+                    <CircleSlash size={12} /> Not queued
+                  </>
+                )}
               </div>
-            )}
-            {/* Duration badge */}
-            {video.duration && (
-              <div className="absolute right-2 bottom-2 rounded bg-black/80 px-1.5 py-0.5 text-xs text-white">
-                {formatDuration(video.duration)}
-              </div>
-            )}
-            {/* Status overlay */}
-            <div
-              className={clsx(
-                'absolute top-2 left-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium shadow-lg',
-                status === 'downloaded' && 'bg-[var(--success)] text-white',
-                status === 'blacklisted' && 'bg-[var(--muted)] text-white',
-                status === 'failed' && 'bg-[var(--error)] text-white',
-                status === 'downloading' && 'bg-[var(--accent)] text-white',
-                status === 'queued' && 'bg-[var(--warning)] text-black',
-                status === 'pending' && 'bg-[var(--warning)] text-black',
-                status === 'manual' && 'border border-[var(--border)] bg-black/80 text-white'
-              )}
-            >
-              {status === 'downloaded' && (
-                <>
-                  <CheckCircle size={12} /> Downloaded
-                </>
-              )}
-              {status === 'blacklisted' && (
-                <>
-                  <CircleSlash size={12} /> Blacklisted
-                </>
-              )}
-              {status === 'failed' && (
-                <>
-                  <XCircle size={12} /> Failed
-                </>
-              )}
-              {status === 'downloading' && (
-                <>
-                  <Loader2 size={12} className="animate-spin" /> Downloading
-                </>
-              )}
-              {status === 'queued' && (
-                <>
-                  <Clock size={12} /> Queued
-                </>
-              )}
-              {status === 'pending' && (
-                <>
-                  <Clock size={12} /> Pending
-                </>
-              )}
-              {status === 'manual' && (
-                <>
-                  <CircleSlash size={12} /> Not queued
-                </>
-              )}
-            </div>
-          </div>
+            }
+          />
 
           {/* Download Progress */}
           {(isActiveDownload || downloadQueued) && (
@@ -482,14 +475,8 @@ export default function VideoDetailPage() {
             <h1 className="mb-4 text-xl leading-tight font-semibold">{video.title}</h1>
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="rounded bg-[var(--accent)]/20 px-2 py-1 text-xs font-medium text-[var(--accent)] uppercase">
-                {video.media_type}
-              </span>
-              {video.blacklisted && (
-                <span className="rounded bg-[var(--muted)]/20 px-2 py-1 text-xs font-medium text-[var(--muted)]">
-                  blacklisted
-                </span>
-              )}
+              <MediaTypeBadge type={video.media_type} />
+              {video.blacklisted && <BlacklistedBadge />}
               {video.duration && (
                 <span className="flex items-center gap-1.5 rounded bg-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]">
                   <Timer size={12} />
@@ -548,7 +535,7 @@ export default function VideoDetailPage() {
           {video.downloaded && video.labels && Object.keys(video.labels).length > 0 && (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <h2 className="mb-4 font-medium">Media Info</h2>
-              <VideoLabels labels={video.labels} />
+              <VideoLabels labels={video.labels} filesize={video.filesize} />
             </div>
           )}
 
@@ -589,7 +576,7 @@ export default function VideoDetailPage() {
             </div>
             <div className="divide-y divide-[var(--border)]">
               {tasks.length === 0 ? (
-                <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
+                <EmptyState message="No tasks found" />
               ) : (
                 tasks.map((task) => (
                   <div key={task.id} className="flex items-center gap-3 p-4">

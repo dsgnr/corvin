@@ -133,7 +133,7 @@ export function Sidebar() {
             href="/"
             onClick={closeMobileSidebar}
             className={clsx(
-              'overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap transition-all',
+              'overflow-hidden text-lg font-bold tracking-tight whitespace-nowrap transition-all',
               collapsed && mounted ? 'md:w-0 md:opacity-0' : 'w-auto opacity-100'
             )}
           >
@@ -142,7 +142,7 @@ export function Sidebar() {
           {/* Mobile close button */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] md:hidden"
+            className="btn-ghost rounded-md p-1.5 md:hidden"
             aria-label="Close menu"
           >
             <X size={18} />
@@ -150,7 +150,7 @@ export function Sidebar() {
           {/* Desktop collapse button */}
           <button
             onClick={toggleCollapsed}
-            className="hidden rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] md:block"
+            className="btn-ghost hidden rounded-md p-1.5 md:block"
             aria-label={collapsed && mounted ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed && mounted ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -166,9 +166,9 @@ export function Sidebar() {
                 href={href}
                 onClick={closeMobileSidebar}
                 className={clsx(
-                  'flex items-center gap-3 overflow-hidden rounded-md px-3 py-2 transition-colors',
+                  'flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 transition-all duration-150',
                   isActive
-                    ? 'bg-[var(--accent)] text-white'
+                    ? 'bg-[var(--accent)] text-white shadow-sm'
                     : 'text-[var(--muted)] hover:bg-[var(--card-hover)] hover:text-[var(--foreground)]'
                 )}
                 title={collapsed && mounted ? label : undefined}
@@ -176,7 +176,7 @@ export function Sidebar() {
                 <Icon size={20} className="shrink-0" />
                 <span
                   className={clsx(
-                    'text-sm whitespace-nowrap transition-all',
+                    'text-sm font-medium whitespace-nowrap transition-all',
                     collapsed && mounted ? 'md:w-0 md:opacity-0' : 'w-auto opacity-100'
                   )}
                 >
@@ -190,7 +190,7 @@ export function Sidebar() {
         <div className="flex items-center justify-between overflow-hidden border-t border-[var(--border)] p-4">
           <p
             className={clsx(
-              'text-xs whitespace-nowrap text-[var(--muted)] transition-opacity',
+              'text-xs font-medium whitespace-nowrap text-[var(--muted-foreground)] transition-opacity',
               collapsed && mounted ? 'md:opacity-0' : 'opacity-100'
             )}
           >
@@ -201,7 +201,7 @@ export function Sidebar() {
             target="_blank"
             rel="noopener noreferrer"
             className={clsx(
-              'text-[var(--muted)] transition-opacity hover:text-[var(--foreground)]',
+              'text-[var(--muted-foreground)] transition-all hover:text-[var(--foreground)]',
               collapsed && mounted ? 'md:opacity-0' : 'opacity-100'
             )}
             title="View on GitHub"

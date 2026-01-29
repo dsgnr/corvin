@@ -1,18 +1,28 @@
 @import 'tailwindcss';
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #141414;
-  --card-hover: #1a1a1a;
-  --border: #262626;
-  --muted: #737373;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #22c55e;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-hover: #27272a;
+  --border: #27272a;
+  --border-subtle: #1f1f23;
+  --muted: #a1a1aa;
+  --muted-foreground: #71717a;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-muted: rgba(99, 102, 241, 0.15);
+  --success: #10b981;
+  --success-muted: rgba(16, 185, 129, 0.15);
   --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.15);
   --error: #ef4444;
+  --error-muted: rgba(239, 68, 68, 0.15);
   --sidebar-width: 14rem;
+  --radius: 0.5rem;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
 }
 
 html.sidebar-collapsed {
@@ -70,6 +80,148 @@ button:disabled {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
+}
+
+/* Focus ring utility */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--accent);
+}
+
+/* Card elevated */
+.card-elevated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Interactive card hover effect */
+.card-interactive {
+  transition: all 0.2s ease;
+}
+.card-interactive:hover {
+  border-color: var(--muted-foreground);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Button base styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--card-hover);
+  border-color: var(--muted-foreground);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input styles */
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+.input:hover:not(:disabled) {
+  border-color: var(--muted-foreground);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* Status badge styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+}
+
+/* Section divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+  border: none;
+  margin: 1.5rem 0;
+}
+
+/* Date/time input styling */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  color-scheme: dark;
+}
+
+/* Calendar/clock picker icon - simple styling */
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator:hover,
+input[type='time']::-webkit-calendar-picker-indicator:hover,
+input[type='datetime-local']::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.8;
 }
 
 /* Hide number input spinners/arrows */

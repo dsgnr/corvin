@@ -84,18 +84,14 @@ export default function Dashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleSyncAll}
-            disabled={syncing}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
-          >
+          <button onClick={handleSyncAll} disabled={syncing} className="btn btn-secondary">
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sync All
           </button>
           <button
             onClick={handleDownloadPending}
             disabled={downloading}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 sm:py-1.5"
+            className="btn btn-primary"
           >
             <Download size={14} className={downloading ? 'animate-bounce' : ''} />
             Download Pending
@@ -132,19 +128,22 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Tasks */}
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-        <div className="border-b border-[var(--border)] p-4">
-          <h2 className="font-medium">Recent Tasks</h2>
+      <div className="card-elevated overflow-hidden rounded-xl">
+        <div className="border-b border-[var(--border)] px-5 py-4">
+          <h2 className="font-semibold">Recent Tasks</h2>
         </div>
-        <div className="divide-y divide-[var(--border)]">
+        <div className="divide-y divide-[var(--border-subtle)]">
           {recentTasks.length === 0 ? (
-            <p className="p-4 text-sm text-[var(--muted)]">No recent tasks</p>
+            <p className="px-5 py-8 text-center text-sm text-[var(--muted)]">No recent tasks</p>
           ) : (
             recentTasks.map((task) => {
               const linkHref =
                 task.task_type === 'sync' ? `/lists/${task.entity_id}` : `/videos/${task.entity_id}`
               return (
-                <div key={task.id} className="flex items-center justify-between p-4">
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-[var(--card-hover)]"
+                >
                   <div className="flex items-center gap-3">
                     <TaskStatusIcon status={task.status} />
                     <div>
@@ -157,7 +156,7 @@ export default function Dashboard() {
                           {task.entity_name || `#${task.entity_id}`}
                         </Link>
                       </p>
-                      <p className="text-xs text-[var(--muted)]">
+                      <p className="text-xs text-[var(--muted-foreground)]">
                         {new Date(task.created_at).toLocaleString(undefined, {
                           dateStyle: 'medium',
                           timeStyle: 'short',
@@ -167,13 +166,14 @@ export default function Dashboard() {
                   </div>
                   <span
                     className={clsx(
-                      'rounded px-2 py-1 text-xs',
-                      task.status === 'cancelled' && 'bg-[var(--muted)]/20 text-[var(--muted)]',
-                      task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
-                      task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
-                      task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
-                      task.status === 'paused' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
-                      task.status === 'pending' && 'bg-[var(--warning)]/20 text-[var(--warning)]'
+                      'badge',
+                      task.status === 'cancelled' && 'bg-[var(--muted)]/10 text-[var(--muted)]',
+                      task.status === 'completed' &&
+                        'bg-[var(--success-muted)] text-[var(--success)]',
+                      task.status === 'failed' && 'bg-[var(--error-muted)] text-[var(--error)]',
+                      task.status === 'running' && 'bg-[var(--accent-muted)] text-[var(--accent)]',
+                      task.status === 'paused' && 'bg-[var(--warning-muted)] text-[var(--warning)]',
+                      task.status === 'pending' && 'bg-[var(--warning-muted)] text-[var(--warning)]'
                     )}
                   >
                     {task.status === 'pending' ? 'queued' : task.status}
@@ -200,14 +200,16 @@ function StatCard({
   icon: React.ComponentType<{ size?: number; className?: string }>
 }) {
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-      <div className="flex items-center justify-between">
+    <div className="card-elevated card-interactive rounded-xl p-4">
+      <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-[var(--muted)]">{title}</p>
-          <p className="mt-1 text-2xl font-semibold">{value}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{subtitle}</p>
+          <p className="text-xs font-medium tracking-wide text-[var(--muted)] uppercase">{title}</p>
+          <p className="mt-2 text-3xl font-bold tabular-nums">{value}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">{subtitle}</p>
         </div>
-        <Icon size={24} className="text-[var(--muted)]" />
+        <div className="rounded-lg bg-[var(--accent-muted)] p-2">
+          <Icon size={20} className="text-[var(--accent)]" />
+        </div>
       </div>
     </div>
   )

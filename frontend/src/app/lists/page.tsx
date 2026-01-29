@@ -28,6 +28,7 @@ import { BulkListForm } from '@/components/BulkListForm'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
 import { ExtractorIcon } from '@/components/ExtractorIcon'
+import { EmptyState } from '@/components/EmptyState'
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
 export default function ListsPage() {
@@ -270,9 +271,12 @@ export default function ListsPage() {
 
           {filteredLists.length === 0 && editingId !== 'new' ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center">
-              <p className="text-[var(--muted)]">
-                {search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'}
-              </p>
+              <EmptyState
+                message={
+                  search ? 'No lists match your search.' : 'No lists yet. Add one to get started.'
+                }
+                className="p-0"
+              />
             </div>
           ) : (
             <>
@@ -349,7 +353,7 @@ function ListCard({
         !isDeleting && !isSyncing && 'border-[var(--border)]'
       )}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         {list.thumbnail && (
           <Link
             href={`/lists/${list.id}`}
@@ -365,116 +369,119 @@ function ListCard({
           </Link>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <ExtractorIcon extractor={list.extractor} size="md" />
-                <Link
-                  href={`/lists/${list.id}`}
+          <div className="flex flex-wrap items-center gap-2">
+            <ExtractorIcon extractor={list.extractor} size="md" />
+            <Link
+              href={`/lists/${list.id}`}
+              className={clsx(
+                'font-medium transition-colors hover:text-[var(--accent)]',
+                isDeleting && 'pointer-events-none'
+              )}
+            >
+              {list.name}
+            </Link>
+            {isDeleting ? (
+              <span className="flex items-center gap-1 rounded bg-[var(--error)]/20 px-2 py-0.5 text-xs text-[var(--error)]">
+                <Loader2 size={10} className="animate-spin" />
+                Deleting...
+              </span>
+            ) : syncing ? (
+              <span className="flex items-center gap-1 rounded bg-[var(--accent)]/20 px-2 py-0.5 text-xs text-[var(--accent)]">
+                <Loader2 size={10} className="animate-spin" />
+                Syncing...
+              </span>
+            ) : queued ? (
+              <span className="flex items-center gap-1 rounded bg-[var(--warning)]/20 px-2 py-0.5 text-xs text-[var(--warning)]">
+                Sync Queued
+              </span>
+            ) : (
+              <>
+                <span
                   className={clsx(
-                    'font-medium transition-colors hover:text-[var(--accent)]',
-                    isDeleting && 'pointer-events-none'
+                    'rounded px-2 py-0.5 text-xs',
+                    list.enabled
+                      ? 'bg-[var(--success)]/20 text-[var(--success)]'
+                      : 'bg-[var(--muted)]/20 text-[var(--muted)]'
                   )}
                 >
-                  {list.name}
-                </Link>
-                {isDeleting ? (
-                  <span className="flex items-center gap-1 rounded bg-[var(--error)]/20 px-2 py-0.5 text-xs text-[var(--error)]">
-                    <Loader2 size={10} className="animate-spin" />
-                    Deleting...
+                  {list.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                {!list.auto_download && (
+                  <span className="rounded bg-[var(--warning)]/20 px-2 py-0.5 text-xs text-[var(--warning)]">
+                    Manual DL
                   </span>
-                ) : syncing ? (
-                  <span className="flex items-center gap-1 rounded bg-[var(--accent)]/20 px-2 py-0.5 text-xs text-[var(--accent)]">
-                    <Loader2 size={10} className="animate-spin" />
-                    Syncing...
-                  </span>
-                ) : queued ? (
-                  <span className="flex items-center gap-1 rounded bg-[var(--warning)]/20 px-2 py-0.5 text-xs text-[var(--warning)]">
-                    Sync Queued
-                  </span>
-                ) : (
-                  <>
-                    <span
-                      className={clsx(
-                        'rounded px-2 py-0.5 text-xs',
-                        list.enabled
-                          ? 'bg-[var(--success)]/20 text-[var(--success)]'
-                          : 'bg-[var(--muted)]/20 text-[var(--muted)]'
-                      )}
-                    >
-                      {list.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    {!list.auto_download && (
-                      <span className="rounded bg-[var(--warning)]/20 px-2 py-0.5 text-xs text-[var(--warning)]">
-                        Manual DL
-                      </span>
-                    )}
-                    <span className="hidden rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] sm:inline">
-                      {list.list_type}
-                    </span>
-                  </>
                 )}
-              </div>
-              <a
-                href={list.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={clsx(
-                  'mt-1 inline-flex items-center gap-1 text-sm break-all text-[var(--muted)] hover:text-[var(--foreground)]',
-                  isDeleting && 'pointer-events-none'
-                )}
-              >
-                {list.url}
-                <ExternalLink size={12} className="shrink-0" />
-              </a>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
-                <span>Profile: {profile?.name || 'Unknown'}</span>
+                <span className="hidden rounded bg-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] sm:inline">
+                  {list.list_type}
+                </span>
+              </>
+            )}
+          </div>
+          <a
+            href={list.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={clsx(
+              'mt-1 inline-flex items-center gap-1 text-sm break-all text-[var(--muted)] hover:text-[var(--foreground)]',
+              isDeleting && 'pointer-events-none'
+            )}
+          >
+            {list.url}
+            <ExternalLink size={12} className="shrink-0" />
+          </a>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+            <span>Profile: {profile?.name || 'Unknown'}</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="capitalize">Sync: {list.sync_frequency}</span>
+            {list.last_synced && (
+              <>
                 <span className="hidden sm:inline">•</span>
-                <span className="capitalize">Sync: {list.sync_frequency}</span>
-                {list.last_synced && (
-                  <>
-                    <span className="hidden sm:inline">•</span>
-                    <span className="w-full capitalize sm:w-auto">
-                      Last synced:{' '}
-                      {new Date(list.last_synced).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-            {!isDeleting && (
-              <div className="flex items-center gap-2 sm:ml-4">
-                <button
-                  onClick={onSync}
-                  disabled={syncing || queued}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] disabled:opacity-50"
-                  title="Sync now"
-                >
-                  <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-                </button>
-                <button
-                  onClick={onEdit}
-                  disabled={isSyncing}
-                  className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] disabled:opacity-50"
-                  title="Edit"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={onDelete}
-                  disabled={isSyncing}
-                  className="rounded-md p-2 text-[var(--muted)] transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--error)] disabled:opacity-50"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+                <span className="w-full capitalize sm:w-auto">
+                  Last synced:{' '}
+                  {new Date(list.last_synced).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </span>
+              </>
             )}
           </div>
         </div>
+        {!isDeleting && (
+          <div className="flex shrink-0 items-center gap-1 border-t border-[var(--border)] pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-3">
+            <button
+              onClick={onSync}
+              disabled={syncing || queued}
+              className={clsx(
+                'rounded-md border p-2 transition-colors',
+                syncing
+                  ? 'border-[var(--success)]/50 bg-[var(--success)]/10 text-[var(--success)]'
+                  : queued
+                    ? 'border-[var(--border)] text-[var(--success)] opacity-50'
+                    : 'border-[var(--border)] text-[var(--success)] hover:border-[var(--success)]/50 hover:bg-[var(--success)]/10'
+              )}
+              title="Sync now"
+            >
+              <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={onEdit}
+              disabled={isSyncing}
+              className="rounded-md border border-[var(--border)] p-2 text-[var(--accent)] transition-colors hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/10 disabled:opacity-50"
+              title="Edit"
+            >
+              <Edit2 size={16} />
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={isSyncing}
+              className="rounded-md border border-[var(--border)] p-2 text-[var(--error)] transition-colors hover:border-[var(--error)]/50 hover:bg-[var(--error)]/10 disabled:opacity-50"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

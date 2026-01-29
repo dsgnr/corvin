@@ -25,6 +25,7 @@ import { clsx } from 'clsx'
 import { Pagination } from '@/components/Pagination'
 import { Select } from '@/components/Select'
 import { TaskStatusIcon } from '@/components/TaskStatusIcon'
+import { EmptyState } from '@/components/EmptyState'
 import Link from 'next/link'
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/utils'
 
@@ -358,7 +359,7 @@ export default function TasksPage() {
         </div>
         <div className="divide-y divide-[var(--border)]">
           {tasks.length === 0 ? (
-            <p className="p-4 text-sm text-[var(--muted)]">No tasks found</p>
+            <EmptyState message="No tasks found" />
           ) : (
             tasks.map((task) => <TaskRow key={task.id} task={task} onAction={handleTaskAction} />)
           )}
@@ -397,54 +398,51 @@ function StatCard({
   return (
     <div
       className={clsx(
-        'rounded-lg border bg-[var(--card)] p-4',
-        effectivelyPaused ? 'border-[var(--warning)]' : 'border-[var(--border)]'
+        'card-elevated rounded-xl',
+        effectivelyPaused && 'border-[var(--warning)]/50'
       )}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
         <div className="flex items-center gap-2">
-          <Icon
-            size={18}
-            className={effectivelyPaused ? 'text-[var(--muted)]' : 'text-[var(--accent)]'}
-          />
-          <p className="text-sm font-medium">{label}</p>
-          {schedulePaused && !paused && (
-            <span className="rounded bg-[var(--warning)]/20 px-1.5 py-0.5 text-xs text-[var(--warning)]">
-              Paused with schedules
-            </span>
-          )}
-          {paused && (
-            <span className="rounded bg-[var(--warning)]/20 px-1.5 py-0.5 text-xs text-[var(--warning)]">
-              Paused
-            </span>
-          )}
+          <div
+            className={clsx(
+              'rounded-lg p-2',
+              effectivelyPaused ? 'bg-[var(--warning-muted)]' : 'bg-[var(--accent-muted)]'
+            )}
+          >
+            <Icon
+              size={18}
+              className={effectivelyPaused ? 'text-[var(--warning)]' : 'text-[var(--accent)]'}
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium">{label}</p>
+            {schedulePaused && !paused && (
+              <span className="text-xs text-[var(--warning)]">Schedule paused</span>
+            )}
+            {paused && <span className="text-xs text-[var(--warning)]">Manually paused</span>}
+          </div>
         </div>
         {paused ? (
-          <button
-            onClick={onResume}
-            className="flex items-center gap-1 rounded-md bg-[var(--accent)] px-2 py-1 text-xs text-white transition-colors hover:opacity-90"
-          >
+          <button onClick={onResume} className="btn btn-primary py-1.5 text-xs">
             <Play size={12} />
             Resume
           </button>
         ) : schedulePaused ? null : (
-          <button
-            onClick={onPause}
-            className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)]"
-          >
+          <button onClick={onPause} className="btn btn-secondary py-1.5 text-xs">
             <Pause size={12} />
             Pause
           </button>
         )}
       </div>
-      <div className="flex items-center gap-6">
-        <div>
-          <p className="text-xs text-[var(--muted)]">Queued</p>
-          <p className="text-2xl font-semibold text-[var(--warning)]">{value}</p>
+      <div className="flex items-center gap-6 p-4">
+        <div className="flex-1">
+          <p className="text-xs font-medium tracking-wide text-[var(--muted)] uppercase">Queued</p>
+          <p className="mt-1 text-3xl font-bold text-[var(--warning)] tabular-nums">{value}</p>
         </div>
-        <div>
-          <p className="text-xs text-[var(--muted)]">Running</p>
-          <p className="text-2xl font-semibold text-[var(--accent)]">{running}</p>
+        <div className="flex-1">
+          <p className="text-xs font-medium tracking-wide text-[var(--muted)] uppercase">Running</p>
+          <p className="mt-1 text-3xl font-bold text-[var(--accent)] tabular-nums">{running}</p>
         </div>
       </div>
     </div>
