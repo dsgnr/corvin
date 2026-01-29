@@ -15,6 +15,7 @@ import {
   FolderCog,
   Menu,
   X,
+  Github,
 } from 'lucide-react'
 import packageJson from '../../package.json'
 
@@ -186,7 +187,7 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="overflow-hidden border-t border-[var(--border)] p-4">
+        <div className="flex items-center justify-between overflow-hidden border-t border-[var(--border)] p-4">
           <p
             className={clsx(
               'text-xs whitespace-nowrap text-[var(--muted)] transition-opacity',
@@ -195,6 +196,18 @@ export function Sidebar() {
           >
             v{packageJson.version}
           </p>
+          <a
+            href="https://github.com/dsgnr/corvin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={clsx(
+              'text-[var(--muted)] transition-opacity hover:text-[var(--foreground)]',
+              collapsed && mounted ? 'md:opacity-0' : 'opacity-100'
+            )}
+            title="View on GitHub"
+          >
+            <Github size={16} />
+          </a>
         </div>
       </aside>
 
