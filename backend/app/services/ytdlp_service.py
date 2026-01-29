@@ -640,13 +640,42 @@ class YtDlpService:
                 info = ydl.extract_info(video.url, download=True)
 
                 if not info:
-                    msg = "Failed to extract video info."
+                    msg = "Failed to extract video info"
                     progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 
-                filename = ydl.prepare_filename(info)
-                labels = cls._extract_labels(info)
+                # Check for download failure indicators in info dict
+                # yt-dlp sets these when ignoreerrors=True and download fails
+                if info.get("_has_drm"):
+                    msg = "Video is DRM protected"
+                    progress_service.mark_error(video.id, msg)
+                    return False, msg, {}
 
+                # Check if requested formats were unavailable
+                if info.get("requested_formats") is None and info.get("format") is None:
+                    msg = "No suitable format found"
+                    progress_service.mark_error(video.id, msg)
+                    return False, msg, {}
+
+                # Verify the file was actually created
+                filename = ydl.prepare_filename(info)
+                if not Path(filename).exists():
+                    # Check for common extensions that might have been used
+                    base = Path(filename).with_suffix("")
+                    found = False
+                    for ext in [".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".opus"]:
+                        candidate = base.with_suffix(ext)
+                        if candidate.exists():
+                            filename = str(candidate)
+                            found = True
+                            break
+
+                    if not found:
+                        msg = "Download failed - output file not created"
+                        progress_service.mark_error(video.id, msg)
+                        return False, msg, {}
+
+                labels = cls._extract_labels(info)
                 cls.write_video_nfo(video, filename, info)
                 progress_service.mark_done(video.id)
 
@@ -673,7 +702,7 @@ class YtDlpService:
             {
                 **_BASE_OPTS,
                 "outtmpl": output_template,
-                "ignoreerrors": True,
+                "ignoreerrors": False,
                 "fragment_retries": 10,
                 "concurrent_fragment_downloads": 5,
                 "writeinfojson": True,

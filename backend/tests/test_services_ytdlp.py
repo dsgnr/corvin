@@ -834,9 +834,14 @@ class TestDownloadVideo:
         db_session,
         sample_video,
         sample_profile,
+        tmp_path,
     ):
         """Should download video successfully."""
         from app.models import Profile, Video
+
+        # Create a fake output file
+        output_file = tmp_path / "test.mp4"
+        output_file.touch()
 
         mock_ydl = MagicMock()
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
@@ -845,8 +850,9 @@ class TestDownloadVideo:
             "title": "Test Video",
             "ext": "mp4",
             "height": 1080,
+            "format": "best",  # Required to indicate successful format selection
         }
-        mock_ydl.prepare_filename.return_value = "/downloads/test.mp4"
+        mock_ydl.prepare_filename.return_value = str(output_file)
         mock_create_hook.return_value = MagicMock()
 
         video = db_session.get(Video, sample_video)
@@ -856,7 +862,7 @@ class TestDownloadVideo:
             success, result, labels = YtDlpService.download_video(video, profile)
 
         assert success is True
-        assert result == "/downloads/test.mp4"
+        assert result == str(output_file)
         assert labels.get("format") == "mp4"
 
     @patch("app.services.progress_service.create_hook")
@@ -947,6 +953,80 @@ class TestDownloadVideo:
 
         assert success is False
         assert "Unexpected error" in result
+        mock_mark_error.assert_called_once()
+
+    @patch("app.services.progress_service.create_hook")
+    @patch("app.services.progress_service.mark_error")
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_download_failure_file_not_created(
+        self,
+        mock_ydl_class,
+        mock_mark_error,
+        mock_create_hook,
+        app,
+        db_session,
+        sample_video,
+        sample_profile,
+        tmp_path,
+    ):
+        """Should fail when output file is not created (e.g., 403 error)."""
+        from app.models import Profile, Video
+
+        # Point to a file that doesn't exist
+        nonexistent_file = tmp_path / "nonexistent.mp4"
+
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "abc123",
+            "title": "Test Video",
+            "ext": "mp4",
+            "format": "best",
+        }
+        mock_ydl.prepare_filename.return_value = str(nonexistent_file)
+        mock_create_hook.return_value = MagicMock()
+
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
+
+        success, result, labels = YtDlpService.download_video(video, profile)
+
+        assert success is False
+        assert "output file not created" in result
+        mock_mark_error.assert_called_once()
+
+    @patch("app.services.progress_service.create_hook")
+    @patch("app.services.progress_service.mark_error")
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_download_failure_drm_protected(
+        self,
+        mock_ydl_class,
+        mock_mark_error,
+        mock_create_hook,
+        app,
+        db_session,
+        sample_video,
+        sample_profile,
+    ):
+        """Should fail when video is DRM protected."""
+        from app.models import Profile, Video
+
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "abc123",
+            "title": "Test Video",
+            "_has_drm": True,
+        }
+        mock_create_hook.return_value = MagicMock()
+
+        video = db_session.get(Video, sample_video)
+        profile = db_session.get(Profile, sample_profile)
+
+        success, result, labels = YtDlpService.download_video(video, profile)
+
+        assert success is False
+        assert "DRM protected" in result
         mock_mark_error.assert_called_once()
 
 
