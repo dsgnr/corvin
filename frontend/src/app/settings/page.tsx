@@ -520,19 +520,12 @@ export default function SettingsPage() {
               onSubmit={handleScheduleSubmit}
               className="space-y-4 rounded-md border border-[var(--border)] bg-[var(--background)] p-4"
             >
-              <FormField
-                label="Schedule Name"
-                required
-                error={touched.name ? errors.name : null}
-                showSuccess={touched.name && !errors.name && scheduleForm.name.length > 0}
-              >
+              <FormField label="Schedule Name" required error={touched.name ? errors.name : null}>
                 <ValidatedInput
                   type="text"
                   value={scheduleForm.name}
                   onChange={(e) => handleFieldChange('name', e.target.value)}
                   onBlur={() => handleBlur('name')}
-                  error={errors.name}
-                  touched={touched.name}
                   placeholder="e.g., Night Downloads"
                   autoFocus
                 />
@@ -573,8 +566,6 @@ export default function SettingsPage() {
                     value={scheduleForm.start_time}
                     onChange={(e) => handleFieldChange('start_time', e.target.value)}
                     onBlur={() => handleBlur('start_time')}
-                    error={errors.start_time}
-                    touched={touched.start_time}
                   />
                 </FormField>
                 <FormField
@@ -587,8 +578,6 @@ export default function SettingsPage() {
                     value={scheduleForm.end_time}
                     onChange={(e) => handleFieldChange('end_time', e.target.value)}
                     onBlur={() => handleBlur('end_time')}
-                    error={errors.end_time}
-                    touched={touched.end_time}
                   />
                 </FormField>
               </div>

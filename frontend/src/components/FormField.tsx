@@ -1,25 +1,17 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
 interface FormFieldProps {
   label: string
   description?: ReactNode
   error?: string | null
-  showSuccess?: boolean
   required?: boolean
   children: ReactNode
 }
 
-export function FormField({
-  label,
-  description,
-  error,
-  showSuccess,
-  required,
-  children,
-}: FormFieldProps) {
+export function FormField({ label, description, error, required, children }: FormFieldProps) {
   return (
     <div>
       <label className="mb-1 flex items-center gap-1 text-sm font-medium">
@@ -34,68 +26,34 @@ export function FormField({
           {error}
         </p>
       )}
-      {showSuccess && !error && (
-        <p className="mt-1 flex items-center gap-1 text-xs text-[var(--success)]">
-          <CheckCircle2 size={12} />
-          Looks good
-        </p>
-      )}
     </div>
   )
 }
 
-// Input wrapper with validation styling
-interface ValidatedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  error?: string | null
-  touched?: boolean
-}
-
+// Input wrapper
 export function ValidatedInput({
-  error,
-  touched,
   className = '',
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   required: _required,
   ...props
-}: ValidatedInputProps) {
-  const borderClass =
-    touched && error
-      ? 'border-[var(--error)] focus:border-[var(--error)]'
-      : touched && !error
-        ? 'border-[var(--success)] focus:border-[var(--success)]'
-        : 'border-[var(--border)] focus:border-[var(--accent)]'
-
+}: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-md border bg-[var(--background)] px-3 py-2 focus:outline-none ${borderClass} ${className}`}
+      className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${className}`}
     />
   )
 }
 
-// Textarea wrapper with validation styling
-interface ValidatedTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  error?: string | null
-  touched?: boolean
-}
-
+// Textarea wrapper
 export function ValidatedTextarea({
-  error,
-  touched,
   className = '',
   ...props
-}: ValidatedTextareaProps) {
-  const borderClass =
-    touched && error
-      ? 'border-[var(--error)] focus:border-[var(--error)]'
-      : touched && !error
-        ? 'border-[var(--success)] focus:border-[var(--success)]'
-        : 'border-[var(--border)] focus:border-[var(--accent)]'
-
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full rounded-md border bg-[var(--background)] px-3 py-2 focus:outline-none ${borderClass} ${className}`}
+      className={`w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none ${className}`}
     />
   )
 }

@@ -19,12 +19,16 @@ interface FormErrors {
   name: string | null
   url: string | null
   blacklist_regex: string | null
+  min_duration: string | null
+  max_duration: string | null
 }
 
 interface TouchedFields {
   name: boolean
   url: boolean
   blacklist_regex: boolean
+  min_duration: boolean
+  max_duration: boolean
 }
 
 export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
@@ -41,17 +45,28 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     min_duration: list?.min_duration ?? null,
     max_duration: list?.max_duration ?? null,
   })
+  // Track raw string values for duration fields to preserve invalid input
+  const [minDurationRaw, setMinDurationRaw] = useState(
+    list?.min_duration != null ? String(list.min_duration) : ''
+  )
+  const [maxDurationRaw, setMaxDurationRaw] = useState(
+    list?.max_duration != null ? String(list.max_duration) : ''
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errors, setErrors] = useState<FormErrors>({
     name: null,
     url: null,
     blacklist_regex: null,
+    min_duration: null,
+    max_duration: null,
   })
   const [touched, setTouched] = useState<TouchedFields>({
     name: false,
     url: false,
     blacklist_regex: false,
+    min_duration: false,
+    max_duration: false,
   })
 
   const isEditing = !!list
@@ -74,7 +89,16 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
   }, [])
 
   const validateRegex = useCallback((value: string): string | null => {
+    if (!value) return null // Skip validation for empty/blank regex
     return validators.regex(value)
+  }, [])
+
+  const validateDuration = useCallback((raw: string): string | null => {
+    if (raw === '') return null // Optional field
+    if (!/^\d+$/.test(raw)) return 'Must be a positive integer'
+    const val = parseInt(raw, 10)
+    if (val < 0) return 'Must be 0 or greater'
+    return null
   }, [])
 
   // Handle field changes with validation
@@ -94,9 +118,8 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
 
   const handleRegexChange = (value: string) => {
     setForm((prev) => ({ ...prev, blacklist_regex: value }))
-    if (touched.blacklist_regex) {
-      setErrors((prev) => ({ ...prev, blacklist_regex: validateRegex(value) }))
-    }
+    setTouched((prev) => ({ ...prev, blacklist_regex: true }))
+    setErrors((prev) => ({ ...prev, blacklist_regex: validateRegex(value) }))
   }
 
   // Handle blur events
@@ -108,6 +131,10 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
       setErrors((prev) => ({ ...prev, url: validateUrl(form.url) }))
     } else if (field === 'blacklist_regex') {
       setErrors((prev) => ({ ...prev, blacklist_regex: validateRegex(form.blacklist_regex) }))
+    } else if (field === 'min_duration') {
+      setErrors((prev) => ({ ...prev, min_duration: validateDuration(minDurationRaw) }))
+    } else if (field === 'max_duration') {
+      setErrors((prev) => ({ ...prev, max_duration: validateDuration(maxDurationRaw) }))
     }
   }
 
@@ -116,19 +143,25 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     const nameError = validateName(form.name)
     const urlError = !isEditing ? validateUrl(form.url) : null
     const regexError = validateRegex(form.blacklist_regex)
+    const minDurationError = validateDuration(minDurationRaw)
+    const maxDurationError = validateDuration(maxDurationRaw)
 
     setErrors({
       name: nameError,
       url: urlError,
       blacklist_regex: regexError,
+      min_duration: minDurationError,
+      max_duration: maxDurationError,
     })
     setTouched({
       name: true,
       url: true,
       blacklist_regex: true,
+      min_duration: true,
+      max_duration: true,
     })
 
-    return !nameError && !urlError && !regexError
+    return !nameError && !urlError && !regexError && !minDurationError && !maxDurationError
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,26 +197,21 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
     form.profile_id > 0 &&
     !errors.name &&
     !errors.url &&
-    !errors.blacklist_regex
+    !errors.blacklist_regex &&
+    !errors.min_duration &&
+    !errors.max_duration
 
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
     >
-      <FormField
-        label="Name"
-        required
-        error={touched.name ? errors.name : null}
-        showSuccess={touched.name && !errors.name && form.name.length > 0}
-      >
+      <FormField label="Name" required error={touched.name ? errors.name : null}>
         <ValidatedInput
           type="text"
           value={form.name}
           onChange={(e) => handleNameChange(e.target.value)}
           onBlur={() => handleBlur('name')}
-          error={errors.name}
-          touched={touched.name}
           placeholder="My Channel"
           autoFocus
         />
@@ -195,15 +223,12 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
           description="YouTube channel or playlist URL to monitor"
           required
           error={touched.url ? errors.url : null}
-          showSuccess={touched.url && !errors.url && form.url.length > 0}
         >
           <ValidatedInput
             type="text"
             value={form.url}
             onChange={(e) => handleUrlChange(e.target.value)}
             onBlur={() => handleBlur('url')}
-            error={errors.url}
-            touched={touched.url}
             placeholder="https://youtube.com/@channel or https://youtube.com/playlist?list=..."
           />
         </FormField>
@@ -265,18 +290,13 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
         <FormField
           label="Blacklist Pattern"
           description="Videos with titles matching this pattern will be synced but not auto-downloaded. Uses regex with case-insensitive matching."
-          error={touched.blacklist_regex ? errors.blacklist_regex : null}
-          showSuccess={
-            touched.blacklist_regex && !errors.blacklist_regex && form.blacklist_regex.length > 0
-          }
+          error={errors.blacklist_regex}
         >
           <ValidatedInput
             type="text"
             value={form.blacklist_regex}
             onChange={(e) => handleRegexChange(e.target.value)}
             onBlur={() => handleBlur('blacklist_regex')}
-            error={errors.blacklist_regex}
-            touched={touched.blacklist_regex}
             className="font-mono text-sm"
             placeholder="e.g. live|sponsor|#shorts"
           />
@@ -300,17 +320,27 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
           <FormField
             label="Min Duration"
             description="Videos shorter than this will be blacklisted from auto-download (in seconds)"
+            error={errors.min_duration}
           >
             <input
-              type="number"
-              min="0"
-              value={form.min_duration ?? ''}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  min_duration: e.target.value ? Number(e.target.value) : null,
-                })
-              }
+              type="text"
+              inputMode="numeric"
+              value={minDurationRaw}
+              onChange={(e) => {
+                const raw = e.target.value
+                setMinDurationRaw(raw)
+                setTouched((prev) => ({ ...prev, min_duration: true }))
+                if (raw === '') {
+                  setForm({ ...form, min_duration: null })
+                  setErrors((prev) => ({ ...prev, min_duration: null }))
+                } else if (/^\d+$/.test(raw)) {
+                  setForm({ ...form, min_duration: parseInt(raw, 10) })
+                  setErrors((prev) => ({ ...prev, min_duration: null }))
+                } else {
+                  setErrors((prev) => ({ ...prev, min_duration: 'Must be a positive integer' }))
+                }
+              }}
+              onBlur={() => handleBlur('min_duration')}
               placeholder="e.g. 60 for 1 minute"
               className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
             />
@@ -319,17 +349,27 @@ export function ListForm({ list, profiles, onSave, onCancel }: ListFormProps) {
           <FormField
             label="Max Duration"
             description="Videos longer than this will be blacklisted from auto-download (in seconds)"
+            error={errors.max_duration}
           >
             <input
-              type="number"
-              min="0"
-              value={form.max_duration ?? ''}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  max_duration: e.target.value ? Number(e.target.value) : null,
-                })
-              }
+              type="text"
+              inputMode="numeric"
+              value={maxDurationRaw}
+              onChange={(e) => {
+                const raw = e.target.value
+                setMaxDurationRaw(raw)
+                setTouched((prev) => ({ ...prev, max_duration: true }))
+                if (raw === '') {
+                  setForm({ ...form, max_duration: null })
+                  setErrors((prev) => ({ ...prev, max_duration: null }))
+                } else if (/^\d+$/.test(raw)) {
+                  setForm({ ...form, max_duration: parseInt(raw, 10) })
+                  setErrors((prev) => ({ ...prev, max_duration: null }))
+                } else {
+                  setErrors((prev) => ({ ...prev, max_duration: 'Must be a positive integer' }))
+                }
+              }}
+              onBlur={() => handleBlur('max_duration')}
               placeholder="e.g. 3600 for 1 hour"
               className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 focus:border-[var(--accent)] focus:outline-none"
             />

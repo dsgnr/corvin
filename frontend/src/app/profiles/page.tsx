@@ -525,19 +525,12 @@ function ProfileForm({
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border border-[var(--accent)] bg-[var(--card)] p-4"
     >
-      <FormField
-        label="Name"
-        required
-        error={touched.name ? errors.name : null}
-        showSuccess={touched.name && !errors.name && form.name.length > 0}
-      >
+      <FormField label="Name" required error={touched.name ? errors.name : null}>
         <ValidatedInput
           type="text"
           value={form.name}
           onChange={(e) => handleFieldChange('name', e.target.value)}
           onBlur={() => handleBlur('name')}
-          error={errors.name}
-          touched={touched.name}
           placeholder="My Profile"
           autoFocus
         />
@@ -560,17 +553,12 @@ function ProfileForm({
         }
         required
         error={touched.output_template ? errors.output_template : null}
-        showSuccess={
-          touched.output_template && !errors.output_template && form.output_template.length > 0
-        }
       >
         <ValidatedInput
           type="text"
           value={form.output_template}
           onChange={(e) => handleFieldChange('output_template', e.target.value)}
           onBlur={() => handleBlur('output_template')}
-          error={errors.output_template}
-          touched={touched.output_template}
           className="font-mono text-sm"
         />
       </FormField>
@@ -736,8 +724,6 @@ function ProfileForm({
             value={form.subtitle_languages}
             onChange={(e) => handleFieldChange('subtitle_languages', e.target.value)}
             onBlur={() => handleBlur('subtitle_languages')}
-            error={errors.subtitle_languages}
-            touched={touched.subtitle_languages}
             className="text-sm"
             placeholder="en"
           />
@@ -755,8 +741,6 @@ function ProfileForm({
             value={form.audio_track_language}
             onChange={(e) => handleFieldChange('audio_track_language', e.target.value)}
             onBlur={() => handleBlur('audio_track_language')}
-            error={errors.audio_track_language}
-            touched={touched.audio_track_language}
             className="text-sm"
             placeholder="en"
           />

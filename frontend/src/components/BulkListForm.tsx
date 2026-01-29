@@ -104,8 +104,6 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
           value={form.urls}
           onChange={(e) => setForm({ ...form, urls: e.target.value })}
           onBlur={() => setTouched(true)}
-          error={touched && urlCount === 0 ? 'required' : null}
-          touched={touched}
           className="h-40 font-mono text-sm"
           placeholder={
             'https://youtube.com/@channel1\nhttps://youtube.com/@channel2\nhttps://youtube.com/playlist?list=...'
