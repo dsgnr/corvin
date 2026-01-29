@@ -405,6 +405,14 @@ class TaskWorker:
                 task.max_retries,
                 exception,
             )
+
+            # Update progress to show retrying status for download tasks
+            if task.task_type == "download":
+                from app.services import progress_service
+
+                progress_service.mark_retrying(
+                    task.entity_id, task.retry_count + 1, task.max_retries
+                )
         else:
             task.status = TaskStatus.FAILED.value
             task.completed_at = datetime.utcnow()
@@ -421,6 +429,10 @@ class TaskWorker:
                 exception,
             )
 
+            # Handle permanent failure for download tasks
+            if task.task_type == "download":
+                self._handle_download_permanent_failure(db, task.entity_id, error_msg)
+
             # Record failure metric
             from app.metrics import task_duration_seconds, tasks_failed_total
 
@@ -431,6 +443,29 @@ class TaskWorker:
 
         db.commit()
         broadcast(Channel.TASKS, Channel.TASKS_STATS)
+
+    def _handle_download_permanent_failure(self, db, video_id: int, error: str) -> None:
+        """Handle permanent download failure - set video error and notify."""
+        from app.models import HistoryAction, Video
+        from app.services import HistoryService, progress_service
+
+        video = db.query(Video).get(video_id)
+        if not video:
+            return
+
+        video.error_message = error
+        db.commit()
+
+        HistoryService.log(
+            db,
+            HistoryAction.VIDEO_DOWNLOAD_FAILED,
+            "video",
+            video.id,
+            {"title": video.title, "error": error, "list_id": video.list_id},
+        )
+
+        progress_service.mark_error(video_id, error)
+        broadcast(Channel.list_videos(video.list_id))
 
     def _decrement_running_count(self, task_type: str) -> None:
         """Reduce the running task count and wake the poll loop."""

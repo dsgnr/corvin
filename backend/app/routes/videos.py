@@ -7,12 +7,15 @@ import asyncio
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.extensions import ReadSessionLocal, get_db, sse_executor
 from app.models import HistoryAction, Video
+from app.models.task import TaskType
 from app.schemas.videos import VideoRetryResponse, VideoWithListResponse
-from app.services import HistoryService
+from app.services import HistoryService, progress_service
+from app.sse_hub import Channel, broadcast
+from app.tasks import enqueue_task
 
 logger = get_logger("routes.videos")
 router = APIRouter(prefix="/api/videos", tags=["Videos"])
@@ -50,6 +53,16 @@ def retry_video(video_id: int, db: Session = Depends(get_db)):
     video.retry_count += 1
     db.commit()
 
+    # Clear any stale progress/error state
+    progress_service.clear(video_id)
+
+    # Queue the download
+    task = enqueue_task(TaskType.DOWNLOAD.value, video_id)
+    if not task:
+        raise ConflictError("Video download already queued or running")
+
+    broadcast(Channel.TASKS, Channel.TASKS_STATS)
+
     HistoryService.log(
         db,
         HistoryAction.VIDEO_RETRY,
@@ -58,15 +71,13 @@ def retry_video(video_id: int, db: Session = Depends(get_db)):
         {"title": video.title, "retry_count": video.retry_count},
     )
 
-    logger.info("Video %d marked for retry", video_id)
+    logger.info("Video %d queued for retry", video_id)
     return {"message": "Video queued for retry", "video": video.to_dict()}
 
 
 @router.post("/{video_id}/blacklist", response_model=VideoWithListResponse)
 def toggle_blacklist(video_id: int, db: Session = Depends(get_db)):
     """Toggle the blacklist status of a video."""
-    from app.sse_hub import Channel, broadcast
-
     video = db.get(Video, video_id)
     if not video:
         raise NotFoundError("Video", video_id)

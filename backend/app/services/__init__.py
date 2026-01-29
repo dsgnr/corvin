@@ -8,6 +8,7 @@ from app.services.progress_service import (
     get_all,
     mark_done,
     mark_error,
+    mark_retrying,
 )
 from app.services.ytdlp_service import YtDlpService
 
@@ -18,4 +19,5 @@ __all__ = [
     "get_all",
     "mark_done",
     "mark_error",
+    "mark_retrying",
 ]

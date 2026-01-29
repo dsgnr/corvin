@@ -641,20 +641,17 @@ class YtDlpService:
 
                 if not info:
                     msg = "Failed to extract video info"
-                    progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 
                 # Check for download failure indicators in info dict
                 # yt-dlp sets these when ignoreerrors=True and download fails
                 if info.get("_has_drm"):
                     msg = "Video is DRM protected"
-                    progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 
                 # Check if requested formats were unavailable
                 if info.get("requested_formats") is None and info.get("format") is None:
                     msg = "No suitable format found"
-                    progress_service.mark_error(video.id, msg)
                     return False, msg, {}
 
                 # Verify the file was actually created
@@ -672,7 +669,6 @@ class YtDlpService:
 
                     if not found:
                         msg = "Download failed - output file not created"
-                        progress_service.mark_error(video.id, msg)
                         return False, msg, {}
 
                 labels = cls._extract_labels(info)
@@ -685,13 +681,11 @@ class YtDlpService:
         except yt_dlp.DownloadError as e:
             error_msg = str(e)
             logger.error("Download error for %s: %s", video.title, error_msg)
-            progress_service.mark_error(video.id, error_msg)
             return False, error_msg, {}
 
         except Exception as e:
             error_msg = str(e)
             logger.exception("Unexpected error downloading %s", video.title)
-            progress_service.mark_error(video.id, error_msg)
             return False, error_msg, {}
 
     @staticmethod

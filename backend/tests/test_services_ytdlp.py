@@ -926,12 +926,10 @@ class TestDownloadVideo:
         assert "Video unavailable" in result
 
     @patch("app.services.progress_service.create_hook")
-    @patch("app.services.progress_service.mark_error")
     @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
     def test_handles_unexpected_exception(
         self,
         mock_ydl_class,
-        mock_mark_error,
         mock_create_hook,
         app,
         db_session,
@@ -953,15 +951,12 @@ class TestDownloadVideo:
 
         assert success is False
         assert "Unexpected error" in result
-        mock_mark_error.assert_called_once()
 
     @patch("app.services.progress_service.create_hook")
-    @patch("app.services.progress_service.mark_error")
     @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
     def test_download_failure_file_not_created(
         self,
         mock_ydl_class,
-        mock_mark_error,
         mock_create_hook,
         app,
         db_session,
@@ -993,15 +988,12 @@ class TestDownloadVideo:
 
         assert success is False
         assert "output file not created" in result
-        mock_mark_error.assert_called_once()
 
     @patch("app.services.progress_service.create_hook")
-    @patch("app.services.progress_service.mark_error")
     @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
     def test_download_failure_drm_protected(
         self,
         mock_ydl_class,
-        mock_mark_error,
         mock_create_hook,
         app,
         db_session,
@@ -1027,7 +1019,6 @@ class TestDownloadVideo:
 
         assert success is False
         assert "DRM protected" in result
-        mock_mark_error.assert_called_once()
 
 
 class TestDownloadListArtwork:

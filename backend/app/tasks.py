@@ -384,7 +384,11 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
 
 def _mark_download_failure(db, video, error: str) -> dict:
     """
-    Mark a video download as failed.
+    Mark a video download attempt as failed.
+
+    Note: This does NOT set video.error_message - that's only set when the task
+    permanently fails (after all retries exhausted). This allows the task queue
+    to retry without the frontend showing an error state.
 
     Args:
         db: Database session.
@@ -394,23 +398,10 @@ def _mark_download_failure(db, video, error: str) -> dict:
     Raises:
         Exception: Re-raises with the error message for task retry handling.
     """
-    from app.models import HistoryAction
-    from app.services import HistoryService
     from app.sse_hub import Channel, broadcast
 
-    video.error_message = error
     list_id = video.list_id
-    db.commit()
-
-    HistoryService.log(
-        db,
-        HistoryAction.VIDEO_DOWNLOAD_FAILED,
-        "video",
-        video.id,
-        {"title": video.title, "error": error, "list_id": list_id},
-    )
-
-    logger.error("Video %d download failed: %s", video.id, error)
+    logger.error("Video %d download attempt failed: %s", video.id, error)
     broadcast(Channel.list_videos(list_id))
     raise Exception(error)
 

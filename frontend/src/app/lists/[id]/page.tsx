@@ -326,8 +326,14 @@ export default function ListDetailPage() {
 
     setRetryingFailed(true)
     try {
+      // Optimistically clear error messages and mark as queued
+      const failedIds = new Set(failedVideos.map((v) => v.id))
+      setVideos((prev) =>
+        prev.map((v) => (failedIds.has(v.id) ? { ...v, error_message: null } : v))
+      )
+      setQueuedDownloadIds((prev) => new Set([...prev, ...failedIds]))
+
       await Promise.all(failedVideos.map((v) => api.retryVideo(v.id)))
-      setTimeout(fetchData, 1000)
     } catch (err) {
       console.error('Failed to retry videos:', err)
     } finally {
@@ -876,6 +882,10 @@ function VideoRow({
   const hasLabels = video.downloaded && video.labels && Object.keys(video.labels).length > 0
   const progress = useProgress(video.id)
 
+  // Derive active download state from progress
+  const isActiveDownload =
+    progress && progress.status !== 'completed' && progress.status !== 'error'
+
   const renderStatusIcon = () => {
     const wrapperClass = 'rounded-md bg-[var(--card-hover)] p-2'
 
@@ -896,14 +906,8 @@ function VideoRow({
         </span>
       )
     }
-    if (video.error_message) {
-      return (
-        <span className={wrapperClass}>
-          <XCircle size={18} className="text-[var(--error)]" />
-        </span>
-      )
-    }
-    if (downloadRunning) {
+    // Active downloads take priority over error state
+    if (isActiveDownload || downloadRunning) {
       return (
         <span title="Downloading..." className={wrapperClass}>
           <Loader2 size={18} className="animate-spin text-[var(--accent)]" />
@@ -914,6 +918,13 @@ function VideoRow({
       return (
         <span title="Download queued" className={wrapperClass}>
           <Clock size={18} className="text-[var(--warning)]" />
+        </span>
+      )
+    }
+    if (video.error_message) {
+      return (
+        <span className={wrapperClass}>
+          <XCircle size={18} className="text-[var(--error)]" />
         </span>
       )
     }
@@ -932,7 +943,7 @@ function VideoRow({
   }
 
   const renderDownloadButton = () => {
-    if (video.downloaded || downloadRunning || downloadQueued) return null
+    if (video.downloaded || downloadRunning || downloadQueued || isActiveDownload) return null
 
     return (
       <button
@@ -1002,15 +1013,24 @@ function VideoRow({
             )}
             {hasLabels && <VideoLabels labels={video.labels} compact />}
           </div>
-          {progress &&
-            progress.status !== 'completed' &&
-            progress.status !== 'error' &&
-            !video.error_message && (
-              <div className="mt-2 max-w-sm">
-                <DownloadProgress progress={progress} />
-              </div>
-            )}
-          {video.error_message && !video.blacklisted && (
+          {(isActiveDownload || downloadQueued) && (
+            <div className="mt-2 max-w-sm">
+              <DownloadProgress
+                progress={
+                  progress ||
+                  ({
+                    status: 'queued',
+                    percent: 0,
+                    video_id: video.id,
+                    speed: null,
+                    eta: null,
+                    error: null,
+                  } as const)
+                }
+              />
+            </div>
+          )}
+          {video.error_message && !video.blacklisted && !isActiveDownload && !downloadQueued && (
             <p className="mt-1 line-clamp-1 text-xs text-[var(--error)]">{video.error_message}</p>
           )}
           {video.blacklisted && video.error_message && (

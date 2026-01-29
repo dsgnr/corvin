@@ -96,7 +96,7 @@ class TestProgressService:
 
     def test_stale_entries_cleaned_up(self):
         """Should clean up entries older than TTL."""
-        progress_service._set(200, status="downloading")
+        progress_service.create_hook(200)
 
         # Manually set timestamp to be stale
         with progress_service._lock:

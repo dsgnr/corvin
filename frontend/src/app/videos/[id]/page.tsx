@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api, Video, Task, getTasksStreamUrl } from '@/lib/api'
@@ -40,18 +40,38 @@ export default function VideoDetailPage() {
   const [downloadQueued, setDownloadQueued] = useState(false)
   const [downloadRunning, setDownloadRunning] = useState(false)
 
+  // Track if we initiated a download locally to prevent SSE from clearing state prematurely
+  const localDownloadInitiated = useRef(false)
+
   // Derive list from video
   const list = video?.list ?? null
 
   // Real-time download progress
   const progress = useProgress(videoId)
 
-  // SSE stream for download task status
+  // Derive download state from progress - single source of truth for active downloads
+  const isActiveDownload =
+    progress && progress.status !== 'completed' && progress.status !== 'error'
+
+  // Clear local flag once progress is active
+  useEffect(() => {
+    if (isActiveDownload) {
+      localDownloadInitiated.current = false
+    }
+  }, [isActiveDownload])
+
+  // SSE stream for download task status (for queued state before progress starts)
   const handleTasksMessage = useCallback(
     (data: { tasks: Task[] }) => {
       const tasks = data.tasks || []
       const isQueued = tasks.some((t) => t.status === 'pending' && t.entity_id === videoId)
       const isRunning = tasks.some((t) => t.status === 'running' && t.entity_id === videoId)
+
+      // Don't let SSE clear our local state if we just initiated a download
+      if (!isQueued && !isRunning && localDownloadInitiated.current) {
+        return
+      }
+
       setDownloadQueued(isQueued)
       setDownloadRunning(isRunning)
     },
@@ -75,14 +95,14 @@ export default function VideoDetailPage() {
     fetchVideo()
   }, [videoId])
 
-  // Refresh video data when download completes
+  // Refresh video data when download completes or fails
   useEffect(() => {
-    if (progress?.status === 'completed') {
+    if (progress?.status === 'completed' || progress?.status === 'error') {
       const refetchVideo = async () => {
         try {
           const data = await api.getVideo(videoId)
           setVideo(data)
-          // Clear task states since download is complete
+          // Clear task states since download finished
           setDownloadQueued(false)
           setDownloadRunning(false)
         } catch (err) {
@@ -98,6 +118,7 @@ export default function VideoDetailPage() {
     setDownloading(true)
     try {
       await api.triggerVideoDownload(video.id)
+      localDownloadInitiated.current = true
       setDownloadQueued(true)
     } catch (err) {
       console.error('Failed to trigger download:', err)
@@ -111,8 +132,10 @@ export default function VideoDetailPage() {
     setRetrying(true)
     try {
       await api.retryVideo(video.id)
-      const data = await api.getVideo(videoId)
-      setVideo(data)
+      // Optimistically update state - clear error and mark as queued
+      localDownloadInitiated.current = true
+      setVideo({ ...video, error_message: null })
+      setDownloadQueued(true)
     } catch (err) {
       console.error('Failed to retry:', err)
     } finally {
@@ -133,11 +156,17 @@ export default function VideoDetailPage() {
     }
   }
 
-  // Determine status
+  // Determine status - prefer progress state for active downloads
   const getStatus = () => {
     if (video?.downloaded) return 'downloaded'
     if (video?.blacklisted) return 'blacklisted'
     if (video?.error_message) return 'failed'
+    // Use progress state as primary source during downloads
+    if (isActiveDownload) {
+      if (progress?.status === 'downloading' || progress?.status === 'processing')
+        return 'downloading'
+      return 'queued'
+    }
     if (downloadRunning) return 'downloading'
     if (downloadQueued) return 'queued'
     if (list?.auto_download) return 'pending'
@@ -283,18 +312,27 @@ export default function VideoDetailPage() {
           </div>
 
           {/* Download Progress */}
-          {progress &&
-            progress.status !== 'completed' &&
-            progress.status !== 'error' &&
-            !video.error_message && (
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                <DownloadProgress progress={progress} />
-              </div>
-            )}
+          {(isActiveDownload || downloadQueued) && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+              <DownloadProgress
+                progress={
+                  progress ||
+                  ({
+                    status: 'queued',
+                    percent: 0,
+                    video_id: videoId,
+                    speed: null,
+                    eta: null,
+                    error: null,
+                  } as const)
+                }
+              />
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2">
-            {!video.downloaded && !downloadRunning && !downloadQueued && (
+            {!video.downloaded && !video.error_message && !downloadRunning && !downloadQueued && (
               <button
                 onClick={handleDownload}
                 disabled={downloading}
@@ -366,7 +404,7 @@ export default function VideoDetailPage() {
           </div>
 
           {/* Error Message */}
-          {video.error_message && !video.blacklisted && (
+          {video.error_message && !video.blacklisted && !isActiveDownload && !downloadQueued && (
             <div className="rounded-lg border border-[var(--error)]/30 bg-[var(--error)]/10 p-4">
               <div className="mb-2 flex items-center gap-2 font-medium text-[var(--error)]">
                 <XCircle size={16} />

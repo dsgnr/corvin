@@ -348,11 +348,13 @@ export interface HistoryEntry {
 
 export interface DownloadProgress {
   video_id: number
-  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'error'
+  status: 'queued' | 'pending' | 'downloading' | 'processing' | 'completed' | 'error' | 'retrying'
   percent: number
   speed: string | null
   eta: number | null
   error: string | null
+  attempt?: number
+  max_attempts?: number
 }
 
 export type ProgressMap = Record<number, DownloadProgress>

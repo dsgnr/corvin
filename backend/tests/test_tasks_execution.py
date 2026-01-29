@@ -85,25 +85,26 @@ class TestMarkDownloadSuccess:
 class TestMarkDownloadFailure:
     """Tests for _mark_download_failure function."""
 
-    def test_sets_error_message(self, app, db_session, sample_video):
-        """Should set error message on video."""
-        video = db_session.query(Video).get(sample_video)
-
-        with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.broadcast"):
-                with pytest.raises(Exception, match="Download failed"):
-                    _mark_download_failure(db_session, video, "Download failed")
-
-        assert video.error_message == "Download failed"
-
     def test_raises_exception_for_retry(self, app, db_session, sample_video):
-        """Should raise exception to trigger task retry."""
+        """Should raise exception to trigger task retry without setting error_message."""
         video = db_session.query(Video).get(sample_video)
 
-        with patch.object(HistoryService, "log"):
-            with patch("app.sse_hub.broadcast"):
-                with pytest.raises(Exception, match="Network error"):
-                    _mark_download_failure(db_session, video, "Network error")
+        with patch("app.sse_hub.broadcast"):
+            with pytest.raises(Exception, match="Download failed"):
+                _mark_download_failure(db_session, video, "Download failed")
+
+        # error_message is NOT set here - it's only set on permanent failure
+        assert video.error_message is None
+
+    def test_broadcasts_list_update(self, app, db_session, sample_video):
+        """Should broadcast list update on failure."""
+        video = db_session.query(Video).get(sample_video)
+
+        with patch("app.sse_hub.broadcast") as mock_broadcast:
+            with pytest.raises(Exception, match="Network error"):
+                _mark_download_failure(db_session, video, "Network error")
+
+        mock_broadcast.assert_called()
 
 
 class TestSyncFilteringLogic:
