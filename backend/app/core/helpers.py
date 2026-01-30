@@ -1,5 +1,6 @@
 """Generic helper functions."""
 
+import re
 import tomllib
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +49,66 @@ def calculate_total_pages(total: int, page_size: int) -> int:
         Total number of pages (minimum 1).
     """
     return max(1, (total + page_size - 1) // page_size)
+
+
+def compile_blacklist_pattern(regex: str | None) -> re.Pattern | None:
+    """
+    Compile a blacklist regex pattern.
+
+    Args:
+        regex: The regex pattern string, or None.
+
+    Returns:
+        Compiled regex pattern, or None if regex is empty/invalid.
+    """
+    if not regex or not regex.strip():
+        return None
+
+    try:
+        return re.compile(regex, re.IGNORECASE)
+    except re.error:
+        return None
+
+
+def check_blacklist(
+    title: str,
+    duration: int | None,
+    pattern: re.Pattern | None,
+    min_duration: int | None,
+    max_duration: int | None,
+) -> tuple[bool, str | None]:
+    """
+    Check if a video should be blacklisted based on title and duration.
+
+    Args:
+        title: The video title to check.
+        duration: The video duration in seconds, or None.
+        pattern: Compiled regex pattern for title matching, or None.
+        min_duration: Minimum allowed duration in seconds, or None.
+        max_duration: Maximum allowed duration in seconds, or None.
+
+    Returns:
+        Tuple of (is_blacklisted, reason_string).
+        reason_string is None if not blacklisted, otherwise contains
+        semicolon-separated reasons.
+    """
+    reasons = []
+
+    # Check title against pattern
+    if pattern and pattern.search(title):
+        reasons.append("Title matches blacklist pattern")
+
+    # Check duration constraints
+    if duration is not None:
+        if min_duration is not None and duration < min_duration:
+            reasons.append(f"Duration ({duration}s) is below minimum ({min_duration}s)")
+        if max_duration is not None and duration > max_duration:
+            reasons.append(f"Duration ({duration}s) exceeds maximum ({max_duration}s)")
+
+    is_blacklisted = len(reasons) > 0
+    reason_string = "; ".join(reasons) if reasons else None
+
+    return is_blacklisted, reason_string
 
 
 def parse_from_date(date_str: str | None) -> str | None:

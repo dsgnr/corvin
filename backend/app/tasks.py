@@ -9,6 +9,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from app.core.exceptions import NotFoundError
+from app.core.helpers import check_blacklist, compile_blacklist_pattern
 from app.core.logging import get_logger
 from app.extensions import SessionLocal
 
@@ -56,7 +57,6 @@ def _execute_sync(list_id: int) -> dict:
     Returns:
         Dictionary with new_videos and total_found counts.
     """
-    import re
     import threading
 
     from app.models import HistoryAction, Video, VideoList
@@ -103,14 +103,7 @@ def _execute_sync(list_id: int) -> dict:
         max_duration = video_list.max_duration
 
         # Compile blacklist regex if set
-        blacklist_pattern = None
-        if video_list.blacklist_regex and video_list.blacklist_regex.strip():
-            try:
-                blacklist_pattern = re.compile(
-                    video_list.blacklist_regex, re.IGNORECASE
-                )
-            except re.error as e:
-                logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
+        blacklist_pattern = compile_blacklist_pattern(video_list.blacklist_regex)
 
         # Import here to avoid circular imports
         from app.sse_hub import Channel, broadcast
@@ -127,30 +120,13 @@ def _execute_sync(list_id: int) -> dict:
 
             try:
                 with SessionLocal() as db_inner:
-                    # Collect all blacklist reasons
-                    blacklist_reasons = []
-
-                    # Check if video title matches blacklist pattern
-                    if blacklist_pattern and blacklist_pattern.search(
-                        video_data["title"]
-                    ):
-                        blacklist_reasons.append("Title matches blacklist pattern")
-
-                    # Check duration constraints
-                    duration = video_data.get("duration")
-                    if duration is not None:
-                        if min_duration is not None and duration < min_duration:
-                            blacklist_reasons.append(
-                                f"Duration ({duration}s) is below minimum ({min_duration}s)"
-                            )
-                        if max_duration is not None and duration > max_duration:
-                            blacklist_reasons.append(
-                                f"Duration ({duration}s) exceeds maximum ({max_duration}s)"
-                            )
-
-                    is_blacklisted = len(blacklist_reasons) > 0
-                    blacklist_reason = (
-                        "; ".join(blacklist_reasons) if blacklist_reasons else None
+                    # Check blacklist using helper
+                    is_blacklisted, blacklist_reason = check_blacklist(
+                        video_data["title"],
+                        video_data.get("duration"),
+                        blacklist_pattern,
+                        min_duration,
+                        max_duration,
                     )
 
                     if is_blacklisted:

@@ -63,17 +63,13 @@ def _reapply_blacklist_background(
         min_duration: Minimum video duration in seconds.
         max_duration: Maximum video duration in seconds.
     """
-    import re
     import time
+
+    from app.core.helpers import check_blacklist, compile_blacklist_pattern
 
     BATCH_SIZE = 2000
 
-    pattern = None
-    if blacklist_regex:
-        try:
-            pattern = re.compile(blacklist_regex, re.IGNORECASE)
-        except re.error as e:
-            logger.warning("Invalid blacklist regex for list %s: %s", list_name, e)
+    pattern = compile_blacklist_pattern(blacklist_regex)
 
     total_changed = 0
 
@@ -106,27 +102,12 @@ def _reapply_blacklist_background(
                 batch_changed = 0
                 blacklisted_video_ids = []
                 for video in videos:
-                    # Collect all blacklist reasons
-                    blacklist_reasons = []
-
-                    # Check regex pattern
-                    if pattern and pattern.search(video.title):
-                        blacklist_reasons.append("Title matches blacklist pattern")
-
-                    # Check duration constraints
-                    if video.duration is not None:
-                        if min_duration is not None and video.duration < min_duration:
-                            blacklist_reasons.append(
-                                f"Duration ({video.duration}s) is below minimum ({min_duration}s)"
-                            )
-                        if max_duration is not None and video.duration > max_duration:
-                            blacklist_reasons.append(
-                                f"Duration ({video.duration}s) exceeds maximum ({max_duration}s)"
-                            )
-
-                    should_be_blacklisted = len(blacklist_reasons) > 0
-                    blacklist_reason = (
-                        "; ".join(blacklist_reasons) if blacklist_reasons else None
+                    should_be_blacklisted, blacklist_reason = check_blacklist(
+                        video.title,
+                        video.duration,
+                        pattern,
+                        min_duration,
+                        max_duration,
                     )
 
                     # Update if changed
