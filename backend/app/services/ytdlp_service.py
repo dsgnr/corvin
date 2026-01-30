@@ -591,9 +591,6 @@ class YtDlpService:
         if dynamic_range := info.get("dynamic_range"):
             labels["dynamic_range"] = dynamic_range
 
-        if filesize := info.get("filesize_approx"):
-            labels["filesize_approx"] = filesize
-
         if was_live := info.get("was_live"):
             labels["was_live"] = was_live
 
@@ -672,6 +669,17 @@ class YtDlpService:
                         return False, msg, {}
 
                 labels = cls._extract_labels(info)
+
+                # 'filesize' from yt-dlp is mostly `None`, and 'filesize_approx'
+                # from yt-dlp is really unreliable as it's a pre-download value.
+                # So, lets get the actual file from disk to be precise.
+                try:
+                    labels["filesize"] = Path(filename).stat().st_size
+                except OSError:
+                    # We shouldn't ever raise here, as we're already checking
+                    # the file exists above, but lets handle it for good measure.
+                    pass  # File size unavailable, skip
+
                 cls.write_video_nfo(video, filename, info)
                 progress_service.mark_done(video.id)
 

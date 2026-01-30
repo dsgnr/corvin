@@ -721,7 +721,6 @@ class TestExtractLabels:
             "height": 1080,
             "audio_channels": 6,
             "dynamic_range": "SDR",
-            "filesize_approx": 500000000,
         }
 
         result = YtDlpService._extract_labels(info)
@@ -731,7 +730,6 @@ class TestExtractLabels:
         assert result["resolution"] == "1080p"
         assert result["audio_channels"] == 6
         assert result["dynamic_range"] == "SDR"
-        assert result["filesize_approx"] == 500000000
 
     def test_extracts_was_live_label(self):
         """Should extract was_live label when present."""
@@ -758,7 +756,6 @@ class TestExtractLabels:
         assert "format" not in result
         assert "audio_channels" not in result
         assert "dynamic_range" not in result
-        assert "filesize_approx" not in result
 
     def test_handles_empty_info(self):
         """Should return empty dict for empty info."""

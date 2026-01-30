@@ -356,7 +356,7 @@ def _mark_download_success(db, video, path: str, labels: dict) -> dict:
         video.labels = existing_labels
         flag_modified(video, "labels")
 
-        if filesize := labels.get("filesize_approx"):
+        if filesize := labels.get("filesize"):
             video.filesize = filesize
 
     list_id = video.list_id

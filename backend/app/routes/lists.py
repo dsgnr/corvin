@@ -984,6 +984,7 @@ def _fetch_videos_paginated(
                     Video.blacklisted,
                     Video.error_message,
                     Video.labels,
+                    Video.filesize,
                 )
             )
             .order_by(Video.upload_date.desc().nulls_last(), Video.id.desc())
@@ -1006,6 +1007,7 @@ def _fetch_videos_paginated(
                 "blacklisted": v.blacklisted,
                 "error_message": v.error_message,
                 "labels": v.labels or {},
+                "filesize": v.filesize,
             }
             for v in rows
         ]
