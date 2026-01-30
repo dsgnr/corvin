@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.helpers import calculate_total_pages
 from app.core.logging import get_logger
 from app.extensions import ReadSessionLocal, get_db, sse_executor
 from app.models import HistoryAction, Video
@@ -107,7 +108,7 @@ def _fetch_video_tasks(video_id: int, page: int, page_size: int) -> dict:
 
         # Get total count
         total = query.count()
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         # Apply pagination
         tasks = (

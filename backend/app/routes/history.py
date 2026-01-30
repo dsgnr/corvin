@@ -4,6 +4,7 @@ History routes.
 
 from fastapi import APIRouter, Query, Request
 
+from app.core.helpers import calculate_total_pages
 from app.extensions import ReadSessionLocal
 from app.models.history import History
 from app.schemas.lists import HistoryPaginatedResponse
@@ -39,7 +40,7 @@ def _fetch_history_paginated(
             )
 
         total = base_query.count()
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         entries = (
             base_query.order_by(History.created_at.desc())

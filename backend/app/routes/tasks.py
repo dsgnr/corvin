@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, aliased
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.helpers import calculate_total_pages
 from app.core.logging import get_logger
 from app.extensions import ReadSessionLocal, get_db, sse_executor
 from app.models.task import Task, TaskStatus, TaskType
@@ -130,7 +131,7 @@ def _fetch_tasks_paginated(
             )
 
         total = count_query.scalar() or 0
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         rows = (
             query.order_by(Task.created_at.desc())

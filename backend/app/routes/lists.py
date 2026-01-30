@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, load_only
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
-from app.core.helpers import parse_from_date
+from app.core.helpers import calculate_total_pages, parse_from_date
 from app.core.logging import get_logger
 from app.extensions import ReadSessionLocal, SessionLocal, get_db, sse_executor
 from app.models import HistoryAction, Profile, VideoList
@@ -323,7 +323,7 @@ def _fetch_list_tasks(
 
         # Get total count in one go
         total = combined_query.count()
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         # Apply pagination
         rows = (
@@ -372,7 +372,7 @@ def _fetch_list_history(
 
         # Get total count
         total = query.count()
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         # Fetch paginated entries
         entries = (
@@ -957,7 +957,7 @@ def _fetch_videos_paginated(
 
         # Total count for pagination
         total = query.count()
-        total_pages = max(1, (total + page_size - 1) // page_size)
+        total_pages = calculate_total_pages(total, page_size)
 
         # Fetch paginated rows
         rows = (

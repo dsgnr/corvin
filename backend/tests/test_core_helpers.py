@@ -5,7 +5,39 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import ValidationError
-from app.core.helpers import _get_pyproject_attr, parse_from_date
+from app.core.helpers import _get_pyproject_attr, calculate_total_pages, parse_from_date
+
+
+class TestCalculateTotalPages:
+    """Tests for calculate_total_pages function."""
+
+    def test_returns_one_for_zero_items(self):
+        """Should return 1 when there are no items."""
+        assert calculate_total_pages(0, 10) == 1
+
+    def test_returns_one_for_items_less_than_page_size(self):
+        """Should return 1 when items fit on one page."""
+        assert calculate_total_pages(5, 10) == 1
+
+    def test_returns_one_for_items_equal_to_page_size(self):
+        """Should return 1 when items exactly fill one page."""
+        assert calculate_total_pages(10, 10) == 1
+
+    def test_returns_two_for_items_exceeding_page_size(self):
+        """Should return 2 when items exceed one page."""
+        assert calculate_total_pages(11, 10) == 2
+
+    def test_handles_exact_multiple(self):
+        """Should handle exact multiples of page size."""
+        assert calculate_total_pages(30, 10) == 3
+
+    def test_handles_non_exact_multiple(self):
+        """Should round up for non-exact multiples."""
+        assert calculate_total_pages(25, 10) == 3
+
+    def test_handles_large_numbers(self):
+        """Should handle large numbers correctly."""
+        assert calculate_total_pages(1000000, 100) == 10000
 
 
 class TestGetPyprojectAttr:

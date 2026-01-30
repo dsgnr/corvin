@@ -36,6 +36,20 @@ def _get_pyproject_attr(key: str, default: str = "unknown") -> str:
         return default
 
 
+def calculate_total_pages(total: int, page_size: int) -> int:
+    """
+    Calculate the total number of pages for pagination.
+
+    Args:
+        total: Total number of items.
+        page_size: Number of items per page.
+
+    Returns:
+        Total number of pages (minimum 1).
+    """
+    return max(1, (total + page_size - 1) // page_size)
+
+
 def parse_from_date(date_str: str | None) -> str | None:
     """
     Validate and normalise a date string to YYYYMMDD format.
