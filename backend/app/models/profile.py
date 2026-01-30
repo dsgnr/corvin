@@ -211,6 +211,29 @@ class Profile(Base):
         formats.append(fallback)
         return "/".join(formats)
 
+    def _add_date_metadata_parser(self, postprocessors: list) -> None:
+        """
+        Add MetadataParser to extract upload_date into meta_date field.
+
+        `date` in the metadata is returned as YYYYMMDD, but Plex wants YYYY-MM-DD
+        or the "Originally Available" value is in 1969.
+        """
+        from yt_dlp.postprocessor.metadataparser import MetadataParserPP
+
+        postprocessors.append(
+            {
+                "key": "MetadataParser",
+                "actions": [
+                    (
+                        MetadataParserPP.interpretter,
+                        "%(upload_date>%Y-%m-%d|)s",
+                        "%(meta_date)s",
+                    )
+                ],
+                "when": "pre_process",
+            }
+        )
+
     def _add_metadata_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add metadata and thumbnail postprocessors."""
         if self.embed_metadata:
@@ -238,6 +261,7 @@ class Profile(Base):
                     "already_have_thumbnail": True,
                 }
             )
+        self._add_date_metadata_parser(postprocessors)
 
     def _add_subtitle_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add subtitle options and postprocessors."""

@@ -193,6 +193,51 @@ class TestProfileToYtDlpOpts:
         assert opts["windowsfilenames"] is True
         assert opts["restrictfilenames"] is True
 
+    def test_date_metadata_parser_postprocessor(self, db_session):
+        """Should include MetadataParser postprocessor for date parsing."""
+        from yt_dlp.postprocessor.metadataparser import MetadataParserPP
+
+        profile = Profile(name="Date Parser Test")
+        opts = profile.to_yt_dlp_opts()
+
+        metadata_parser = next(
+            (p for p in opts["postprocessors"] if p["key"] == "MetadataParser"),
+            None,
+        )
+        assert metadata_parser is not None
+        assert metadata_parser["when"] == "pre_process"
+        assert metadata_parser["actions"] == [
+            (
+                MetadataParserPP.interpretter,
+                "%(upload_date>%Y-%m-%d|)s",
+                "%(meta_date)s",
+            )
+        ]
+
+    def test_date_metadata_parser_runs_at_pre_process(self, db_session):
+        """MetadataParser should run at pre_process stage."""
+        profile = Profile(name="Date Parser Order Test", embed_metadata=True)
+        opts = profile.to_yt_dlp_opts()
+
+        metadata_parser = next(
+            (p for p in opts["postprocessors"] if p["key"] == "MetadataParser"),
+            None,
+        )
+        assert metadata_parser is not None
+        # pre_process ensures it runs before other postprocessors regardless of list order
+        assert metadata_parser["when"] == "pre_process"
+
+    def test_date_metadata_parser_with_audio_only(self, db_session):
+        """MetadataParser should be included in audio-only mode."""
+        profile = Profile(name="Audio Date Parser", preferred_resolution=0)
+        opts = profile.to_yt_dlp_opts()
+
+        metadata_parser = next(
+            (p for p in opts["postprocessors"] if p["key"] == "MetadataParser"),
+            None,
+        )
+        assert metadata_parser is not None
+
 
 class TestProfileOptions:
     """Tests for GET /api/profiles/options."""
