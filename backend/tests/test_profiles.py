@@ -7,22 +7,19 @@ class TestProfileToYtDlpOpts:
     """Tests for Profile.to_yt_dlp_opts() method."""
 
     def test_default_format_no_resolution(self, db_session):
-        """Should use best format with opus preference when no resolution is set."""
+        """Should use best format when no resolution or codec is set."""
         profile = Profile(name="Default")
         opts = profile.to_yt_dlp_opts()
 
-        assert opts["format"] == "bv*+ba[acodec=opus]/bv*+ba/best"
+        assert opts["format"] == "bv*+ba/best"
         assert opts["merge_output_format"] == "mp4"
 
     def test_resolution_limited_format(self, db_session):
-        """Should limit format to specified resolution with opus preference."""
+        """Should limit format to specified resolution."""
         profile = Profile(name="1080p", preferred_resolution=1080)
         opts = profile.to_yt_dlp_opts()
 
-        assert (
-            opts["format"]
-            == "bv*[height<=1080]+ba[acodec=opus]/bv*[height<=1080]+ba/best[height<=1080]"
-        )
+        assert opts["format"] == "bv*[height<=1080]+ba/best[height<=1080]"
 
     def test_audio_only_mode(self, db_session):
         """Should use audio-only format when resolution is 0."""
@@ -42,11 +39,11 @@ class TestProfileToYtDlpOpts:
         assert extract_audio["preferredcodec"] == "m4a"
 
     def test_video_codec_preference(self, db_session):
-        """Should add video codec to format_sort."""
+        """Should add video codec filter to format string."""
         profile = Profile(name="AV1", preferred_video_codec="av01")
         opts = profile.to_yt_dlp_opts()
 
-        assert opts["format_sort"] == ["vcodec:av01"]
+        assert "vcodec^=av01" in opts["format"]
 
     def test_audio_codec_preference(self, db_session):
         """Should use audio codec in format string."""
@@ -56,7 +53,7 @@ class TestProfileToYtDlpOpts:
         assert "ba[acodec=opus]" in opts["format"]
 
     def test_combined_codec_preferences(self, db_session):
-        """Should include video codec in format_sort and audio in format string."""
+        """Should include video codec and audio codec in format string."""
         profile = Profile(
             name="Custom Codecs",
             preferred_video_codec="h265",
@@ -64,7 +61,7 @@ class TestProfileToYtDlpOpts:
         )
         opts = profile.to_yt_dlp_opts()
 
-        assert opts["format_sort"] == ["vcodec:h265"]
+        assert "vcodec^=h265" in opts["format"]
         assert "ba[acodec=flac]" in opts["format"]
 
     def test_custom_output_format(self, db_session):
@@ -98,9 +95,8 @@ class TestProfileToYtDlpOpts:
 
         assert (
             opts["format"]
-            == "bv*[height<=2160]+ba[acodec=opus]/bv*[height<=2160]+ba/best[height<=2160]"
+            == "bv*[height<=2160][vcodec^=av01]+ba[acodec=opus]/bv*[height<=2160][vcodec^=av01]+ba/best[height<=2160]"
         )
-        assert opts["format_sort"] == ["vcodec:av01"]
 
     def test_extra_args_adds_new_options(self, db_session):
         """Should add new options from extra_args."""
@@ -122,7 +118,7 @@ class TestProfileToYtDlpOpts:
         opts = profile.to_yt_dlp_opts()
 
         # format and retries are set by the profile, should not be overwritten
-        assert opts["format"] == "bv*+ba[acodec=opus]/bv*+ba/best"
+        assert opts["format"] == "bv*+ba/best"
         assert opts["retries"] == 10
 
     def test_extra_args_empty_dict(self, db_session):

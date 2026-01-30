@@ -142,10 +142,6 @@ class Profile(Base):
             # Default to mp4 for better metadata compatibility with media servers
             opts["merge_output_format"] = self.output_format or "mp4"
 
-            # Only add format_sort if video codec preference is set
-            if self.preferred_video_codec:
-                opts["format_sort"] = [f"vcodec:{self.preferred_video_codec}"]
-
             opts["format"] = self._build_format_string()
 
             # Video-only postprocessors
@@ -187,27 +183,34 @@ class Profile(Base):
 
         Priority: language + codec > language only > codec only > any
         """
-        audio_codec = self.preferred_audio_codec or "opus"
-        audio_lang = self.audio_track_language
         res = self.preferred_resolution
+        vcodec = self.preferred_video_codec
+        acodec = self.preferred_audio_codec
+        alang = self.audio_track_language
 
-        # Build video selector
-        video = "bv*"
-        fallback = "best"
+        # Build video selector with optional filters
+        vfilters = []
         if res and res in RESOLUTION_MAP:
-            video = f"bv*[height<={res}]"
-            fallback = f"best[height<={res}]"
+            vfilters.append(f"height<={res}")
+        if vcodec:
+            vfilters.append(f"vcodec^={vcodec}")
+
+        video = f"bv*[{']['.join(vfilters)}]" if vfilters else "bv*"
+        fallback = f"best[height<={res}]" if res and res in RESOLUTION_MAP else "best"
 
         # Build audio selectors in priority order
-        audio_filters = []
-        if audio_lang:
-            audio_filters.append(f"ba[language={audio_lang}][acodec={audio_codec}]")
-            audio_filters.append(f"ba[language={audio_lang}]")
-        audio_filters.append(f"ba[acodec={audio_codec}]")
-        audio_filters.append("ba")
+        audio_opts = []
+        if alang and acodec:
+            audio_opts.append(f"ba[language={alang}][acodec={acodec}]")
+            audio_opts.append(f"ba[language={alang}]")
+        elif alang:
+            audio_opts.append(f"ba[language={alang}]")
+        if acodec:
+            audio_opts.append(f"ba[acodec={acodec}]")
+        audio_opts.append("ba")
 
-        # Combine into format string with fallbacks
-        formats = [f"{video}+{af}" for af in audio_filters]
+        # Combine video + audio options, then add fallback
+        formats = [f"{video}+{a}" for a in audio_opts]
         formats.append(fallback)
         return "/".join(formats)
 

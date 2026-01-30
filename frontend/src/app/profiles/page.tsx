@@ -612,7 +612,7 @@ function ProfileForm({
         label="Preferred Video Codec"
         description={
           <>
-            Leave as default for best available. Falls back to yt-dlp&apos;s{' '}
+            Leave as default for best available (likely AV01). Falls back to yt-dlp&apos;s{' '}
             <a
               href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#sorting-formats"
               target="_blank"
@@ -642,7 +642,7 @@ function ProfileForm({
         label="Preferred Audio Codec"
         description={
           <>
-            Leave as default for best available. Falls back to yt-dlp&apos;s{' '}
+            Leave as default for best available (likely OPUS). Falls back to yt-dlp&apos;s{' '}
             <a
               href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#sorting-formats"
               target="_blank"

@@ -98,7 +98,7 @@ class TestProfile:
 
         assert "postprocessors" in opts
         assert opts["merge_output_format"] == "mp4"
-        assert opts["format"] == "bv*+ba[acodec=opus]/bv*+ba/best"
+        assert opts["format"] == "bv*+ba/best"
 
     def test_to_yt_dlp_opts_with_subtitles(self, db_session):
         """Should include subtitle options when enabled."""
