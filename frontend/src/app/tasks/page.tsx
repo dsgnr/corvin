@@ -481,8 +481,12 @@ function TaskRow({
               </Link>
             </p>
             <p className="truncate text-xs text-[var(--muted)]">
-              Started{' '}
-              {new Date(task.created_at).toLocaleString(undefined, {
+              {task.status === 'pending' || task.status === 'paused' ? 'Queued' : 'Started'}{' '}
+              {new Date(
+                task.started_at && task.status !== 'pending' && task.status !== 'paused'
+                  ? task.started_at
+                  : task.created_at
+              ).toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
               })}
