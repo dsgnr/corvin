@@ -28,9 +28,9 @@ from app.schemas.lists import (
     ListResponse,
     ListUpdate,
     ListVideoStatsResponse,
-    TasksPaginatedResponse,
     VideosPaginatedResponse,
 )
+from app.schemas.tasks import TasksPaginatedResponse
 from app.schemas.videos import VideoResponse
 from app.services import HistoryService
 from app.services.ytdlp_service import YtDlpService

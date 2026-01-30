@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.history import HistoryResponse
-from app.schemas.tasks import ActiveTasksResponse, TaskResponse
+from app.schemas.tasks import ActiveTasksResponse
 
 
 class ListCreate(BaseModel):
@@ -153,16 +153,6 @@ class VideosPaginatedResponse(BaseModel):
     """Paginated videos response."""
 
     videos: list[VideoSummary]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-class TasksPaginatedResponse(BaseModel):
-    """Paginated tasks response for a list."""
-
-    tasks: list[TaskResponse]
     total: int
     page: int
     page_size: int
