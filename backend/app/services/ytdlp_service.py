@@ -616,6 +616,9 @@ class YtDlpService:
         if acodec := info.get("acodec"):
             labels["acodec"] = acodec
 
+        if vcodec := info.get("vcodec"):
+            labels["vcodec"] = vcodec.split(".")[0]
+
         if height := info.get("height"):
             labels["resolution"] = f"{height}p"
 
