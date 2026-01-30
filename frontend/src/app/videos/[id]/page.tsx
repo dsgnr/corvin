@@ -580,10 +580,12 @@ export default function VideoDetailPage() {
               ) : (
                 tasks.map((task) => (
                   <div key={task.id} className="flex items-center gap-3 p-4">
-                    <TaskStatusIcon status={task.status} size={16} />
+                    <div className="shrink-0">
+                      <TaskStatusIcon status={task.status} size={16} />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">Download</p>
-                      <p className="text-xs text-[var(--muted)]">
+                      <p className="truncate text-sm font-medium">Download</p>
+                      <p className="truncate text-xs text-[var(--muted)]">
                         {new Date(task.created_at).toLocaleString(undefined, {
                           dateStyle: 'medium',
                           timeStyle: 'short',
@@ -599,7 +601,7 @@ export default function VideoDetailPage() {
                     </div>
                     <span
                       className={clsx(
-                        'rounded px-2 py-1 text-xs',
+                        'shrink-0 rounded px-2 py-1 text-xs',
                         task.status === 'completed' &&
                           'bg-[var(--success)]/20 text-[var(--success)]',
                         task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',

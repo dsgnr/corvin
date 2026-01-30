@@ -214,9 +214,13 @@ export default function ListsPage() {
               <button
                 onClick={handleSyncAll}
                 disabled={syncingAll}
-                className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+                className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+                title="Sync All"
               >
-                <RefreshCw size={14} className={syncingAll ? 'animate-spin' : ''} />
+                <RefreshCw
+                  size={18}
+                  className={clsx('sm:h-[14px] sm:w-[14px]', syncingAll && 'animate-spin')}
+                />
                 <span className="hidden sm:inline">Sync All</span>
               </button>
             )}
@@ -224,16 +228,18 @@ export default function ListsPage() {
               <>
                 <button
                   onClick={() => setEditingId('bulk')}
-                  className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+                  title="Bulk Add"
                 >
-                  <ListPlus size={14} />
+                  <ListPlus size={18} className="sm:h-[14px] sm:w-[14px]" />
                   <span className="hidden sm:inline">Bulk Add</span>
                 </button>
                 <button
                   onClick={() => setEditingId('new')}
-                  className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
+                  className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
+                  title="Add List"
                 >
-                  <Plus size={14} />
+                  <Plus size={18} className="sm:h-[14px] sm:w-[14px]" />
                   <span className="hidden sm:inline">Add List</span>
                 </button>
               </>

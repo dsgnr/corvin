@@ -442,10 +442,10 @@ export default function ListDetailPage() {
               referrerPolicy="no-referrer"
             />
           )}
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex items-center gap-2">
-              <ExtractorIcon extractor={list.extractor} size="lg" />
-              <h1 className="truncate text-xl font-semibold sm:text-2xl">{list.name}</h1>
+              <ExtractorIcon extractor={list.extractor} size="lg" className="shrink-0" />
+              <h1 className="truncate text-lg font-semibold sm:text-2xl">{list.name}</h1>
             </div>
             <a
               href={list.url}
@@ -461,27 +461,35 @@ export default function ListDetailPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+            title="Edit"
           >
-            <Edit2 size={14} />
+            <Edit2 size={18} className="sm:h-[14px] sm:w-[14px]" />
             <span className="hidden sm:inline">Edit</span>
           </button>
           <button
             onClick={handleSync}
             disabled={syncStatus !== 'idle'}
             className={clsx(
-              'flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors disabled:opacity-50 sm:py-1.5',
+              'flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors disabled:opacity-50 sm:py-1.5',
               syncStatus === 'queued'
                 ? 'bg-[var(--warning)] text-black'
                 : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
             )}
+            title={
+              syncStatus === 'running'
+                ? 'Syncing'
+                : syncStatus === 'queued'
+                  ? 'Sync Queued'
+                  : 'Sync'
+            }
           >
             {syncStatus === 'running' ? (
-              <RefreshCw size={14} className="animate-spin" />
+              <RefreshCw size={18} className="animate-spin sm:h-[14px] sm:w-[14px]" />
             ) : syncStatus === 'queued' ? (
-              <Clock size={14} />
+              <Clock size={18} className="sm:h-[14px] sm:w-[14px]" />
             ) : (
-              <RefreshCw size={14} />
+              <RefreshCw size={18} className="sm:h-[14px] sm:w-[14px]" />
             )}
             <span className="hidden sm:inline">
               {syncStatus === 'running'
@@ -495,12 +503,13 @@ export default function ListDetailPage() {
             <button
               onClick={handleDownloadPending}
               disabled={downloadingPending}
-              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+              className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+              title={`Download ${list?.auto_download ? 'Pending' : 'All'}`}
             >
               {downloadingPending ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin sm:h-[14px] sm:w-[14px]" />
               ) : (
-                <Download size={14} />
+                <Download size={18} className="sm:h-[14px] sm:w-[14px]" />
               )}
               <span className="hidden sm:inline">
                 Download {list?.auto_download ? 'Pending' : 'All'}
@@ -511,12 +520,13 @@ export default function ListDetailPage() {
             <button
               onClick={handleRetryFailed}
               disabled={retryingFailed}
-              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+              className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm transition-colors hover:bg-[var(--card-hover)] disabled:opacity-50 sm:py-1.5"
+              title="Retry Failed"
             >
               {retryingFailed ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin sm:h-[14px] sm:w-[14px]" />
               ) : (
-                <RefreshCw size={14} />
+                <RefreshCw size={18} className="sm:h-[14px] sm:w-[14px]" />
               )}
               <span className="hidden sm:inline">Retry Failed</span>
             </button>
@@ -1043,13 +1053,15 @@ function VideoRow({
 function TaskRow({ task }: { task: Task }) {
   return (
     <div className="flex items-center gap-3 p-4">
-      <TaskStatusIcon status={task.status} size={16} />
+      <div className="shrink-0">
+        <TaskStatusIcon status={task.status} size={16} />
+      </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">
+        <p className="truncate text-sm font-medium">
           {task.task_type === 'sync' ? 'Sync' : 'Download'} •{' '}
           {task.entity_name || `#${task.entity_id}`}
         </p>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="truncate text-xs text-[var(--muted)]">
           {new Date(task.created_at).toLocaleString(undefined, {
             dateStyle: 'medium',
             timeStyle: 'short',
@@ -1063,7 +1075,7 @@ function TaskRow({ task }: { task: Task }) {
       </div>
       <span
         className={clsx(
-          'rounded px-2 py-1 text-xs',
+          'shrink-0 rounded px-2 py-1 text-xs',
           task.status === 'completed' && 'bg-[var(--success)]/20 text-[var(--success)]',
           task.status === 'failed' && 'bg-[var(--error)]/20 text-[var(--error)]',
           task.status === 'running' && 'bg-[var(--accent)]/20 text-[var(--accent)]',
@@ -1121,7 +1133,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
     <div className="flex items-start gap-3 p-4">
       <div
         className={clsx(
-          'rounded-md p-2',
+          'shrink-0 rounded-md p-2',
           isError && 'bg-[var(--error)]/10',
           isSuccess && 'bg-[var(--success)]/10',
           !isError && !isSuccess && 'bg-[var(--border)]'
@@ -1137,7 +1149,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
         />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{formatAction(entry.action)}</span>
           <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
             <EntityIcon size={12} />
@@ -1146,7 +1158,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
           </span>
         </div>
         {Object.keys(details).length > 0 && (
-          <p className="mt-1 text-xs text-[var(--muted)]">
+          <p className="mt-1 truncate text-xs text-[var(--muted)]">
             {'name' in details && (
               <span className="pr-1 after:ml-1 after:content-['•']">{String(details.name)}</span>
             )}

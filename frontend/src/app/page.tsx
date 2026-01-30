@@ -84,17 +84,29 @@ export default function Dashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <div className="flex flex-wrap gap-2">
-          <button onClick={handleSyncAll} disabled={syncing} className="btn btn-secondary">
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            Sync All
+          <button
+            onClick={handleSyncAll}
+            disabled={syncing}
+            className="btn btn-secondary"
+            title="Sync All"
+          >
+            <RefreshCw
+              size={18}
+              className={clsx('sm:h-[14px] sm:w-[14px]', syncing && 'animate-spin')}
+            />
+            <span className="hidden sm:inline">Sync All</span>
           </button>
           <button
             onClick={handleDownloadPending}
             disabled={downloading}
             className="btn btn-primary"
+            title="Download Pending"
           >
-            <Download size={14} className={downloading ? 'animate-bounce' : ''} />
-            Download Pending
+            <Download
+              size={18}
+              className={clsx('sm:h-[14px] sm:w-[14px]', downloading && 'animate-bounce')}
+            />
+            <span className="hidden sm:inline">Download Pending</span>
           </button>
         </div>
       </div>
@@ -142,12 +154,14 @@ export default function Dashboard() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-[var(--card-hover)]"
+                  className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--card-hover)] sm:px-5"
                 >
-                  <div className="flex items-center gap-3">
-                    <TaskStatusIcon status={task.status} />
-                    <div>
-                      <p className="text-sm font-medium">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="shrink-0">
+                      <TaskStatusIcon status={task.status} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
                         {task.task_type === 'sync' ? 'Sync' : 'Download'} •{' '}
                         <Link
                           href={linkHref}
@@ -166,7 +180,7 @@ export default function Dashboard() {
                   </div>
                   <span
                     className={clsx(
-                      'badge',
+                      'badge shrink-0',
                       task.status === 'cancelled' && 'bg-[var(--muted)]/10 text-[var(--muted)]',
                       task.status === 'completed' &&
                         'bg-[var(--success-muted)] text-[var(--success)]',
@@ -200,15 +214,17 @@ function StatCard({
   icon: React.ComponentType<{ size?: number; className?: string }>
 }) {
   return (
-    <div className="card-elevated card-interactive rounded-xl p-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium tracking-wide text-[var(--muted)] uppercase">{title}</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums">{value}</p>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">{subtitle}</p>
+    <div className="card-elevated card-interactive rounded-xl p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium tracking-wide text-[var(--muted)] uppercase">
+            {title}
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums sm:mt-2 sm:text-3xl">{value}</p>
+          <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{subtitle}</p>
         </div>
-        <div className="rounded-lg bg-[var(--accent-muted)] p-2">
-          <Icon size={20} className="text-[var(--accent)]" />
+        <div className="shrink-0 rounded-lg bg-[var(--accent-muted)] p-1.5 sm:p-2">
+          <Icon size={16} className="text-[var(--accent)] sm:h-5 sm:w-5" />
         </div>
       </div>
     </div>

@@ -240,38 +240,42 @@ export default function TasksPage() {
           {hasPendingTasks && (
             <button
               onClick={handlePauseAll}
-              className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+              className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+              title="Pause Queued"
             >
-              <Pause size={14} />
+              <Pause size={18} className="sm:h-[14px] sm:w-[14px]" />
               <span className="hidden sm:inline">Pause Queued</span>
             </button>
           )}
           <button
             onClick={handleResumeAll}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
+            className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-sm text-white transition-colors hover:bg-[var(--accent-hover)] sm:py-1.5"
+            title="Resume Paused"
           >
-            <Play size={14} />
+            <Play size={18} className="sm:h-[14px] sm:w-[14px]" />
             <span className="hidden sm:inline">Resume Paused</span>
           </button>
           <button
             onClick={handleCancelAll}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--error)] px-3 py-2 text-sm text-white transition-colors hover:opacity-90 sm:py-1.5"
+            className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--error)] px-3 py-2 text-sm text-white transition-colors hover:opacity-90 sm:py-1.5"
+            title="Cancel Queued"
           >
-            <Ban size={14} />
+            <Ban size={18} className="sm:h-[14px] sm:w-[14px]" />
             <span className="hidden sm:inline">Cancel Queued</span>
           </button>
           <button
             onClick={handleRetryFailed}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--card-hover)] sm:py-1.5"
+            title="Retry Failed"
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={18} className="sm:h-[14px] sm:w-[14px]" />
             <span className="hidden sm:inline">Retry Failed</span>
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
           label="Syncs"
           value={stats?.pending_sync ?? 0}
@@ -462,13 +466,13 @@ function TaskRow({
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div onClick={() => setExpanded(!expanded)} className="cursor-pointer">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div onClick={() => setExpanded(!expanded)} className="shrink-0 cursor-pointer">
             <TaskStatusIcon status={task.status} />
           </div>
-          <div>
-            <p className="text-sm font-medium">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">
               <span className="cursor-default" onClick={() => setExpanded(!expanded)}>
                 {task.task_type === 'sync' ? 'Sync' : 'Download'} •
               </span>{' '}
@@ -476,7 +480,7 @@ function TaskRow({
                 {task.entity_name || `#${task.entity_id}`}
               </Link>
             </p>
-            <p className="text-xs text-[var(--muted)]">
+            <p className="truncate text-xs text-[var(--muted)]">
               Started{' '}
               {new Date(task.created_at).toLocaleString(undefined, {
                 dateStyle: 'medium',
@@ -487,7 +491,7 @@ function TaskRow({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <span
             className={clsx(
               'cursor-default rounded px-2 py-1 text-xs',

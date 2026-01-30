@@ -248,7 +248,7 @@ export default function HistoryPage() {
                 <div key={entry.id} className="flex items-start gap-3 p-4">
                   <div
                     className={clsx(
-                      'rounded-md p-2',
+                      'shrink-0 rounded-md p-2',
                       isError && 'bg-[var(--error)]/10',
                       isSuccess && 'bg-[var(--success)]/10',
                       !isError && !isSuccess && 'bg-[var(--border)]'
@@ -264,7 +264,7 @@ export default function HistoryPage() {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{formatAction(entry.action)}</span>
                       <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
                         <EntityIcon size={12} />
@@ -273,7 +273,7 @@ export default function HistoryPage() {
                       </span>
                     </div>
                     {Object.keys(details).length > 0 && (
-                      <p className="mt-1 text-xs text-[var(--muted)]">
+                      <p className="mt-1 truncate text-xs text-[var(--muted)]">
                         {'name' in details && profileId && (
                           <Link
                             href={`/profiles?edit=${profileId}`}
