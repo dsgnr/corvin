@@ -5,6 +5,7 @@ Video model for individual videos.
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -39,7 +40,7 @@ class Video(Base):
     description = Column(Text, nullable=True)
     extractor = Column(String(50), nullable=True)
     media_type = Column(String(20), nullable=False, default="video")
-    filesize = Column(Integer, nullable=True)
+    filesize = Column(BigInteger, nullable=True)
     labels = Column(JSON, nullable=True, default=dict)
     list_id = Column(Integer, ForeignKey("video_lists.id"), nullable=False)
     downloaded = Column(Boolean, default=False)
