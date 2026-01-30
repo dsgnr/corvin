@@ -105,6 +105,54 @@ class TestDbDialect:
         assert DB_DIALECT == "sqlite"
 
 
+class TestSqlitePragma:
+    """Tests for SQLite PRAGMA configuration."""
+
+    def test_network_share_mode_uses_delete_journal(self, monkeypatch):
+        """Should use DELETE journal mode when SQLITE_NETWORK_SHARE is set."""
+        monkeypatch.setenv("SQLITE_NETWORK_SHARE", "true")
+
+        # Reimport to pick up env var
+        import importlib
+        from unittest.mock import MagicMock
+
+        import app.extensions
+
+        importlib.reload(app.extensions)
+
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+
+        app.extensions._set_sqlite_pragma(mock_connection, None)
+
+        # Check that DELETE journal mode was set
+        calls = [str(call) for call in mock_cursor.execute.call_args_list]
+        assert any("DELETE" in str(call) for call in calls)
+        assert any("EXCLUSIVE" in str(call) for call in calls)
+
+    def test_default_mode_uses_wal_journal(self, monkeypatch):
+        """Should use WAL journal mode by default."""
+        monkeypatch.delenv("SQLITE_NETWORK_SHARE", raising=False)
+
+        import importlib
+        from unittest.mock import MagicMock
+
+        import app.extensions
+
+        importlib.reload(app.extensions)
+
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+
+        app.extensions._set_sqlite_pragma(mock_connection, None)
+
+        calls = [str(call) for call in mock_cursor.execute.call_args_list]
+        assert any("WAL" in str(call) for call in calls)
+        assert any("NORMAL" in str(call) for call in calls)
+
+
 class TestSessionFactories:
     """Tests for session factory configuration."""
 

@@ -80,11 +80,24 @@ read_engine = create_engine(
 def _set_sqlite_pragma(dbapi_connection, connection_record):
     """Configure SQLite for better performance and concurrency."""
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA locking_mode=NORMAL")
-    cursor.execute("PRAGMA wal_autocheckpoint=1000")
+
+    # Network shares (NFS/SMB) don't support WAL mode reliably due to locking issues.
+    # Use DELETE journal mode when SQLITE_NETWORK_SHARE is set.
+    use_network_mode = os.getenv("SQLITE_NETWORK_SHARE", "").lower() == "true"
+
+    if use_network_mode:
+        # Rollback journal mode - safer for network shares but slower
+        cursor.execute("PRAGMA journal_mode=DELETE")
+        cursor.execute("PRAGMA locking_mode=EXCLUSIVE")
+        cursor.execute("PRAGMA synchronous=FULL")
+    else:
+        # WAL mode - faster, but requires local filesystem with proper locking
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA locking_mode=NORMAL")
+        cursor.execute("PRAGMA wal_autocheckpoint=1000")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+
     cursor.execute("PRAGMA busy_timeout=60000")  # 60 seconds
-    cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA temp_store=MEMORY")
     cursor.execute("PRAGMA cache_size=-64000")
     cursor.close()

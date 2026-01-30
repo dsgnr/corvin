@@ -8,6 +8,8 @@ services:
       - ./downloads:/downloads
     environment:
       - TZ=UTC
+      # Uncomment for network share (NFS/SMB) database storage to disable WAL:
+      # - SQLITE_NETWORK_SHARE=true
     restart: unless-stopped
 
   frontend:

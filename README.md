@@ -65,6 +65,21 @@ See [docker-compose-postgres.yml](docker-compose-postgres.yml) for the full conf
 
 Both directories are mounted as volumes and persist between container restarts.
 
+### Network Share Storage
+
+If you need to store the SQLite database on a network share (NFS, SMB, etc.), enable network share compatibility mode:
+
+```yaml
+environment:
+  - SQLITE_NETWORK_SHARE=true
+```
+
+This switches SQLite from WAL mode to rollback journal mode, which works reliably over network filesystems. Trade-offs:
+- Slower write performance
+- Exclusive locking (one writer at a time)
+
+I probably wouldn't recommend this, but it's there if you want it.
+
 ### Environment Variables
 
 **Backend:**
@@ -79,6 +94,7 @@ Both directories are mounted as volumes and persist between container restarts.
 | `POSTGRES_USER` | `corvin` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | | PostgreSQL password (required when using PostgreSQL) |
 | `POSTGRES_DB` | `corvin` | PostgreSQL database name |
+| `SQLITE_NETWORK_SHARE` | `false` | Enable network share compatibility mode for SQLite |
 | `NOTIFICATION_PLEX_TOKEN` | | Plex authentication token |
 | `NOTIFICATION_JELLYFIN_API_KEY` | | Jellyfin/Emby API key |
 | `NOTIFICATION_SLACK_WEBHOOK_URL` | | Slack webhook URL |
