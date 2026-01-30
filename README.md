@@ -106,7 +106,7 @@ I probably wouldn't recommend this, but it's there if you want it.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BACKEND_URL` | `http://backend:5000` | Backend API URL (Docker internal network) |
+| `BACKEND_URL` | `http://backend:5000` | Backend API URL. Only needed if the backend service name differs from `backend` (e.g., Kubernetes) |
 
 ## API
 
