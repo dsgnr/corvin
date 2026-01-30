@@ -138,30 +138,15 @@ class Profile(Base):
                 }
             )
         else:
-            # Build format_sort with codec preferences
-            format_sort = []
-            if self.preferred_video_codec:
-                format_sort.append(f"vcodec:{self.preferred_video_codec}")
-            if self.preferred_audio_codec:
-                format_sort.append(f"acodec:{self.preferred_audio_codec}")
-            format_sort.extend(["res", "fps", "hdr", "codec", "br", "size"])
-
             opts["audio_multistreams"] = True
             # Default to mp4 for better metadata compatibility with media servers
             opts["merge_output_format"] = self.output_format or "mp4"
-            opts["format_sort"] = format_sort
 
-            # Set format based on preferred resolution
-            if (
-                self.preferred_resolution
-                and self.preferred_resolution in RESOLUTION_MAP
-            ):
-                opts["format"] = (
-                    f"bv*[height<={self.preferred_resolution}]+ba"
-                    f"/best[height<={self.preferred_resolution}]"
-                )
-            else:
-                opts["format"] = "bv*+ba/best"
+            # Only add format_sort if video codec preference is set
+            if self.preferred_video_codec:
+                opts["format_sort"] = [f"vcodec:{self.preferred_video_codec}"]
+
+            opts["format"] = self._build_format_string()
 
             # Video-only postprocessors
             self._add_subtitle_postprocessors(opts, postprocessors)
@@ -195,6 +180,36 @@ class Profile(Base):
         for key, value in self.extra_args.items():
             if key not in opts:
                 opts[key] = value
+
+    def _build_format_string(self) -> str:
+        """
+        Build yt-dlp format string based on profile preferences.
+
+        Priority: language + codec > language only > codec only > any
+        """
+        audio_codec = self.preferred_audio_codec or "opus"
+        audio_lang = self.audio_track_language
+        res = self.preferred_resolution
+
+        # Build video selector
+        video = "bv*"
+        fallback = "best"
+        if res and res in RESOLUTION_MAP:
+            video = f"bv*[height<={res}]"
+            fallback = f"best[height<={res}]"
+
+        # Build audio selectors in priority order
+        audio_filters = []
+        if audio_lang:
+            audio_filters.append(f"ba[language={audio_lang}][acodec={audio_codec}]")
+            audio_filters.append(f"ba[language={audio_lang}]")
+        audio_filters.append(f"ba[acodec={audio_codec}]")
+        audio_filters.append("ba")
+
+        # Combine into format string with fallbacks
+        formats = [f"{video}+{af}" for af in audio_filters]
+        formats.append(fallback)
+        return "/".join(formats)
 
     def _add_metadata_postprocessors(self, opts: dict, postprocessors: list) -> None:
         """Add metadata and thumbnail postprocessors."""
@@ -256,12 +271,9 @@ class Profile(Base):
             )
 
     def _add_audio_options(self, opts: dict) -> None:
-        """Add audio track language preferences."""
+        """Add audio multistreams option."""
+        # Language preference is handled in the format string for reliability
         opts["audio_multistreams"] = True
-        if self.audio_track_language:
-            opts["format_sort"] = [f"lang:{self.audio_track_language}"] + opts[
-                "format_sort"
-            ]
 
     def _add_sponsorblock_postprocessors(self, postprocessors: list) -> None:
         """Add SponsorBlock postprocessors if enabled."""
