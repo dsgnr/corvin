@@ -1,6 +1,11 @@
 name: Backend Lint
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**/*.py'
   pull_request:
     paths:
       - 'backend/**/*.py'
