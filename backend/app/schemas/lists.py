@@ -39,6 +39,18 @@ class BulkListCreate(BaseModel):
     sync_frequency: str = Field("daily", description="Sync frequency")
     enabled: bool = Field(True, description="Enable automatic syncing")
     auto_download: bool = Field(True, description="Auto-download new videos")
+    from_date: str | None = Field(
+        None, description="Only sync videos after this date (YYYYMMDD)"
+    )
+    blacklist_regex: str | None = Field(
+        None, description="Regex pattern to blacklist videos by title"
+    )
+    min_duration: int | None = Field(
+        None, description="Minimum video duration in seconds"
+    )
+    max_duration: int | None = Field(
+        None, description="Maximum video duration in seconds"
+    )
 
 
 class BulkListResponse(BaseModel):

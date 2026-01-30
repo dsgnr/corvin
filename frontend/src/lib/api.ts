@@ -565,6 +565,10 @@ export interface BulkListCreate {
   sync_frequency: string
   enabled: boolean
   auto_download: boolean
+  from_date?: string | null
+  blacklist_regex?: string | null
+  min_duration?: number | null
+  max_duration?: number | null
 }
 
 export interface BulkListResponse {

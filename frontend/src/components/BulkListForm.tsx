@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Profile, BulkListCreate } from '@/lib/api'
 import { X, Check, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { Select } from '@/components/Select'
-import { ToggleOption } from '@/components/ToggleOption'
 import { FormField, ValidatedTextarea } from '@/components/FormField'
 import { validators } from '@/lib/validation'
+import {
+  ListOptionsFields,
+  ListOptionsValues,
+  ListOptionsErrors,
+  ListOptionsTouched,
+  validateRegex,
+  validateDuration,
+} from '@/components/ListOptionsFields'
 
 interface BulkListFormProps {
   profiles: Profile[]
@@ -23,24 +29,54 @@ interface UrlValidation {
 }
 
 export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) {
-  const [form, setForm] = useState({
-    urls: '',
+  const [urls, setUrls] = useState('')
+  const [options, setOptions] = useState<ListOptionsValues>({
     list_type: 'channel',
     profile_id: profiles[0]?.id || 0,
     sync_frequency: 'daily',
+    from_date: '',
+    blacklist_regex: '',
+    min_duration: null,
+    max_duration: null,
     enabled: true,
     auto_download: true,
   })
+
+  const [minDurationRaw, setMinDurationRaw] = useState('')
+  const [maxDurationRaw, setMaxDurationRaw] = useState('')
+
   const [saving, setSaving] = useState(false)
-  const [touched, setTouched] = useState(false)
+  const [urlsTouched, setUrlsTouched] = useState(false)
+  const [optionErrors, setOptionErrors] = useState<ListOptionsErrors>({
+    blacklist_regex: null,
+    min_duration: null,
+    max_duration: null,
+  })
+  const [optionsTouched, setOptionsTouched] = useState<ListOptionsTouched>({
+    blacklist_regex: false,
+    min_duration: false,
+    max_duration: false,
+  })
   const [result, setResult] = useState<{
     created: number
     errors: { url: string; error: string }[]
   } | null>(null)
 
+  const handleOptionsChange = useCallback((partial: Partial<ListOptionsValues>) => {
+    setOptions((prev) => ({ ...prev, ...partial }))
+  }, [])
+
+  const handleOptionErrorsChange = useCallback((partial: Partial<ListOptionsErrors>) => {
+    setOptionErrors((prev) => ({ ...prev, ...partial }))
+  }, [])
+
+  const handleOptionsTouchedChange = useCallback((partial: Partial<ListOptionsTouched>) => {
+    setOptionsTouched((prev) => ({ ...prev, ...partial }))
+  }, [])
+
   // Parse and validate URLs
   const urlValidations = useMemo((): UrlValidation[] => {
-    const lines = form.urls
+    const lines = urls
       .split('\n')
       .map((u) => u.trim())
       .filter((u) => u.length > 0)
@@ -52,7 +88,7 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
       }
       return { url, valid: true, error: null }
     })
-  }, [form.urls])
+  }, [urls])
 
   const validUrls = urlValidations.filter((v) => v.valid)
   const invalidUrls = urlValidations.filter((v) => !v.valid)
@@ -60,22 +96,40 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setTouched(true)
+    setUrlsTouched(true)
 
-    if (validUrls.length === 0) return
+    // Validate all fields
+    const regexError = validateRegex(options.blacklist_regex)
+    const minDurationError = validateDuration(minDurationRaw)
+    const maxDurationError = validateDuration(maxDurationRaw)
+
+    setOptionErrors({
+      blacklist_regex: regexError,
+      min_duration: minDurationError,
+      max_duration: maxDurationError,
+    })
+    setOptionsTouched({
+      blacklist_regex: true,
+      min_duration: true,
+      max_duration: true,
+    })
+
+    if (validUrls.length === 0 || regexError || minDurationError || maxDurationError) return
 
     setSaving(true)
     setResult(null)
 
-    const urls = validUrls.map((v) => v.url)
-
     const res = await onSave({
-      urls,
-      list_type: form.list_type,
-      profile_id: form.profile_id,
-      sync_frequency: form.sync_frequency,
-      enabled: form.enabled,
-      auto_download: form.auto_download,
+      urls: validUrls.map((v) => v.url),
+      list_type: options.list_type,
+      profile_id: options.profile_id,
+      sync_frequency: options.sync_frequency,
+      enabled: options.enabled,
+      auto_download: options.auto_download,
+      from_date: options.from_date || null,
+      blacklist_regex: options.blacklist_regex || null,
+      min_duration: options.min_duration,
+      max_duration: options.max_duration,
     })
 
     setResult(res)
@@ -86,8 +140,13 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
     }
   }
 
-  const hasUrlError = touched && urlCount > 0 && invalidUrls.length > 0
+  const hasUrlError = urlsTouched && urlCount > 0 && invalidUrls.length > 0
   const allUrlsValid = urlCount > 0 && invalidUrls.length === 0
+  const hasFieldErrors = !!(
+    optionErrors.blacklist_regex ||
+    optionErrors.min_duration ||
+    optionErrors.max_duration
+  )
 
   return (
     <form
@@ -98,12 +157,12 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
         label="URLs (one per line)"
         description="Paste YouTube channel or playlist URLs, one per line. Names will be auto-detected."
         required
-        error={touched && urlCount === 0 ? 'At least one URL is required' : null}
+        error={urlsTouched && urlCount === 0 ? 'At least one URL is required' : null}
       >
         <ValidatedTextarea
-          value={form.urls}
-          onChange={(e) => setForm({ ...form, urls: e.target.value })}
-          onBlur={() => setTouched(true)}
+          value={urls}
+          onChange={(e) => setUrls(e.target.value)}
+          onBlur={() => setUrlsTouched(true)}
           className="h-40 font-mono text-sm"
           placeholder={
             'https://youtube.com/@channel1\nhttps://youtube.com/@channel2\nhttps://youtube.com/playlist?list=...'
@@ -143,71 +202,26 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
               </ul>
             </div>
           )}
-          {urlCount === 0 && touched && (
+          {urlCount === 0 && urlsTouched && (
             <p className="text-xs text-[var(--muted)]">Paste URLs above to get started</p>
           )}
         </div>
       </FormField>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <FormField label="Type" description="Whether these are channels or playlists">
-          <Select
-            value={form.list_type}
-            onChange={(e) => setForm({ ...form, list_type: e.target.value })}
-            disabled={saving}
-          >
-            <option value="channel">Channel</option>
-            <option value="playlist">Playlist</option>
-          </Select>
-        </FormField>
-
-        <FormField label="Profile" description="Download settings to use for all lists" required>
-          <Select
-            value={form.profile_id}
-            onChange={(e) => setForm({ ...form, profile_id: Number(e.target.value) })}
-            disabled={saving}
-          >
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-
-        <FormField label="Sync Frequency" description="How often to check for new videos">
-          <Select
-            value={form.sync_frequency}
-            onChange={(e) => setForm({ ...form, sync_frequency: e.target.value })}
-            disabled={saving}
-          >
-            <option value="hourly">Hourly</option>
-            <option value="6h">Every 6 hours</option>
-            <option value="12h">Every 12 hours</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </Select>
-        </FormField>
-      </div>
-
-      <div className="space-y-4 border-t border-[var(--border)] pt-4">
-        <ToggleOption
-          label="Enabled"
-          description="When disabled, these lists will not be synced automatically"
-          checked={form.enabled}
-          onChange={() => setForm({ ...form, enabled: !form.enabled })}
-          disabled={saving}
-        />
-
-        <ToggleOption
-          label="Auto download"
-          description="Automatically queue new videos for download"
-          checked={form.auto_download}
-          onChange={() => setForm({ ...form, auto_download: !form.auto_download })}
-          disabled={saving}
-        />
-      </div>
+      <ListOptionsFields
+        values={options}
+        profiles={profiles}
+        errors={optionErrors}
+        touched={optionsTouched}
+        minDurationRaw={minDurationRaw}
+        maxDurationRaw={maxDurationRaw}
+        disabled={saving}
+        onChange={handleOptionsChange}
+        onErrorChange={handleOptionErrorsChange}
+        onTouchedChange={handleOptionsTouchedChange}
+        onMinDurationRawChange={setMinDurationRaw}
+        onMaxDurationRawChange={setMaxDurationRaw}
+      />
 
       {result && (
         <div className="space-y-2 border-t border-[var(--border)] pt-4">
@@ -253,7 +267,7 @@ export function BulkListForm({ profiles, onSave, onCancel }: BulkListFormProps) 
         </button>
         <button
           type="submit"
-          disabled={saving || validUrls.length === 0 || !form.profile_id}
+          disabled={saving || validUrls.length === 0 || !options.profile_id || hasFieldErrors}
           className="rounded-md bg-[var(--accent)] p-2 text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Check size={18} />

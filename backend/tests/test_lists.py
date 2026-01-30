@@ -370,6 +370,122 @@ class TestCreateListsBulk:
         assert response.status_code == 202
         assert response.json()["count"] == 1
 
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_with_from_date(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create with from_date."""
+        mock_metadata.return_value = {"name": "Dated Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/datedchannel"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+                "from_date": "20240101",
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+    def test_bulk_create_invalid_from_date(self, client, sample_profile):
+        """Should reject bulk create with invalid from_date format."""
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/baddate"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+                "from_date": "invalid",
+            },
+        )
+        assert response.status_code == 400
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_with_blacklist_regex(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create with blacklist_regex."""
+        mock_metadata.return_value = {"name": "Blacklist Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/blacklistchannel"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+                "blacklist_regex": "live|stream",
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_with_duration_filters(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create with min/max duration."""
+        mock_metadata.return_value = {"name": "Duration Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/durationchannel"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "daily",
+                "enabled": True,
+                "auto_download": True,
+                "min_duration": 60,
+                "max_duration": 3600,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
+    @patch("app.routes.lists.YtDlpService.extract_list_metadata")
+    @patch("app.routes.lists.enqueue_task")
+    def test_bulk_create_with_all_options(
+        self, mock_enqueue, mock_metadata, client, sample_profile
+    ):
+        """Should accept bulk create with all optional fields."""
+        mock_metadata.return_value = {"name": "Full Options Channel"}
+
+        response = client.post(
+            "/api/lists/bulk",
+            json={
+                "urls": ["https://youtube.com/c/fulloptionschannel"],
+                "profile_id": sample_profile,
+                "list_type": "channel",
+                "sync_frequency": "weekly",
+                "enabled": False,
+                "auto_download": False,
+                "from_date": "20240601",
+                "blacklist_regex": "sponsor|ad",
+                "min_duration": 120,
+                "max_duration": 7200,
+            },
+        )
+
+        assert response.status_code == 202
+        assert response.json()["count"] == 1
+
 
 class TestListAll:
     """Tests for GET /api/lists."""

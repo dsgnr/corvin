@@ -584,6 +584,10 @@ def _create_lists_bulk_background(
     sync_frequency: str,
     enabled: bool,
     auto_download: bool,
+    from_date: str | None = None,
+    blacklist_regex: str | None = None,
+    min_duration: int | None = None,
+    max_duration: int | None = None,
 ):
     """Create multiple lists in a background thread."""
     with SessionLocal() as db:
@@ -606,6 +610,10 @@ def _create_lists_bulk_background(
                     sync_frequency=sync_frequency,
                     enabled=enabled,
                     auto_download=auto_download,
+                    from_date=from_date,
+                    blacklist_regex=blacklist_regex,
+                    min_duration=min_duration,
+                    max_duration=max_duration,
                     bulk=True,
                 )
                 broadcast(Channel.LISTS)
@@ -624,6 +632,9 @@ def create_lists_bulk(
     if not db.get(Profile, payload.profile_id):
         raise NotFoundError("Profile", payload.profile_id)
 
+    # Validate from_date if provided
+    parsed_from_date = parse_from_date(payload.from_date) if payload.from_date else None
+
     background_tasks.add_task(
         _create_lists_bulk_background,
         payload.urls,
@@ -632,6 +643,10 @@ def create_lists_bulk(
         payload.sync_frequency,
         payload.enabled,
         payload.auto_download,
+        parsed_from_date,
+        payload.blacklist_regex,
+        payload.min_duration,
+        payload.max_duration,
     )
 
     return {"message": "Bulk list creation started", "count": len(payload.urls)}
