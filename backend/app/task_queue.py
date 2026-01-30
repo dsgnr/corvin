@@ -383,6 +383,8 @@ class TaskWorker:
         self, db, task, exception: Exception, attempt: int
     ) -> None:
         """Handle task failure with retry logic."""
+        import time
+
         from app.models.task import TaskLogLevel, TaskStatus
 
         error_msg = str(exception)
@@ -390,16 +392,17 @@ class TaskWorker:
         task.retry_count += 1
 
         if task.retry_count < task.max_retries:
-            task.status = TaskStatus.PENDING.value
-            task.started_at = None
             task.add_log(
                 db,
-                f"Failed (attempt {attempt}/{task.max_retries}): {error_msg}. Will retry.",
+                f"Failed (attempt {attempt}/{task.max_retries}): {error_msg}. "
+                f"Will retry in 10 seconds.",
                 TaskLogLevel.WARNING.value,
                 attempt,
             )
+            db.commit()
+
             logger.warning(
-                "Task %d failed (attempt %d/%d), will retry: %s",
+                "Task %d failed (attempt %d/%d), will retry in 10s: %s",
                 task.id,
                 task.retry_count,
                 task.max_retries,
@@ -413,6 +416,17 @@ class TaskWorker:
                 progress_service.mark_retrying(
                     task.entity_id, task.retry_count + 1, task.max_retries
                 )
+
+            broadcast(Channel.TASKS, Channel.TASKS_STATS)
+
+            # Wait before retrying to avoid hammering failing resources.
+            # I'm never a fan of sleeps, but since we're not using a 'proper'
+            # queue system that supports ETA, this is what we get.
+            time.sleep(10)
+
+            # Re-queue the task
+            task.status = TaskStatus.PENDING.value
+            task.started_at = None
         else:
             task.status = TaskStatus.FAILED.value
             task.completed_at = datetime.utcnow()

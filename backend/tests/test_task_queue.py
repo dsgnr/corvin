@@ -333,11 +333,15 @@ class TestTaskWorkerRetryLogic:
         db_session.commit()
 
         with patch("app.task_queue.broadcast"):
-            worker._handle_task_failure(db_session, task, Exception("Temp error"), 1)
+            with patch("time.sleep") as mock_sleep:
+                worker._handle_task_failure(
+                    db_session, task, Exception("Temp error"), 1
+                )
 
         assert task.status == TaskStatus.PENDING.value
         assert task.retry_count == 1
         assert task.started_at is None  # Reset for retry
+        mock_sleep.assert_called_once_with(10)
 
     def test_handle_task_failure_fails_at_max_retries(
         self, app, db_session, sample_list
