@@ -180,31 +180,6 @@ def _list_exists(db: Session, list_id: int) -> bool:
     return db.query(exists().where(VideoList.id == list_id)).scalar()
 
 
-def _get_list_stats(db: Session, list_id: int) -> dict:
-    """Get video statistics for a list."""
-    stats = (
-        db.query(
-            func.count(Video.id).label("total"),
-            func.count().filter(Video.downloaded.is_(True)).label("downloaded"),
-            func.count().filter(Video.error_message.isnot(None)).label("failed"),
-        )
-        .filter(Video.list_id == list_id)
-        .first()
-    )
-
-    total = stats.total or 0
-    downloaded = stats.downloaded or 0
-    failed = stats.failed or 0
-    pending = max(0, total - downloaded - failed)
-
-    return {
-        "total": total,
-        "downloaded": downloaded,
-        "failed": failed,
-        "pending": pending,
-    }
-
-
 def _fetch_video_stats(db: Session, list_id: int) -> dict:
     """Fetch list stats."""
     stats = (
