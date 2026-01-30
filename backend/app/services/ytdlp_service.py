@@ -7,8 +7,9 @@ and downloading individual videos based on the list profile configuration.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -494,17 +495,26 @@ class YtDlpService:
         from_date: datetime | None,
         on_video_fetched: Callable[[dict], None] | None = None,
     ) -> list[dict]:
-        """Fetch full metadata for videos in parallel."""
+        """
+        Fetch full metadata for videos in parallel.
+
+        When from_date is specified we'll send all the videos into the thread.
+        The threads use a shared Event object, so if we have the from_date specified,
+        we can stop early if we've reached that date.
+        """
         from_date_str = from_date.strftime("%Y%m%d") if from_date else None
+        stop_event = threading.Event()
         results = []
 
         with ThreadPoolExecutor(max_workers=MAX_METADATA_WORKERS) as executor:
             futures = {
-                executor.submit(cls._fetch_single_video, url, from_date_str): url
+                executor.submit(
+                    cls._fetch_single_video, url, from_date_str, stop_event
+                ): url
                 for url in video_urls
             }
 
-            for future in as_completed(futures):
+            for future in futures:
                 try:
                     video = future.result()
                     if video:
@@ -518,8 +528,27 @@ class YtDlpService:
         return results
 
     @classmethod
-    def _fetch_single_video(cls, url: str, from_date_str: str | None) -> dict | None:
-        """Fetch full metadata for a single video, filtering by date if specified."""
+    def _fetch_single_video(
+        cls,
+        url: str,
+        from_date_str: str | None,
+        stop_event: threading.Event | None = None,
+    ) -> dict | None:
+        """
+        Fetch full metadata for a single video, filtering by date if specified.
+
+        Args:
+            url: Video URL to fetch.
+            from_date_str: Optional date string (YYYYMMDD) to filter by.
+            stop_event: Optional threading event to signal/check early stop.
+
+        Returns:
+            Video dict if valid, None if filtered out or stopped.
+        """
+        # Skip if already stopped (another worker stopped the sync)
+        if stop_event and stop_event.is_set():
+            return None
+
         ydl_opts = {**_METADATA_OPTS}
 
         try:
@@ -530,7 +559,12 @@ class YtDlpService:
                 return None
 
             upload_date = info.get("upload_date")
+
+            # Filter by date if specified
             if from_date_str and upload_date and upload_date < from_date_str:
+                # Signal other workers to stop
+                if stop_event and not stop_event.is_set():
+                    stop_event.set()
                 return None
 
             return cls._parse_single_entry(info)

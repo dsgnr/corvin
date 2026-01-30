@@ -504,6 +504,109 @@ class TestFetchSingleVideo:
         # Should include because we can't determine if it's before from_date
         assert result is not None
 
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_sets_stop_event_on_old_video(self, mock_ydl_class):
+        """Should set stop_event when encountering video before from_date."""
+        import threading
+
+        mock_ydl = MagicMock()
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl.extract_info.return_value = {
+            "id": "old123",
+            "title": "Old Video",
+            "webpage_url": "https://youtube.com/watch?v=old123",
+            "upload_date": "20220101",
+        }
+
+        stop_event = threading.Event()
+        assert not stop_event.is_set()
+
+        YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=old123",
+            "20230101",
+            stop_event,
+        )
+
+        assert stop_event.is_set()
+
+    @patch("app.services.ytdlp_service.yt_dlp.YoutubeDL")
+    def test_skips_fetch_when_stopped(self, mock_ydl_class):
+        """Should skip fetching when stop_event is already set."""
+        import threading
+
+        stop_event = threading.Event()
+        stop_event.set()
+
+        result = YtDlpService._fetch_single_video(
+            "https://youtube.com/watch?v=abc123",
+            None,
+            stop_event,
+        )
+
+        assert result is None
+        mock_ydl_class.assert_not_called()
+
+
+class TestFetchMetadataParallel:
+    """Tests for YtDlpService._fetch_metadata_parallel method."""
+
+    @patch("app.services.ytdlp_service.YtDlpService._fetch_single_video")
+    def test_early_stop_skips_work(self, mock_fetch):
+        """Should skip fetching when stop_event is set by another worker."""
+
+        def mock_fetch_side_effect(url, from_date_str, stop_event):
+            # Check if already stopped
+            if stop_event and stop_event.is_set():
+                return None
+            idx = int(url.split("vid")[-1])
+            if idx == 1:
+                return {"video_id": "vid1", "title": "Video 1"}
+            else:
+                # Old video - set stop event
+                if stop_event:
+                    stop_event.set()
+                return None
+
+        mock_fetch.side_effect = mock_fetch_side_effect
+
+        from datetime import datetime
+
+        urls = [f"https://youtube.com/watch?v=vid{i}" for i in range(1, 11)]
+        results = YtDlpService._fetch_metadata_parallel(
+            urls, datetime(2024, 1, 1), None
+        )
+
+        # Should have at least 1 valid video (vid1)
+        # Due to parallel execution, exact count varies
+        assert len(results) >= 1
+        assert any(v["video_id"] == "vid1" for v in results)
+
+    @patch("app.services.ytdlp_service.YtDlpService._fetch_single_video")
+    def test_fetches_all_without_from_date(self, mock_fetch):
+        """Should fetch all videos when no from_date specified."""
+        mock_fetch.return_value = {"video_id": "vid1", "title": "Video"}
+
+        urls = [f"https://youtube.com/watch?v=vid{i}" for i in range(5)]
+        results = YtDlpService._fetch_metadata_parallel(urls, None, None)
+
+        assert len(results) == 5
+        assert mock_fetch.call_count == 5
+
+    @patch("app.services.ytdlp_service.YtDlpService._fetch_single_video")
+    def test_calls_callback_for_each_video(self, mock_fetch):
+        """Should call on_video_fetched callback for each valid video."""
+        mock_fetch.return_value = {"video_id": "vid1", "title": "Video"}
+
+        callback_videos = []
+
+        def callback(video):
+            callback_videos.append(video)
+
+        urls = ["https://youtube.com/watch?v=vid1", "https://youtube.com/watch?v=vid2"]
+        YtDlpService._fetch_metadata_parallel(urls, None, callback)
+
+        assert len(callback_videos) == 2
+
 
 class TestGetBestThumbnail:
     """Tests for YtDlpService._get_best_thumbnail method."""
